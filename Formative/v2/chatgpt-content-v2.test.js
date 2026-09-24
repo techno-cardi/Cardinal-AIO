@@ -147,6 +147,42 @@ const U = require('./chatgpt-content-v2.js');
     );
   }
 
+  // Mutations caused only by Cardinal's own bar must not schedule a
+  // destructive rescan. ChatGPT mutations still do.
+  {
+    const runtime = {
+      id: 'cardinal-test',
+      onMessage: { addListener() {}, removeListener() {} }
+    };
+    const scanner = {
+      scan() { return { messages: [], ignored: [] }; },
+      placementAnchor() { return { mode: 'append-end', anchor: null, parent: null, table: null }; },
+      isCardinalUiElement(node) { return node?.cardinal === true; },
+      insideCardinalUi(node) { return node?.insideCardinal === true; }
+    };
+    const bridge = U.createContentBridge({
+      document: { documentElement: {}, createElement() { return { style: {}, dataset: {}, addEventListener() {} }; } },
+      runtime,
+      scanner,
+      parser: {},
+      errorPresenter: {},
+      MutationObserver: null,
+      storage: null
+    });
+    assert.equal(
+      bridge.isOwnMutation({ target: {}, addedNodes: [{ cardinal: true }], removedNodes: [] }),
+      true
+    );
+    assert.equal(
+      bridge.isOwnMutation({ target: { insideCardinal: true }, addedNodes: [], removedNodes: [] }),
+      true
+    );
+    assert.equal(
+      bridge.isOwnMutation({ target: {}, addedNodes: [{ cardinal: false }], removedNodes: [] }),
+      false
+    );
+  }
+
   // Manual page analysis must acknowledge the popup and report what the scan
   // actually found instead of silently scheduling work with no response.
   {
