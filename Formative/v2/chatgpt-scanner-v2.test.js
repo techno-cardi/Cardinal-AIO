@@ -44,6 +44,11 @@ class MockNode {
     if (selector === '[data-turn]') return all.filter(n => n.getAttribute('data-turn'));
     if (selector === '[data-role]') return all.filter(n => n.getAttribute('data-role'));
     if (selector === '[data-message-author]') return all.filter(n => n.getAttribute('data-message-author'));
+    if (selector === '[data-chatgpt-search-unit-key]') return all.filter(n => n.getAttribute('data-chatgpt-search-unit-key'));
+    if (selector === '[data-content-search-unit-key]') return all.filter(n => n.getAttribute('data-content-search-unit-key'));
+    if (selector === '[data-conversation-role]') return all.filter(n => n.getAttribute('data-conversation-role'));
+    if (selector === '[data-markdown-text-style]') return all.filter(n => n.getAttribute('data-markdown-text-style'));
+    if (selector === '[data-user-message-bubble]') return all.filter(n => n.getAttribute('data-user-message-bubble') != null);
     if (selector === '[data-testid^="conversation-turn-"]') {
       return all.filter(n => String(n.getAttribute('data-testid') || '').startsWith('conversation-turn-'));
     }
@@ -296,6 +301,49 @@ function packageText(mode = 'full') {
   const result = S.scan(root, P);
   assert.equal(result.messages.length, 1);
   assert.equal(result.messages[0].parse.state, 'found');
+}
+
+
+
+// ChatGPT 2026-09 can remove data-message-author-role while keeping explicit
+// search-unit message markers. Assistant packages must still be discovered.
+{
+  const root = new MockNode('main');
+  root.append(new MockNode('div', {
+    attrs: { 'data-chatgpt-search-unit-key': 'conversation:assistant' },
+    text: packageText(),
+    order: 40
+  }));
+  const result = S.scan(root, P);
+  assert.equal(result.messages.length, 1);
+  assert.equal(result.messages[0].parse.state, 'found');
+}
+
+// Alternative current marker used by some ChatGPT surfaces.
+{
+  const root = new MockNode('main');
+  root.append(new MockNode('div', {
+    attrs: { 'data-markdown-text-style': 'assistant-message' },
+    text: packageText(),
+    order: 40
+  }));
+  const result = S.scan(root, P);
+  assert.equal(result.messages.length, 1);
+  assert.equal(result.messages[0].parse.state, 'found');
+}
+
+// New user bubble marker remains fail-closed even if it contains a valid
+// Cardinal package copied by the teacher.
+{
+  const root = new MockNode('main');
+  root.append(new MockNode('div', {
+    attrs: { 'data-user-message-bubble': '' },
+    text: packageText(),
+    order: 40
+  }));
+  const result = S.scan(root, P);
+  assert.equal(result.messages.length, 0);
+  assert.equal(result.ignored.some(row => row.reason === 'user-message'), true);
 }
 
 console.log('chatgpt-scanner-v2: all tests passed');
