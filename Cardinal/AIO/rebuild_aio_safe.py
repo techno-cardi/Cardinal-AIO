@@ -389,10 +389,57 @@ def patch_user_verified_118_chatgpt_batch_binding(chatgpt: Path) -> None:
         label="Gestion 1.1.8 exact batch wins over inferred question",
     )
 
+    text = replace_exactly(
+        text,
+        """    if(turn.matches?.('[data-testid="user-message"]') || turn.querySelector?.('[data-testid="user-message"]')) return 'user';
+    if(turn.matches?.('[data-testid="assistant-message"]') || turn.querySelector?.('[data-testid="assistant-message"]')) return 'assistant';
+
+    const testid=String(turn.getAttribute?.('data-testid')||'').toLowerCase();
+""",
+        """    if(turn.matches?.('[data-testid="user-message"]') || turn.querySelector?.('[data-testid="user-message"]')) return 'user';
+    if(turn.matches?.('[data-testid="assistant-message"]') || turn.querySelector?.('[data-testid="assistant-message"]')) return 'assistant';
+
+    if(/:assistant$/i.test(String(turn.getAttribute?.('data-chatgpt-search-unit-key')||''))) return 'assistant';
+    if(/:assistant$/i.test(String(turn.getAttribute?.('data-content-search-unit-key')||''))) return 'assistant';
+    if(turn.hasAttribute?.('data-user-message-bubble') || turn.querySelector?.('[data-user-message-bubble]')) return 'user';
+
+    const testid=String(turn.getAttribute?.('data-testid')||'').toLowerCase();
+""",
+        label="Gestion 1.1.8 current ChatGPT role markers",
+    )
+
+    text = replace_exactly(
+        text,
+        """      const outer=all.filter(node=>!all.some(other=>other!==node && other.contains(node)));
+      return outer.length ? outer : all;
+    }
+    return [];
+  }
+""",
+        """      const outer=all.filter(node=>!all.some(other=>other!==node && other.contains(node)));
+      return outer.length ? outer : all;
+    }
+
+    const units=[...document.querySelectorAll(
+      '[data-chatgpt-search-unit-key$=":assistant"],[data-content-search-unit-key$=":assistant"],[data-user-message-bubble]'
+    )];
+    if(units.length){
+      const outer=units.filter(node=>!units.some(other=>other!==node && other.contains(node)));
+      return outer.length ? outer : units;
+    }
+    return [];
+  }
+""",
+        label="Gestion 1.1.8 current ChatGPT turn discovery",
+    )
+
     for marker in (
         "function questionNumberForBatch(batchId)",
         "exactBatchBinding=!!conversationBatch && conversationBatch===expectedBatch;",
         "if(!exactBatchBinding && conversationQ && targetQ",
+        "data-chatgpt-search-unit-key",
+        "data-content-search-unit-key",
+        "data-user-message-bubble",
     ):
         if marker not in text:
             raise BaselineContractError(
