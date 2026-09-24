@@ -319,19 +319,29 @@
       const whole = group.candidates.find(row => row.wholeMessage === true);
       const messageText = visibleText(group.messageRoot) || whole?.text || '';
       const sentinel = parser.SENTINEL || 'CARDINAL_FORMATIVE_PACKAGE_V2';
-      let parseFromMessage = messageText.includes(sentinel);
-      let parsed = parser.parseCandidates(
-        parseFromMessage ? [messageText] : markedBlocks.map(row => row.text), options
-      );
+      let parseFromMessage = false;
+      let parsed;
 
-      if (!parseFromMessage && markedBlocks.length === 0 && whole?.text) {
-        parsed = parser.parseCandidates([whole.text], options);
-        parseFromMessage = true;
-      } else if (!parseFromMessage && parsed.state === 'invalid' && messageText.includes(sentinel)) {
-        const combined = parser.parseCandidates([messageText], options);
-        if (combined.state === 'found' || combined.state === 'ambiguous') {
-          parsed = combined;
+      // More than one complete technical package in one assistant answer is
+      // an explicit ambiguity. Parse the blocks independently before any
+      // message-level concatenation can blur that distinction.
+      if (markedBlocks.length > 1) {
+        parsed = parser.parseCandidates(markedBlocks.map(row => row.text), options);
+      } else {
+        parseFromMessage = messageText.includes(sentinel);
+        parsed = parser.parseCandidates(
+          parseFromMessage ? [messageText] : markedBlocks.map(row => row.text), options
+        );
+
+        if (!parseFromMessage && markedBlocks.length === 0 && whole?.text) {
+          parsed = parser.parseCandidates([whole.text], options);
           parseFromMessage = true;
+        } else if (!parseFromMessage && parsed.state === 'invalid' && messageText.includes(sentinel)) {
+          const combined = parser.parseCandidates([messageText], options);
+          if (combined.state === 'found' || combined.state === 'ambiguous') {
+            parsed = combined;
+            parseFromMessage = true;
+          }
         }
       }
 
