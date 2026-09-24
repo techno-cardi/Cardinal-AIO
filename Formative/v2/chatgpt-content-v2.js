@@ -93,6 +93,74 @@
     }
   }
 
+  function questionSelectionRows(pkg = {}) {
+    return [...(pkg?.items || [])]
+      .filter(item => item?.kind === 'question' && item?.id)
+      .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
+      .map((item, index) => ({
+        id: String(item.id),
+        number: oneLine(item?.source?.number) || String(index + 1),
+        prompt: oneLine(item.prompt),
+        points: Number(item?.points?.value || 0),
+        subtype: item.subtype || null
+      }));
+  }
+
+  function buildSelectedQuestionPackage(pkg = {}, selectedIds = []) {
+    const rows = questionSelectionRows(pkg);
+    const allIds = rows.map(row => row.id);
+    const available = new Set(allIds);
+    const selected = [...new Set((selectedIds || []).map(String))];
+
+    if (!selected.length) {
+      const error = new Error('Choisis au moins une question à importer.');
+      error.code = 'QUESTION_SELECTION_EMPTY';
+      throw error;
+    }
+
+    const unknown = selected.filter(id => !available.has(id));
+    if (unknown.length) {
+      const error = new Error(`Sélection inconnue: ${unknown.join(', ')}`);
+      error.code = 'QUESTION_SELECTION_UNKNOWN';
+      error.unknownQuestionIds = unknown;
+      throw error;
+    }
+
+    if (selected.length === allIds.length && allIds.every(id => selected.includes(id))) {
+      return { pkg, partial: false, selectedQuestionIds: allIds };
+    }
+
+    const selectedSet = new Set(selected);
+    const clone = JSON.parse(JSON.stringify(pkg));
+    clone.packageMode = 'patch';
+    clone.items = (clone.items || []).filter(item =>
+      item?.kind === 'question' && selectedSet.has(String(item.id))
+    );
+
+    // A subset is not the complete assessment anymore. Keeping the original
+    // declared total would be misleading for downstream validation/reporting.
+    if (clone.assessment && typeof clone.assessment === 'object') {
+      delete clone.assessment.declaredTotalPoints;
+    }
+
+    // Item-specific issues for unselected questions are irrelevant. A full-
+    // assessment total mismatch is also irrelevant in patch mode.
+    clone.issues = (clone.issues || []).filter(issue => {
+      if (issue?.code === 'TOTAL_POINTS_MISMATCH') return false;
+      if (issue?.itemId) return selectedSet.has(String(issue.itemId));
+      return true;
+    });
+
+    return { pkg: clone, partial: true, selectedQuestionIds: selected };
+  }
+
+  function shouldOfferQuestionSelection(record, view = {}) {
+    if (!record || record.selectionConfirmed === true) return false;
+    const actionId = view?.primaryAction?.id;
+    if (!['import', 'import-review', 'reimport'].includes(actionId)) return false;
+    return questionSelectionRows(record.pkg).length > 1;
+  }
+
   function createContentBridge(options = {}) {
     const doc = required(options.document || globalThis.document, 'document');
     const runtime = required(options.runtime || globalThis.chrome?.runtime, 'chrome.runtime');
@@ -260,6 +328,128 @@
       record.shell.appendChild(list);
     }
 
+
+    function renderQuestionSelector(record) {
+      const rows = questionSelectionRows(record.pkg);
+      if (rows.length <= 1) return false;
+
+      const previousResponse = record.response;
+      record.shell.replaceChildren();
+
+      const title = element('div', 'Choisir les questions à importer');
+      title.style.fontWeight = '650';
+      const note = element(
+        'div',
+        'Les questions non cochées ne seront ni créées, ni modifiées, ni supprimées. Un import partiel est traité comme une mise à jour ciblée.'
+      );
+      note.style.marginTop = '3px';
+      note.style.opacity = '.78';
+      note.style.fontSize = '12px';
+      record.shell.append(title, note);
+
+      const controls = element('div');
+      controls.style.display = 'flex';
+      controls.style.gap = '7px';
+      controls.style.marginTop = '9px';
+
+      const selectAll = element('button', 'Tout sélectionner');
+      selectAll.type = 'button';
+      const selectNone = element('button', 'Tout enlever');
+      selectNone.type = 'button';
+      controls.append(selectAll, selectNone);
+      record.shell.appendChild(controls);
+
+      const list = element('div');
+      list.style.display = 'grid';
+      list.style.gap = '7px';
+      list.style.marginTop = '9px';
+      const inputs = [];
+
+      for (const row of rows) {
+        const label = element('label');
+        label.style.display = 'grid';
+        label.style.gridTemplateColumns = 'auto 1fr';
+        label.style.gap = '8px';
+        label.style.alignItems = 'start';
+
+        const input = element('input');
+        input.type = 'checkbox';
+        input.checked = true;
+        input.value = row.id;
+        inputs.push(input);
+
+        const body = element('div');
+        const heading = element(
+          'div',
+          `Q${row.number} · ${row.points} pt${row.points === 1 ? '' : 's'}`
+        );
+        heading.style.fontWeight = '600';
+        const prompt = element('div', row.prompt || row.id);
+        prompt.style.fontSize = '12px';
+        prompt.style.opacity = '.82';
+        body.append(heading, prompt);
+        label.append(input, body);
+        list.appendChild(label);
+      }
+      record.shell.appendChild(list);
+
+      const status = element('div');
+      status.style.marginTop = '8px';
+      status.style.fontSize = '12px';
+      status.style.opacity = '.78';
+
+      function selectedIds() {
+        return inputs.filter(input => input.checked).map(input => String(input.value));
+      }
+      function updateStatus() {
+        const count = selectedIds().length;
+        status.textContent = `${count} question${count === 1 ? '' : 's'} sélectionnée${count === 1 ? '' : 's'} sur ${rows.length}`;
+      }
+      for (const input of inputs) input.addEventListener('change', updateStatus);
+      selectAll.addEventListener('click', () => {
+        inputs.forEach(input => { input.checked = true; });
+        updateStatus();
+      });
+      selectNone.addEventListener('click', () => {
+        inputs.forEach(input => { input.checked = false; });
+        updateStatus();
+      });
+      updateStatus();
+      record.shell.appendChild(status);
+
+      const actions = element('div');
+      actions.style.display = 'flex';
+      actions.style.gap = '8px';
+      actions.style.marginTop = '10px';
+
+      const cancel = element('button', 'Annuler');
+      cancel.type = 'button';
+      cancel.addEventListener('click', () => renderResponse(record, previousResponse));
+
+      const confirm = element('button', 'Continuer');
+      confirm.type = 'button';
+      confirm.addEventListener('click', async () => {
+        try {
+          const selection = buildSelectedQuestionPackage(record.pkg, selectedIds());
+          record.selectionConfirmed = true;
+          record.selectedQuestionIds = selection.selectedQuestionIds;
+          record.activePkg = selection.pkg;
+          const target = {
+            requestedTabId: previousResponse?.targetTabId,
+            requestedTargetId: previousResponse?.targetFormativeId
+          };
+          await prepare(record, target, selection.pkg);
+        } catch (error) {
+          status.textContent = error?.message || String(error);
+          status.style.opacity = '1';
+        }
+      });
+
+      actions.append(cancel, confirm);
+      record.shell.appendChild(actions);
+      return true;
+    }
+
     function correctionPanel(record, view) {
       const panel = element('div');
       panel.dataset.cardinalFormativeReview = '1';
@@ -400,14 +590,23 @@
         record.shell.appendChild(button);
       }
       if (response.state === 'ready') setProgress(record, { percent: 42, label: 'Prêt à importer' });
-      if (response.state === 'completed') setProgress(record, { percent: 100, label: 'Import vérifié' });
+      if (response.state === 'completed') {
+        setProgress(record, { percent: 100, label: 'Import vérifié' });
+        // A later reimport is a fresh decision. Re-open the selector and start
+        // from the original package rather than silently reusing a past subset.
+        record.selectionConfirmed = false;
+        record.selectedQuestionIds = null;
+        record.activePkg = record.pkg;
+      }
     }
 
-    async function prepare(record, target = {}) {
+    async function prepare(record, target = {}, pkgOverride = null) {
       record.shell.replaceChildren(element('div', 'Cardinal vérifie le questionnaire et le Formative ouvert…'));
       try {
+        const pkgToPrepare = pkgOverride || record.activePkg || record.pkg;
+        record.activePkg = pkgToPrepare;
         const response = await send('CARDINAL_FORMATIVE_IMPORT_PREPARE', {
-          pkg: record.pkg,
+          pkg: pkgToPrepare,
           ...target
         });
         renderResponse(record, response);
@@ -420,6 +619,12 @@
     async function act(record, button) {
       if (!record.token) return;
       const view = record.response?.view || {};
+
+      if (shouldOfferQuestionSelection(record, view)) {
+        renderQuestionSelector(record);
+        return;
+      }
+
       const intent = actionIntent(view, record.reviewAcknowledged === true);
 
       if (intent.command === 'OPEN_REVIEW') {
@@ -557,7 +762,10 @@
           technicalNode: row.message.technicalNode,
           token: null,
           response: null,
-          reviewAcknowledged: false
+          reviewAcknowledged: false,
+          activePkg: row.parsed.pkg,
+          selectionConfirmed: false,
+          selectedQuestionIds: null
         };
         record.shell = insertShell(record);
         bars.set(sig, record);
@@ -647,6 +855,9 @@
     invalidContextMessage,
     summarizeView,
     actionIntent,
+    questionSelectionRows,
+    buildSelectedQuestionPackage,
+    shouldOfferQuestionSelection,
     createContentBridge
   };
 
