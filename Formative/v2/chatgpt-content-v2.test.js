@@ -131,6 +131,20 @@ const U = require('./chatgpt-content-v2.js');
       () => U.buildSelectedQuestionPackage(original, ['q404']),
       error => error.code === 'QUESTION_SELECTION_UNKNOWN'
     );
+    assert.equal(
+      U.shouldOfferQuestionSelection(
+        { pkg: original, selectionConfirmed: false },
+        { primaryAction: { id: 'import' } }
+      ),
+      true
+    );
+    assert.equal(
+      U.shouldOfferQuestionSelection(
+        { pkg: original, selectionConfirmed: true },
+        { primaryAction: { id: 'import' } }
+      ),
+      false
+    );
   }
 
   // Manual page analysis must acknowledge the popup and report what the scan
