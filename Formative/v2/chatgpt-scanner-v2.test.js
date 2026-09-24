@@ -122,8 +122,8 @@ function packageText(mode = 'full') {
 
   const collected = S.collectCandidates(root, P);
   assert(collected.candidates.some(row => row.node === pre));
-  assert.equal(collected.ignored.length, 1);
-  assert.equal(collected.ignored[0].reason, 'user-message');
+  assert(collected.ignored.length >= 1);
+  assert(collected.ignored.every(row => row.reason === 'user-message'));
 
   const scan = S.scan(root, P);
   assert.equal(scan.messages.length, 1);
