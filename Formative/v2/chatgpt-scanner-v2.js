@@ -6,6 +6,11 @@
     '[data-turn]',
     '[data-role]',
     '[data-message-author]',
+    '[data-chatgpt-search-unit-key]',
+    '[data-content-search-unit-key]',
+    '[data-conversation-role]',
+    '[data-markdown-text-style]',
+    '[data-user-message-bubble]',
     '[data-testid^="conversation-turn-"]',
     'article'
   ]);
@@ -22,13 +27,26 @@
 
   function roleAttr(node) {
     if (!node || typeof node.getAttribute !== 'function') return null;
-    for (const name of ['data-message-author-role', 'data-turn', 'data-role', 'data-message-author']) {
+    for (const name of ['data-message-author-role', 'data-turn', 'data-role', 'data-message-author', 'data-conversation-role']) {
       const role = normalizedRole(node.getAttribute(name));
       if (role) return role;
     }
-    const cls = String(node.className || '');
+
+    for (const name of ['data-chatgpt-search-unit-key', 'data-content-search-unit-key']) {
+      const key = String(node.getAttribute(name) || '');
+      const match = key.match(/:(assistant|user)$/i);
+      if (match) return match[1].toLowerCase();
+    }
+
+    const markdownStyle = String(node.getAttribute('data-markdown-text-style') || '').toLowerCase();
+    if (markdownStyle === 'assistant-message') return 'assistant';
+    if (/user/.test(markdownStyle)) return 'user';
+    if (node.getAttribute('data-user-message-bubble') != null) return 'user';
+
+    const cls = String(node.className || node.getAttribute('class') || '');
     if (/(?:^|\s)agent-turn(?:\s|$)/i.test(cls)) return 'assistant';
     if (/(?:^|\s)user-turn(?:\s|$)/i.test(cls)) return 'user';
+    if (/(?:^|\s|\/)(?:bg-|text-|group\/)?user-message(?:\s|$)/i.test(cls)) return 'user';
     return null;
   }
 
@@ -65,7 +83,17 @@
     const roles = new Set();
     const own = roleAttr(node);
     if (own) roles.add(own);
-    for (const selector of ['[data-message-author-role]', '[data-turn]', '[data-role]', '[data-message-author]']) {
+    for (const selector of [
+      '[data-message-author-role]',
+      '[data-turn]',
+      '[data-role]',
+      '[data-message-author]',
+      '[data-chatgpt-search-unit-key]',
+      '[data-content-search-unit-key]',
+      '[data-conversation-role]',
+      '[data-markdown-text-style]',
+      '[data-user-message-bubble]'
+    ]) {
       for (const child of queryAll(node, selector)) {
         const role = roleAttr(child);
         if (role) roles.add(role);
