@@ -45,7 +45,7 @@ const Capabilities = require('./capabilities-v2.js');
     assert(text.includes('équivalence sémantique'));
     assert(text.includes('traitement cohérent'));
     assert(text.includes('chaque élément séparément'));
-    assert(text.includes('ambiguïté raisonnable'));
+    assert(text.includes('Ambiguïté raisonnable'));
     assert(text.includes('deuxième passe silencieuse'));
     assert(text.includes('source nécessaire manque'));
     assert(text.includes('référence pédagogique prioritaire'));
