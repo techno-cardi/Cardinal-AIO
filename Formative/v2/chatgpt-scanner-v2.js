@@ -326,7 +326,17 @@
       // an explicit ambiguity. Parse the blocks independently before any
       // message-level concatenation can blur that distinction.
       if (markedBlocks.length > 1) {
-        parsed = parser.parseCandidates(markedBlocks.map(row => row.text), options);
+        const individuallyFound = markedBlocks
+          .map(row => parser.parseCandidates([row.text], options))
+          .filter(result => result?.state === 'found').length;
+        if (individuallyFound > 1) {
+          parsed = parser.parseCandidates(markedBlocks.map(row => row.text), options);
+        } else {
+          parseFromMessage = messageText.includes(sentinel);
+          parsed = parser.parseCandidates(
+            parseFromMessage ? [messageText] : markedBlocks.map(row => row.text), options
+          );
+        }
       } else {
         parseFromMessage = messageText.includes(sentinel);
         parsed = parser.parseCandidates(
