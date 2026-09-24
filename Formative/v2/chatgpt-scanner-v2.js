@@ -1,15 +1,35 @@
 (() => {
   'use strict';
 
+  const TURN_SELECTORS = Object.freeze([
+    '[data-message-author-role]',
+    '[data-turn]',
+    '[data-role]',
+    '[data-message-author]',
+    '[data-testid^="conversation-turn-"]',
+    'article'
+  ]);
+
   function required(value, name) {
     if (!value) throw new Error(`${name} dependency required`);
     return value;
   }
 
+  function normalizedRole(value) {
+    const role = value == null ? '' : String(value).trim().toLowerCase();
+    return role === 'assistant' || role === 'user' ? role : null;
+  }
+
   function roleAttr(node) {
     if (!node || typeof node.getAttribute !== 'function') return null;
-    const value = node.getAttribute('data-message-author-role');
-    return value ? String(value).toLowerCase() : null;
+    for (const name of ['data-message-author-role', 'data-turn', 'data-role', 'data-message-author']) {
+      const role = normalizedRole(node.getAttribute(name));
+      if (role) return role;
+    }
+    const cls = String(node.className || '');
+    if (/(?:^|\s)agent-turn(?:\s|$)/i.test(cls)) return 'assistant';
+    if (/(?:^|\s)user-turn(?:\s|$)/i.test(cls)) return 'user';
+    return null;
   }
 
   function ancestorChain(node, limit = 30) {
@@ -30,31 +50,87 @@
     return null;
   }
 
+  function isConversationTurn(node) {
+    const testId = typeof node?.getAttribute === 'function' ? node.getAttribute('data-testid') : null;
+    return /^conversation-turn-/i.test(String(testId || ''));
+  }
+
+  function queryAll(node, selector) {
+    if (!node || typeof node.querySelectorAll !== 'function') return [];
+    try { return [...node.querySelectorAll(selector)]; }
+    catch { return []; }
+  }
+
+  function descendantRoles(node) {
+    const roles = new Set();
+    const own = roleAttr(node);
+    if (own) roles.add(own);
+    for (const selector of ['[data-message-author-role]', '[data-turn]', '[data-role]', '[data-message-author]']) {
+      for (const child of queryAll(node, selector)) {
+        const role = roleAttr(child);
+        if (role) roles.add(role);
+      }
+    }
+    return roles;
+  }
+
+  function hasAssistantAction(node) {
+    if (!node) return false;
+    if (queryAll(node, 'button[data-testid="copy-turn-action-button"]').length) return true;
+    try {
+      if (typeof node.querySelector === 'function') {
+        return Boolean(
+          node.querySelector('button[data-testid="copy-turn-action-button"]') ||
+          node.querySelector('button[aria-label*="Copy response" i]') ||
+          node.querySelector('button[aria-label*="Copier la réponse" i]')
+        );
+      }
+    } catch {}
+    return false;
+  }
+
+  function inferRole(node) {
+    const roles = descendantRoles(node);
+    if (roles.size === 1) return { role: [...roles][0], evidence: 'explicit-role' };
+    if (roles.size > 1) return { role: 'ambiguous', evidence: 'mixed-roles' };
+    if (hasAssistantAction(node)) return { role: 'assistant', evidence: 'assistant-action' };
+    return { role: 'unknown', evidence: 'unproven' };
+  }
+
+  function closestTurnShell(node) {
+    for (const current of ancestorChain(node, 20)) {
+      if (roleAttr(current)) return current;
+      if (isConversationTurn(current)) return current;
+      const tag = String(current?.tagName || '').toLowerCase();
+      if (tag === 'article') return current;
+      if (tag === 'section' && typeof current.getAttribute === 'function' && current.getAttribute('data-turn')) return current;
+    }
+    return null;
+  }
+
   function messageContext(node) {
-    // Strongest signal: an explicit author-role ancestor.
     for (const current of ancestorChain(node)) {
       const role = roleAttr(current);
       if (role) return { role, root: current, evidence: 'role-ancestor' };
     }
 
-    // ChatGPT has changed wrapper structure before. An article may contain the
-    // role marker as a sibling/descendant rather than an ancestor of <pre>.
-    // We only accept this fallback if exactly one author role is provable.
-    const article = closestArticle(node);
-    if (article && typeof article.querySelectorAll === 'function') {
-      const marked = [...article.querySelectorAll('[data-message-author-role]')];
-      const roles = new Set(marked.map(roleAttr).filter(Boolean));
-      if (roles.size === 1) {
-        return { role: [...roles][0], root: article, evidence: 'article-descendant-role' };
-      }
-      if (roles.size > 1) {
-        return { role: 'ambiguous', root: article, evidence: 'article-mixed-roles' };
+    const shell = closestTurnShell(node);
+    if (shell) {
+      const inferred = inferRole(shell);
+      if (inferred.role !== 'unknown') {
+        return { role: inferred.role, root: shell, evidence: inferred.evidence };
       }
     }
 
-    // Fail closed. A package pasted by the user must never become executable
-    // just because ChatGPT changed an unrelated CSS class.
-    return { role: 'unknown', root: article, evidence: 'unproven' };
+    const article = closestArticle(node);
+    if (article && typeof article.querySelectorAll === 'function') {
+      const roles = descendantRoles(article);
+      if (roles.size === 1) return { role: [...roles][0], root: article, evidence: 'article-descendant-role' };
+      if (roles.size > 1) return { role: 'ambiguous', root: article, evidence: 'article-mixed-roles' };
+      if (hasAssistantAction(article)) return { role: 'assistant', root: article, evidence: 'assistant-action' };
+    }
+
+    return { role: 'unknown', root: shell || article, evidence: 'unproven' };
   }
 
   function canonicalTechnicalNode(node) {
@@ -70,7 +146,20 @@
   }
 
   function textOf(node) {
-    return String(node?.textContent || node?.innerText || '');
+    return String(node?.innerText || node?.textContent || '');
+  }
+
+  function collectTurnRoots(root) {
+    const out = [];
+    const seen = new Set();
+    for (const selector of TURN_SELECTORS) {
+      for (const node of queryAll(root, selector)) {
+        if (!node || seen.has(node)) continue;
+        seen.add(node);
+        out.push(node);
+      }
+    }
+    return out;
   }
 
   function collectCandidates(root, parser) {
@@ -79,12 +168,33 @@
     if (typeof root.querySelectorAll !== 'function') throw new Error('root.querySelectorAll required');
 
     const sentinel = parser.SENTINEL || 'CARDINAL_FORMATIVE_PACKAGE_V2';
-    const rawNodes = [...root.querySelectorAll('pre, code')];
     const seenNodes = new Set();
     const candidates = [];
     const ignored = [];
 
-    for (const rawNode of rawNodes) {
+    for (const rawRoot of collectTurnRoots(root)) {
+      const context = inferRole(rawRoot);
+      const text = textOf(rawRoot);
+      if (!text.includes(sentinel)) continue;
+      if (context.role !== 'assistant') {
+        ignored.push({
+          node: rawRoot,
+          context: { ...context, root: rawRoot },
+          reason: context.role === 'user' ? 'user-message' : 'assistant-not-proven'
+        });
+        continue;
+      }
+      candidates.push({
+        node: null,
+        text,
+        messageRoot: rawRoot,
+        context: { ...context, root: rawRoot },
+        markerInBlock: false,
+        wholeMessage: true
+      });
+    }
+
+    for (const rawNode of queryAll(root, 'pre, code')) {
       const node = canonicalTechnicalNode(rawNode);
       if (!node || seenNodes.has(node)) continue;
       seenNodes.add(node);
@@ -97,7 +207,7 @@
         ignored.push({ node, context, reason: context.role === 'user' ? 'user-message' : 'assistant-not-proven' });
         continue;
       }
-      candidates.push({ node, text, messageRoot: context.root, context, markerInBlock });
+      candidates.push({ node, text, messageRoot: context.root, context, markerInBlock, wholeMessage: false });
     }
 
     return { candidates, ignored };
@@ -119,19 +229,33 @@
     return groups;
   }
 
+  function findTechnicalNode(messageRoot, rawJson) {
+    if (!messageRoot || !rawJson) return null;
+    const seen = new Set();
+    for (const rawNode of queryAll(messageRoot, 'pre, code')) {
+      const node = canonicalTechnicalNode(rawNode);
+      if (!node || seen.has(node)) continue;
+      seen.add(node);
+      if (textOf(node).includes(rawJson)) return node;
+    }
+    return null;
+  }
+
   function scan(root, parser, options = {}) {
     const collected = collectCandidates(root, parser);
     const groups = groupByMessage(collected.candidates);
     const messages = groups.map(group => {
       const markedBlocks = group.candidates.filter(row => row.markerInBlock);
-      const messageText = textOf(group.messageRoot);
-      let parseFromMessage = markedBlocks.length === 0;
+      const whole = group.candidates.find(row => row.wholeMessage === true);
+      const messageText = textOf(group.messageRoot) || whole?.text || '';
+      const sentinel = parser.SENTINEL || 'CARDINAL_FORMATIVE_PACKAGE_V2';
+      let parseFromMessage = messageText.includes(sentinel);
       let parsed = parser.parseCandidates(
         parseFromMessage ? [messageText] : markedBlocks.map(row => row.text), options
       );
-      const sentinel = parser.SENTINEL || 'CARDINAL_FORMATIVE_PACKAGE_V2';
-      if (!parseFromMessage && messageText.split(sentinel).length > 2) {
-        parsed = parser.parseCandidates([messageText], options);
+
+      if (!parseFromMessage && markedBlocks.length === 0 && whole?.text) {
+        parsed = parser.parseCandidates([whole.text], options);
         parseFromMessage = true;
       } else if (!parseFromMessage && parsed.state === 'invalid' && messageText.includes(sentinel)) {
         const combined = parser.parseCandidates([messageText], options);
@@ -140,11 +264,15 @@
           parseFromMessage = true;
         }
       }
+
       const technicalNode = parseFromMessage
-        ? group.candidates.find(row => parsed?.package?.rawJson && row.text.includes(parsed.package.rawJson))?.node || group.candidates.at(-1)?.node || null
+        ? findTechnicalNode(group.messageRoot, parsed?.package?.rawJson) ||
+          group.candidates.find(row => row.node && parsed?.package?.rawJson && row.text.includes(parsed.package.rawJson))?.node ||
+          null
         : parsed?.package
           ? markedBlocks[parsed.package.candidateIndex]?.node || null
           : markedBlocks[0]?.node || null;
+
       return {
         messageRoot: group.messageRoot,
         technicalNode,
@@ -158,14 +286,13 @@
   function isBefore(a, b) {
     if (!a || !b || a === b || typeof a.compareDocumentPosition !== 'function') return false;
     const position = a.compareDocumentPosition(b);
-    // Node.DOCUMENT_POSITION_FOLLOWING = 4. Avoid referencing Node in service
-    // worker/unit tests where the DOM global does not exist.
     return Boolean(position & 4);
   }
 
   function lastTableBefore(messageRoot, technicalNode) {
     if (!messageRoot || typeof messageRoot.querySelectorAll !== 'function') return null;
     const tables = [...messageRoot.querySelectorAll('table')];
+    if (!technicalNode) return tables.at(-1) || null;
     let selected = null;
     for (const table of tables) {
       if (isBefore(table, technicalNode)) selected = table;
@@ -194,22 +321,19 @@
     return current === ancestor ? previous : null;
   }
 
-  // Returns the branch after which the importer UI should be inserted. This
-  // keeps the bar below the human validation table instead of inside table DOM
-  // or above the whole assistant response.
   function placementAnchor(messageRoot, technicalNode) {
     const table = lastTableBefore(messageRoot, technicalNode);
     if (!table) {
+      if (!technicalNode) {
+        return { mode: 'append-end', anchor: null, parent: messageRoot || null, table: null };
+      }
       const parent = technicalNode?.parentElement || null;
-      return {
-        mode: 'before-technical',
-        anchor: technicalNode || null,
-        parent,
-        table: null
-      };
+      return { mode: 'before-technical', anchor: technicalNode || null, parent, table: null };
     }
 
-    const lca = lowestCommonAncestor(table, technicalNode, messageRoot) || messageRoot;
+    const lca = technicalNode
+      ? (lowestCommonAncestor(table, technicalNode, messageRoot) || messageRoot)
+      : (messageRoot || table.parentElement || null);
     const tableBranch = directChildUnder(lca, table) || table;
     return {
       mode: 'after-validation-table',
@@ -220,14 +344,23 @@
   }
 
   const api = {
+    TURN_SELECTORS,
+    normalizedRole,
     roleAttr,
     ancestorChain,
     closestArticle,
+    isConversationTurn,
+    descendantRoles,
+    hasAssistantAction,
+    inferRole,
+    closestTurnShell,
     messageContext,
     canonicalTechnicalNode,
     textOf,
+    collectTurnRoots,
     collectCandidates,
     groupByMessage,
+    findTechnicalNode,
     scan,
     isBefore,
     lastTableBefore,
