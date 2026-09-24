@@ -244,6 +244,7 @@ function baselineFor(sourcePkg, target = 'F') {
       executionPlan: prepared0.plannerOperations,
       operations: executor.makeJournalOperations(prepared0.plannerOperations)
     });
+    await persistence.saveJournal(stuck);
     stuck = journal.markBlocked(
       stuck,
       stuck.operations[0].operationId,
