@@ -174,7 +174,47 @@
   }
 
   function textOf(node) {
-    return String(node?.innerText || node?.textContent || '');
+    return String(node?.textContent || node?.innerText || '');
+  }
+
+  const CARDINAL_UI_ATTRIBUTES = Object.freeze([
+    'data-cardinal-ui',
+    'data-cardinal-formative-signature',
+    'data-cardinal-results-bar-v118',
+    'data-cardinal-results-bar-v119'
+  ]);
+
+  function isCardinalUiElement(node) {
+    if (!node || typeof node.getAttribute !== 'function') return false;
+    for (const name of CARDINAL_UI_ATTRIBUTES) {
+      if (node.getAttribute(name) != null) return true;
+    }
+    if (typeof node.getAttributeNames === 'function') {
+      try {
+        if (node.getAttributeNames().some(name => /^data-cardinal-results-bar/i.test(name))) return true;
+      } catch {}
+    }
+    const id = String(node.getAttribute('id') || node.id || '');
+    return /^cardinal/i.test(id);
+  }
+
+  function insideCardinalUi(node, boundary = null) {
+    for (const current of ancestorChain(node, 60)) {
+      if (isCardinalUiElement(current)) return true;
+      if (boundary && current === boundary) return false;
+    }
+    return false;
+  }
+
+  function visibleText(node) {
+    if (!node) return '';
+    if (node.nodeType === 3) return String(node.nodeValue ?? node.textContent ?? '');
+    if (isCardinalUiElement(node)) return '';
+    const kids = node.childNodes || node.children;
+    if (!kids || typeof kids.length !== 'number' || kids.length === 0) return textOf(node);
+    let out = '';
+    for (const child of [...kids]) out += visibleText(child);
+    return out;
   }
 
   function collectTurnRoots(root) {
@@ -202,7 +242,8 @@
 
     for (const rawRoot of collectTurnRoots(root)) {
       const context = inferRole(rawRoot);
-      const text = textOf(rawRoot);
+      if (insideCardinalUi(rawRoot)) continue;
+      const text = visibleText(rawRoot);
       if (!text.includes(sentinel)) continue;
       if (context.role !== 'assistant') {
         ignored.push({
@@ -226,10 +267,11 @@
       const node = canonicalTechnicalNode(rawNode);
       if (!node || seenNodes.has(node)) continue;
       seenNodes.add(node);
-      const text = textOf(node);
+      if (insideCardinalUi(node)) continue;
+      const text = visibleText(node);
       const context = messageContext(node);
       const markerInBlock = text.includes(sentinel);
-      const markerInMessage = context.root && textOf(context.root).includes(sentinel);
+      const markerInMessage = context.root && visibleText(context.root).includes(sentinel);
       if (!markerInBlock && !markerInMessage) continue;
       if (context.role !== 'assistant') {
         ignored.push({ node, context, reason: context.role === 'user' ? 'user-message' : 'assistant-not-proven' });
@@ -264,7 +306,7 @@
       const node = canonicalTechnicalNode(rawNode);
       if (!node || seen.has(node)) continue;
       seen.add(node);
-      if (textOf(node).includes(rawJson)) return node;
+      if (visibleText(node).includes(rawJson)) return node;
     }
     return null;
   }
@@ -275,7 +317,7 @@
     const messages = groups.map(group => {
       const markedBlocks = group.candidates.filter(row => row.markerInBlock);
       const whole = group.candidates.find(row => row.wholeMessage === true);
-      const messageText = textOf(group.messageRoot) || whole?.text || '';
+      const messageText = visibleText(group.messageRoot) || whole?.text || '';
       const sentinel = parser.SENTINEL || 'CARDINAL_FORMATIVE_PACKAGE_V2';
       let parseFromMessage = messageText.includes(sentinel);
       let parsed = parser.parseCandidates(
@@ -373,6 +415,7 @@
 
   const api = {
     TURN_SELECTORS,
+    CARDINAL_UI_ATTRIBUTES,
     normalizedRole,
     roleAttr,
     ancestorChain,
@@ -385,6 +428,9 @@
     messageContext,
     canonicalTechnicalNode,
     textOf,
+    isCardinalUiElement,
+    insideCardinalUi,
+    visibleText,
     collectTurnRoots,
     collectCandidates,
     groupByMessage,
