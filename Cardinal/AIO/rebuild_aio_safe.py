@@ -389,6 +389,21 @@ def patch_user_verified_118_chatgpt_batch_binding(chatgpt: Path) -> None:
         label="Gestion 1.1.8 exact batch wins over inferred question",
     )
 
+    for marker in (
+        "function questionNumberForBatch(batchId)",
+        "exactBatchBinding=!!conversationBatch && conversationBatch===expectedBatch;",
+        "if(!exactBatchBinding && conversationQ && targetQ",
+    ):
+        if marker not in text:
+            raise BaselineContractError(
+                f"Correctif liaison ChatGPT multi-question 1.1.8 incomplet: {marker}"
+            )
+    chatgpt.write_text(text, encoding="utf-8")
+
+def patch_user_verified_118_chatgpt_current_ui(chatgpt: Path) -> None:
+    """Adapt the verified 1.1.8 ChatGPT bridge to explicit current UI markers."""
+    text = chatgpt.read_text(encoding="utf-8")
+
     text = replace_exactly(
         text,
         """    if(turn.matches?.('[data-testid="user-message"]') || turn.querySelector?.('[data-testid="user-message"]')) return 'user';
@@ -434,18 +449,16 @@ def patch_user_verified_118_chatgpt_batch_binding(chatgpt: Path) -> None:
     )
 
     for marker in (
-        "function questionNumberForBatch(batchId)",
-        "exactBatchBinding=!!conversationBatch && conversationBatch===expectedBatch;",
-        "if(!exactBatchBinding && conversationQ && targetQ",
         "data-chatgpt-search-unit-key",
         "data-content-search-unit-key",
         "data-user-message-bubble",
     ):
         if marker not in text:
             raise BaselineContractError(
-                f"Correctif liaison ChatGPT multi-question 1.1.8 incomplet: {marker}"
+                f"Correctif interface ChatGPT 1.1.8 incomplet: {marker}"
             )
     chatgpt.write_text(text, encoding="utf-8")
+
 
 def replace_exactly(text: str, old: str, new: str, *, label: str, expected: int = 1) -> str:
     count = text.count(old)
@@ -1092,6 +1105,7 @@ def assemble_from_extracted_baseline(
     original_chatgpt_sha256 = sha256(chatgpt_path)
     if gestion_version == "1.1.8":
         patch_user_verified_118_chatgpt_batch_binding(chatgpt_path)
+        patch_user_verified_118_chatgpt_current_ui(chatgpt_path)
     patched_chatgpt_sha256 = sha256(chatgpt_path)
     validated_core_hashes = snapshot_core_hashes(dist)
 
