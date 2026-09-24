@@ -11,6 +11,7 @@ class MockNode {
     this.textContent = options.text || '';
     this.children = [];
     this.parentElement = null;
+    this.style = {};
     this.order = options.order || 0;
   }
   append(...nodes) {
@@ -20,8 +21,12 @@ class MockNode {
     }
     return this;
   }
+  get childNodes() { return this.children; }
   getAttribute(name) {
     return Object.prototype.hasOwnProperty.call(this.attrs, name) ? this.attrs[name] : null;
+  }
+  getAttributeNames() {
+    return Object.keys(this.attrs);
   }
   matches(selector) {
     return selector === 'article' && this.tagName === 'ARTICLE';
@@ -344,6 +349,42 @@ function packageText(mode = 'full') {
   const result = S.scan(root, P);
   assert.equal(result.messages.length, 0);
   assert.equal(result.ignored.some(row => row.reason === 'user-message'), true);
+}
+
+
+
+// Cardinal must keep finding the same package after it has rendered its own
+// bar and hidden the technical block. This reproduces the real "bar flashes
+// for one second then disappears" regression.
+{
+  const root = new MockNode('main');
+  const assistant = new MockNode('div', {
+    attrs: { 'data-chatgpt-search-unit-key': 'conversation:assistant' }
+  });
+  const markerLine = new MockNode('p', { text: P.SENTINEL, order: 10 });
+  const technical = new MockNode('pre', { text: packageText().split('\n')[1], order: 20 });
+  assistant.append(markerLine, technical);
+  root.append(assistant);
+
+  const before = S.scan(root, P);
+  assert.equal(before.messages.length, 1);
+  assert.equal(before.messages[0].parse.state, 'found');
+
+  technical.style.display = 'none';
+  const cardinalBar = new MockNode('div', {
+    attrs: { 'data-cardinal-formative-signature': 'sig-1' },
+    text: 'Importer dans Formative',
+    order: 15
+  });
+  assistant.children.splice(1, 0, cardinalBar);
+  cardinalBar.parentElement = assistant;
+
+  assert.equal(S.isCardinalUiElement(cardinalBar), true);
+  assert.equal(S.visibleText(assistant).includes('Importer dans Formative'), false);
+
+  const after = S.scan(root, P);
+  assert.equal(after.messages.length, 1);
+  assert.equal(after.messages[0].parse.state, 'found');
 }
 
 console.log('chatgpt-scanner-v2: all tests passed');
