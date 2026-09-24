@@ -1,3 +1,29 @@
+# RC4 - IMPORT CIBLÉ ET HISTORIQUE DE CORRECTION - 2026-09-24
+
+Candidate: `Cardinal AIO 1.2.0-rc4-g118`.
+
+## Import ciblé des questions
+
+Quand un paquet contient plusieurs questions, l'action d'import ouvre un petit sélecteur avec toutes les questions cochées par défaut.
+
+- sélection complète: le paquet `full` original est conservé;
+- sélection partielle: Cardinal génère un paquet `patch` contenant seulement les questions cochées;
+- les sections/consignes non cochées implicitement ne sont pas modifiées lors d'un import partiel;
+- les questions non sélectionnées ne deviennent jamais des suppressions proposées;
+- un questionnaire déjà importé reste modifiable: si le serveur correspond encore à la baseline et que le paquet a changé, le planner produit `UPDATE`; si le serveur est déjà au nouvel état, il produit `UNCHANGED`;
+- un vrai conflit simultané entre modification manuelle Formative et modification du paquet reste fail-closed;
+- si le paquet complet est bloqué ou demande une réconciliation, le bouton secondaire `Choisir les questions` permet de retirer une question problématique puis de refaire la préparation sur le sous-ensemble.
+
+## Historique des échanges Formative pendant la correction
+
+Le moteur historique de correction inclus dans l'AIO lit les `feedbackMessages` Formative avec `includeReplies:true`, distingue les messages `enseignant` et `élève`, et transmet les quatre derniers échanges de chaque réponse au prompt sous `Échanges précédents dans Formative`.
+
+Le prompt demande explicitement à ChatGPT d'en tenir compte, de ne pas répéter inutilement une rétroaction déjà donnée et de ne jamais prétendre qu'un échange a eu lieu s'il n'est pas fourni.
+
+La CI RC4 inspecte le ZIP final et bloque la publication si ces marqueurs disparaissent de `legacy-service-worker.js` ou de `formative.js`.
+
+---
+
 # MISE À JOUR CHATGPT / FORMATIVE - 2026-09-24
 
 État validé sur la branche `cardinal/chatgpt-resilient-scanner-20260924`.
