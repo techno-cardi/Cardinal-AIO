@@ -1,0 +1,606 @@
+{
+  "schema": "cardinal.formative/2",
+  "protocolVersion": "2.0.0",
+  "packageMode": "full",
+  "assessment": {
+    "title": "Les classes de mots variables",
+    "language": "fr-CA",
+    "sourceMode": "external-reference-only",
+    "declaredTotalPoints": {
+      "value": 30,
+      "provenance": "provided"
+    }
+  },
+  "sources": [
+    {
+      "id": "chat-exam",
+      "role": "questionnaire",
+      "label": "Examen produit dans la conversation ChatGPT",
+      "status": "provided"
+    },
+    {
+      "id": "chat-key",
+      "role": "answerKey",
+      "label": "Corrigé fourni dans la même conversation",
+      "status": "provided"
+    }
+  ],
+  "items": [
+    {
+      "id": "section-1",
+      "kind": "section",
+      "order": 1,
+      "content": "1. Identifier les classes de mots - 8 points",
+      "issues": []
+    },
+    {
+      "id": "q1",
+      "kind": "question",
+      "order": 2,
+      "source": {
+        "sourceRef": "chat-exam",
+        "page": null,
+        "printedPage": null,
+        "number": "1",
+        "subNumber": null,
+        "promptExact": "Après la sonnerie, plusieurs élèves rangent leurs cahiers. Certains restent assis, car leur enseignante leur donne une dernière consigne. Indique la classe de chacun des huit mots ciblés."
+      },
+      "sourceRefs": [
+        "chat-key"
+      ],
+      "prompt": "Après la sonnerie, plusieurs élèves rangent leurs cahiers. Certains restent assis, car leur enseignante leur donne une dernière consigne. Indique la classe de mots : plusieurs {{plusieurs}}; élèves {{eleves}}; leurs {{leurs}}; Certains {{certains}}; restent {{restent}}; leur dans « leur enseignante » {{leur_det}}; leur dans « leur donne » {{leur_pron}}; dernière {{derniere}}.",
+      "subtype": "inlineChoice",
+      "required": true,
+      "points": {
+        "value": 8,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "déterminant; nom; déterminant; pronom; verbe; déterminant; pronom; adjectif",
+        "provenance": {
+          "kind": "providedAnswerKey",
+          "sourceRefs": [
+            "chat-key"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": []
+      },
+      "response": {
+        "dropdowns": [
+          {
+            "id": "plusieurs",
+            "options": [
+              "nom",
+              "déterminant",
+              "adjectif",
+              "pronom",
+              "verbe"
+            ],
+            "correct": [
+              "déterminant"
+            ]
+          },
+          {
+            "id": "eleves",
+            "options": [
+              "nom",
+              "déterminant",
+              "adjectif",
+              "pronom",
+              "verbe"
+            ],
+            "correct": [
+              "nom"
+            ]
+          },
+          {
+            "id": "leurs",
+            "options": [
+              "nom",
+              "déterminant",
+              "adjectif",
+              "pronom",
+              "verbe"
+            ],
+            "correct": [
+              "déterminant"
+            ]
+          },
+          {
+            "id": "certains",
+            "options": [
+              "nom",
+              "déterminant",
+              "adjectif",
+              "pronom",
+              "verbe"
+            ],
+            "correct": [
+              "pronom"
+            ]
+          },
+          {
+            "id": "restent",
+            "options": [
+              "nom",
+              "déterminant",
+              "adjectif",
+              "pronom",
+              "verbe"
+            ],
+            "correct": [
+              "verbe"
+            ]
+          },
+          {
+            "id": "leur_det",
+            "options": [
+              "nom",
+              "déterminant",
+              "adjectif",
+              "pronom",
+              "verbe"
+            ],
+            "correct": [
+              "déterminant"
+            ]
+          },
+          {
+            "id": "leur_pron",
+            "options": [
+              "nom",
+              "déterminant",
+              "adjectif",
+              "pronom",
+              "verbe"
+            ],
+            "correct": [
+              "pronom"
+            ]
+          },
+          {
+            "id": "derniere",
+            "options": [
+              "nom",
+              "déterminant",
+              "adjectif",
+              "pronom",
+              "verbe"
+            ],
+            "correct": [
+              "adjectif"
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "code": "changeResponseType",
+          "idealSubtype": "inlineChoice",
+          "description": "Le tableau papier de classification est représenté par huit menus déroulants natifs.",
+          "requiresReview": true
+        }
+      ],
+      "issues": []
+    },
+    {
+      "id": "section-2",
+      "kind": "section",
+      "order": 3,
+      "content": "2. Même mot, classe différente - 6 points",
+      "issues": []
+    },
+    {
+      "id": "q2a",
+      "kind": "question",
+      "order": 4,
+      "source": {
+        "sourceRef": "chat-exam",
+        "page": null,
+        "printedPage": null,
+        "number": "2",
+        "subNumber": "a",
+        "promptExact": "La surveillante la félicite. Indique la classe du premier la et du deuxième la, puis prouve qu'ils n'appartiennent pas à la même classe à l'aide d'une manipulation ou d'une propriété syntaxique précise."
+      },
+      "sourceRefs": [
+        "chat-key"
+      ],
+      "prompt": "La surveillante la félicite. Indique la classe du premier « la » et du deuxième « la », puis prouve qu’ils n’appartiennent pas à la même classe à l’aide d’une manipulation ou d’une propriété syntaxique précise.",
+      "subtype": "longAnswer",
+      "required": true,
+      "points": {
+        "value": 3,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "manual",
+        "expectedAnswer": "Premier la : déterminant. Deuxième la : pronom. La justification doit montrer que le premier introduit le nom surveillante et que le second remplace une personne ou un groupe nominal.",
+        "provenance": {
+          "kind": "providedAnswerKey",
+          "sourceRefs": [
+            "chat-key"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [
+          {
+            "type": "distinctConcepts",
+            "count": 3,
+            "note": "Deux classes correctes et une justification syntaxique précise."
+          }
+        ],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q2b",
+      "kind": "question",
+      "order": 5,
+      "source": {
+        "sourceRef": "chat-exam",
+        "page": null,
+        "printedPage": null,
+        "number": "2",
+        "subNumber": "b",
+        "promptExact": "Certains élèves hésitent; certains répondent immédiatement. Indique la classe du premier certains et du deuxième certains, puis prouve qu'ils n'appartiennent pas à la même classe à l'aide d'une manipulation ou d'une propriété syntaxique précise."
+      },
+      "sourceRefs": [
+        "chat-key"
+      ],
+      "prompt": "Certains élèves hésitent; certains répondent immédiatement. Indique la classe du premier « certains » et du deuxième « certains », puis prouve qu’ils n’appartiennent pas à la même classe à l’aide d’une manipulation ou d’une propriété syntaxique précise.",
+      "subtype": "longAnswer",
+      "required": true,
+      "points": {
+        "value": 3,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "manual",
+        "expectedAnswer": "Premier certains : déterminant. Deuxième certains : pronom. La justification doit montrer que le premier introduit élèves et que le second est employé seul et peut être remplacé par ils.",
+        "provenance": {
+          "kind": "providedAnswerKey",
+          "sourceRefs": [
+            "chat-key"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [
+          {
+            "type": "distinctConcepts",
+            "count": 3,
+            "note": "Deux classes correctes et une justification syntaxique précise."
+          }
+        ],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "section-3",
+      "kind": "section",
+      "order": 6,
+      "content": "3. Prouver une classe de mots par deux manipulations - 8 points",
+      "issues": []
+    },
+    {
+      "id": "q3a",
+      "kind": "question",
+      "order": 7,
+      "source": {
+        "sourceRef": "chat-exam",
+        "page": null,
+        "printedPage": null,
+        "number": "3",
+        "subNumber": "a",
+        "promptExact": "Un silence envahit brusquement la classe. Indique la classe de silence, effectue deux manipulations différentes et écris ce que chaque manipulation te permet de constater."
+      },
+      "sourceRefs": [
+        "chat-key"
+      ],
+      "prompt": "Un « silence » envahit brusquement la classe. Indique sa classe, effectue deux manipulations différentes et écris ce que chaque manipulation te permet de constater.",
+      "subtype": "longAnswer",
+      "required": true,
+      "points": {
+        "value": 4,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "manual",
+        "expectedAnswer": "Nom. Deux manipulations valides, par exemple remplacement par un autre nom et ajout d'un adjectif, avec constats.",
+        "provenance": {
+          "kind": "providedAnswerKey",
+          "sourceRefs": [
+            "chat-key"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [
+          {
+            "type": "distinctConcepts",
+            "count": 3,
+            "note": "Classe correcte et deux manipulations différentes."
+          },
+          {
+            "type": "explainEach",
+            "count": 2,
+            "note": "Chaque manipulation doit être accompagnée d'un constat."
+          }
+        ],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q3b",
+      "kind": "question",
+      "order": 8,
+      "source": {
+        "sourceRef": "chat-exam",
+        "page": null,
+        "printedPage": null,
+        "number": "3",
+        "subNumber": "b",
+        "promptExact": "Les élèves hésitent avant de répondre. Indique la classe de hésitent, effectue deux manipulations différentes et écris ce que chaque manipulation te permet de constater."
+      },
+      "sourceRefs": [
+        "chat-key"
+      ],
+      "prompt": "Les élèves « hésitent » avant de répondre. Indique sa classe, effectue deux manipulations différentes et écris ce que chaque manipulation te permet de constater.",
+      "subtype": "longAnswer",
+      "required": true,
+      "points": {
+        "value": 4,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "manual",
+        "expectedAnswer": "Verbe. Deux manipulations valides, par exemple encadrement par ne... pas et changement de temps, avec constats.",
+        "provenance": {
+          "kind": "providedAnswerKey",
+          "sourceRefs": [
+            "chat-key"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [
+          {
+            "type": "distinctConcepts",
+            "count": 3,
+            "note": "Classe correcte et deux manipulations différentes."
+          },
+          {
+            "type": "explainEach",
+            "count": 2,
+            "note": "Chaque manipulation doit être accompagnée d'un constat."
+          }
+        ],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "section-4",
+      "kind": "section",
+      "order": 9,
+      "content": "4. Donneur ou receveur d’accord? - 4 points",
+      "issues": []
+    },
+    {
+      "id": "q4",
+      "kind": "question",
+      "order": 10,
+      "source": {
+        "sourceRef": "chat-exam",
+        "page": null,
+        "printedPage": null,
+        "number": "4",
+        "subNumber": null,
+        "promptExact": "Ces jeunes exploratrices semblent prudentes. Pour chacun des quatre mots ciblés, indique s'il est donneur d'accord ou receveur d'accord."
+      },
+      "sourceRefs": [
+        "chat-key"
+      ],
+      "prompt": "Ces jeunes exploratrices semblent prudentes. Indique : Ces {{ces}}; jeunes {{jeunes}}; exploratrices {{exploratrices}}; semblent {{semblent}}.",
+      "subtype": "inlineChoice",
+      "required": true,
+      "points": {
+        "value": 4,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "receveur; receveur; donneur; receveur",
+        "provenance": {
+          "kind": "providedAnswerKey",
+          "sourceRefs": [
+            "chat-key"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": []
+      },
+      "response": {
+        "dropdowns": [
+          {
+            "id": "ces",
+            "options": [
+              "donneur",
+              "receveur"
+            ],
+            "correct": [
+              "receveur"
+            ]
+          },
+          {
+            "id": "jeunes",
+            "options": [
+              "donneur",
+              "receveur"
+            ],
+            "correct": [
+              "receveur"
+            ]
+          },
+          {
+            "id": "exploratrices",
+            "options": [
+              "donneur",
+              "receveur"
+            ],
+            "correct": [
+              "donneur"
+            ]
+          },
+          {
+            "id": "semblent",
+            "options": [
+              "donneur",
+              "receveur"
+            ],
+            "correct": [
+              "receveur"
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "code": "changeResponseType",
+          "idealSubtype": "inlineChoice",
+          "description": "Le tableau papier donneur/receveur est représenté par quatre menus déroulants natifs.",
+          "requiresReview": true
+        }
+      ],
+      "issues": []
+    },
+    {
+      "id": "section-5",
+      "kind": "section",
+      "order": 11,
+      "content": "5. Les cas qui demandent plus d’attention - 4 points",
+      "issues": []
+    },
+    {
+      "id": "q5a",
+      "kind": "question",
+      "order": 12,
+      "source": {
+        "sourceRef": "chat-exam",
+        "page": null,
+        "printedPage": null,
+        "number": "5",
+        "subNumber": "a",
+        "promptExact": "Ce transport ferroviaire dangereux sera interrompu. Classe les deux adjectifs et utilise la manipulation avec très pour justifier ta réponse."
+      },
+      "sourceRefs": [
+        "chat-key"
+      ],
+      "prompt": "Ce transport « ferroviaire » « dangereux » sera interrompu. Classe les deux adjectifs et utilise la manipulation avec « très » pour justifier ta réponse.",
+      "subtype": "longAnswer",
+      "required": true,
+      "points": {
+        "value": 2,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "manual",
+        "expectedAnswer": "ferroviaire : adjectif classifiant; dangereux : adjectif qualifiant. « très dangereux » est possible, tandis que « très ferroviaire » ne fonctionne pas comme intensification dans ce sens.",
+        "provenance": {
+          "kind": "providedAnswerKey",
+          "sourceRefs": [
+            "chat-key"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [
+          {
+            "type": "distinctConcepts",
+            "count": 3,
+            "note": "Deux classifications et la justification avec très."
+          }
+        ],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q5b",
+      "kind": "question",
+      "order": 13,
+      "source": {
+        "sourceRef": "chat-exam",
+        "page": null,
+        "printedPage": null,
+        "number": "5",
+        "subNumber": "b",
+        "promptExact": "Personne n'a répondu. Malik regardait ses camarades, mais ils évitaient son regard. Indique le type de pronom de Personne et de ils, puis donne l'antécédent de ils."
+      },
+      "sourceRefs": [
+        "chat-key"
+      ],
+      "prompt": "« Personne » n’a répondu. Malik regardait ses camarades, mais « ils » évitaient son regard. Indique le type de pronom de « Personne » et de « ils », puis donne l’antécédent de « ils ».",
+      "subtype": "longAnswer",
+      "required": true,
+      "points": {
+        "value": 2,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "manual",
+        "expectedAnswer": "Personne : pronom nominal. ils : pronom de reprise. Antécédent : ses camarades.",
+        "provenance": {
+          "kind": "providedAnswerKey",
+          "sourceRefs": [
+            "chat-key"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [
+          {
+            "type": "distinctConcepts",
+            "count": 3,
+            "note": "Deux types de pronoms et l'antécédent."
+          }
+        ],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    }
+  ],
+  "issues": []
+}

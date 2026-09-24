@@ -1,0 +1,145 @@
+{
+  "schema": "cardinal.formative/2",
+  "protocolVersion": "2.0.0",
+  "packageMode": "full",
+  "assessment": {
+    "title": "Fixture conflits sémantiques",
+    "language": "fr-CA",
+    "sourceMode": "external-reference-only",
+    "declaredTotalPoints": {
+      "value": 10,
+      "provenance": "provided"
+    }
+  },
+  "sources": [
+    {
+      "id": "questions",
+      "role": "questionnaire",
+      "label": "Questionnaire",
+      "fileName": "questions.pdf",
+      "status": "provided"
+    },
+    {
+      "id": "texte-manquant",
+      "role": "text",
+      "label": "Texte absent",
+      "fileName": null,
+      "status": "missing"
+    }
+  ],
+  "items": [
+    {
+      "id": "q1",
+      "kind": "question",
+      "order": 1,
+      "source": {
+        "sourceRef": "questions",
+        "page": 1,
+        "printedPage": null,
+        "number": "1",
+        "subNumber": null,
+        "promptExact": "1) Explique le rôle du graphite."
+      },
+      "sourceRefs": ["texte-manquant"],
+      "prompt": "Explique le rôle du graphite.",
+      "subtype": "shortAnswer",
+      "required": true,
+      "points": {
+        "value": 3,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "Réponse impossible à établir correctement sans la source.",
+        "provenance": {
+          "kind": "sourceMissing",
+          "sourceRefs": ["texte-manquant"]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": [
+          {
+            "id": "graphite-a",
+            "label": "Graphite A",
+            "score": 4,
+            "provenance": "sourceMissing",
+            "terms": ["graphite"],
+            "riskyTerms": []
+          },
+          {
+            "id": "graphite-b",
+            "label": "Graphite B",
+            "score": 2,
+            "provenance": "sourceMissing",
+            "terms": ["graphite"],
+            "riskyTerms": []
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "code": "removeSourceNumber",
+          "description": "Retrait du numéro source.",
+          "requiresReview": false
+        }
+      ],
+      "issues": []
+    },
+    {
+      "id": "q2",
+      "kind": "question",
+      "order": 2,
+      "source": {
+        "sourceRef": "questions",
+        "page": 1,
+        "printedPage": null,
+        "number": "2",
+        "subNumber": null,
+        "promptExact": "2) Complète: pays {{pays}} et année {{annee}}."
+      },
+      "sourceRefs": [],
+      "prompt": "Complète: pays {{pays}} et année {{annee}}.",
+      "subtype": "fillInTheBlank",
+      "required": true,
+      "points": {
+        "value": 2,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "Ukraine; 1986",
+        "provenance": {
+          "kind": "questionIntrinsic",
+          "sourceRefs": []
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": []
+      },
+      "response": {
+        "blanks": [
+          {
+            "id": "pays",
+            "answers": ["Ukraine"],
+            "conceptIds": []
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "code": "removeSourceNumber",
+          "description": "Retrait du numéro source.",
+          "requiresReview": false
+        }
+      ],
+      "issues": []
+    }
+  ],
+  "issues": []
+}
