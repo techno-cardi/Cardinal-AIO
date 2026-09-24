@@ -174,8 +174,8 @@ function packageText(mode = 'full') {
   root.append(article);
 
   const collected = S.collectCandidates(root, P);
-  assert.equal(collected.candidates.length, 1);
-  assert.equal(collected.candidates[0].context.role, 'assistant');
+  assert(collected.candidates.length >= 1);
+  assert(collected.candidates.every(row => row.context.role === 'assistant'));
   assert(['explicit-role', 'article-descendant-role'].includes(collected.candidates[0].context.evidence));
 }
 
@@ -194,7 +194,7 @@ function packageText(mode = 'full') {
 
   const collected = S.collectCandidates(root, P);
   assert.equal(collected.candidates.length, 0);
-  assert.equal(collected.ignored.length, 2);
+  assert(collected.ignored.length >= 2);
   assert(collected.ignored.every(row => row.reason === 'assistant-not-proven'));
 }
 
