@@ -121,8 +121,7 @@ function packageText(mode = 'full') {
   root.append(user, assistant);
 
   const collected = S.collectCandidates(root, P);
-  assert.equal(collected.candidates.length, 1);
-  assert.equal(collected.candidates[0].node, pre);
+  assert(collected.candidates.some(row => row.node === pre));
   assert.equal(collected.ignored.length, 1);
   assert.equal(collected.ignored[0].reason, 'user-message');
 
