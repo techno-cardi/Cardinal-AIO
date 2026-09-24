@@ -81,13 +81,38 @@ const U = require('./chatgpt-content-v2.js');
   // actually found instead of silently scheduling work with no response.
   {
     let listener = null;
+    function fakeElement() {
+      return {
+        style: {},
+        dataset: {},
+        children: [],
+        textContent: '',
+        parentNode: null,
+        isConnected: true,
+        appendChild(child) { this.children.push(child); child.parentNode = this; return child; },
+        append(...children) { children.forEach(child => this.appendChild(child)); },
+        replaceChildren(...children) { this.children = []; this.append(...children); },
+        addEventListener() {},
+        remove() { this.isConnected = false; },
+        querySelector() { return null; }
+      };
+    }
     const doc = {
       documentElement: {},
       querySelectorAll() { return []; },
-      createElement() { return { style: {}, dataset: {}, replaceChildren() {}, remove() {} }; }
+      createElement() { return fakeElement(); }
     };
     const runtime = {
       id: 'cardinal-test',
+      async sendMessage() {
+        return {
+          handled: true,
+          ok: true,
+          state: 'ready',
+          token: 'manual-scan-token',
+          view: { statusLabel: 'Prêt', primaryAction: { id: 'none' } }
+        };
+      },
       onMessage: {
         addListener(fn) { listener = fn; },
         removeListener(fn) { if (listener === fn) listener = null; }
