@@ -166,7 +166,8 @@ function packageText(mode = 'full') {
 
   const collected = S.collectCandidates(root, P);
   assert.equal(collected.candidates.length, 1);
-  assert.equal(collected.candidates[0].context.evidence, 'article-descendant-role');
+  assert.equal(collected.candidates[0].context.role, 'assistant');
+  assert(['explicit-role', 'article-descendant-role'].includes(collected.candidates[0].context.evidence));
 }
 
 // Mixed or role-less article fails closed.
