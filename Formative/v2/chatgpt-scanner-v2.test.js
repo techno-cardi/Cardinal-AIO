@@ -294,13 +294,15 @@ function packageText(mode = 'full') {
   const root = new MockNode('main');
   const turn = new MockNode('div', {
     attrs: { 'data-testid': 'conversation-turn-42' },
-    text: packageText(),
     order: 20
   });
-  turn.append(new MockNode('button', {
-    attrs: { 'data-testid': 'copy-turn-action-button' },
-    order: 21
-  }));
+  turn.append(
+    new MockNode('div', { text: packageText(), order: 20 }),
+    new MockNode('button', {
+      attrs: { 'data-testid': 'copy-turn-action-button' },
+      order: 21
+    })
+  );
   root.append(turn);
   const result = S.scan(root, P);
   assert.equal(result.messages.length, 1);
