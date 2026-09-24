@@ -242,8 +242,9 @@ function prepareArgs(sourcePkg, extra = {}) {
     assert(prepared.issues.some(issue => issue.code === 'BOOTSTRAP_EXACT_MATCH_AMBIGUOUS'));
   }
 
-  // A legacy-mapped item that changed is surfaced as a conflict and cannot be
-  // silently linked or overwritten by the generic "Relier" action.
+  // A legacy-mapped item that changed can be explicitly linked to its CURRENT
+  // server state. Linking itself performs no mutation; the fresh dry-run that
+  // follows must surface one UPDATE toward the desired package.
   {
     const persistence = makePersistence();
     const O = makeOrchestrator(persistence);
@@ -253,17 +254,42 @@ function prepareArgs(sourcePkg, extra = {}) {
       legacyHints: [{ logicalId: 'q3', formativeItemId: 'I3' }]
     }));
     assert.equal(prepared.state, 'reconciliation_required');
-    assert.equal(prepared.view.reconciliationConflicts, 1);
-    assert.equal(prepared.view.primaryAction.label, 'Vérifier les questions modifiées');
+    assert.equal(prepared.view.reconciliationConflicts, 0);
+    assert.equal(prepared.view.reconciliationUpdates, 1);
+    assert.equal(prepared.view.primaryAction.label, 'Relier puis préparer les mises à jour');
 
     const result = await R.confirmReconciliation(prepared, {
       useSuggestedLinks: true,
       preflightInjected,
       bootstrapInjected
     });
-    assert.equal(result.ok, false);
-    assert.equal(result.reason, 'RECONCILIATION_CONFLICTS_REQUIRE_RESOLUTION');
-    assert.equal(await persistence.loadBaseline('F', identity.associationFingerprintForTarget('F')), null);
+    assert.equal(result.ok, true);
+    assert.equal(result.preflight.data.planner.counts.UPDATE, 1);
+    const stored = await persistence.loadBaseline('F', identity.associationFingerprintForTarget('F'));
+    assert.equal(stored.entries.length, 1);
+    assert.equal(stored.entries[0].formativeItemId, 'I3');
+    assert.equal(stored.entries[0].managedState.points, 3);
+  }
+
+  // Even without a legacy mapping, one unique same-prompt/same-subtype item can
+  // be linked explicitly and then updated instead of duplicated.
+  {
+    const persistence = makePersistence();
+    const O = makeOrchestrator(persistence);
+    const G = makeGateway([serverItem(undefined, 'I3', raw => { raw.details.points = 3; })]);
+    const R = makeRuntime(G, O);
+    const prepared = await R.prepare(prepareArgs(pkg()));
+    assert.equal(prepared.state, 'reconciliation_required');
+    assert.equal(prepared.reconciliation.proposals[0].match, 'prompt-changed');
+    assert.equal(prepared.view.reconciliationUpdates, 1);
+
+    const result = await R.confirmReconciliation(prepared, {
+      useSuggestedLinks: true,
+      preflightInjected,
+      bootstrapInjected
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.preflight.data.planner.counts.UPDATE, 1);
   }
 
   // Teacher may explicitly say an exact-looking server question is unrelated.
