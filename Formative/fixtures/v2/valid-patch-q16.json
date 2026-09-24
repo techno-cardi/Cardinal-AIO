@@ -1,0 +1,116 @@
+{
+  "schema": "cardinal.formative/2",
+  "protocolVersion": "2.0.0",
+  "packageMode": "patch",
+  "assessment": {
+    "title": "L'explosion de Tchernobyl - Questionnaire de lecture",
+    "language": "fr-CA",
+    "sourceMode": "external-reference-only"
+  },
+  "sources": [
+    {
+      "id": "questions",
+      "role": "questionnaire",
+      "label": "Questionnaire Tchernobyl",
+      "fileName": "questions.pdf",
+      "status": "provided"
+    },
+    {
+      "id": "texte",
+      "role": "text",
+      "label": "Texte Tchernobyl",
+      "fileName": "texte.pdf",
+      "status": "provided"
+    }
+  ],
+  "items": [
+    {
+      "id": "q16",
+      "kind": "question",
+      "order": 16,
+      "source": {
+        "sourceRef": "questions",
+        "page": 4,
+        "printedPage": null,
+        "number": "16",
+        "subNumber": null,
+        "promptExact": "16) Le texte présente plusieurs conséquences sur la santé. Nomme deux conséquences différentes et explique, pour chacune, de quoi elle dépend ou comment elle arrive selon le texte."
+      },
+      "sourceRefs": ["texte"],
+      "prompt": "Le texte présente plusieurs conséquences sur la santé. Nomme deux conséquences différentes et explique, pour chacune, de quoi elle dépend ou comment elle arrive selon le texte. Appuie chaque conséquence sur une information précise du texte.",
+      "subtype": "longAnswer",
+      "required": true,
+      "points": {
+        "value": 4,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "assisted",
+        "expectedAnswer": "Deux conséquences différentes doivent être nommées et chacune expliquée à partir d'une information précise du texte, par exemple l'irradiation aiguë, les brûlures, le cancer de la thyroïde ou les effets psychologiques.",
+        "provenance": {
+          "kind": "sourceExplicit",
+          "sourceRefs": ["texte"]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [
+          {
+            "type": "distinctConcepts",
+            "count": 2,
+            "note": "Deux conséquences différentes."
+          },
+          {
+            "type": "explainEach",
+            "count": 2,
+            "note": "Chaque conséquence doit être expliquée."
+          }
+        ],
+        "concepts": [
+          {
+            "id": "irradiation",
+            "label": "Irradiation aiguë",
+            "score": 3,
+            "provenance": "sourceExplicit",
+            "terms": ["irradiation", "brûlures", "doses"],
+            "riskyTerms": ["forte"]
+          },
+          {
+            "id": "thyroide",
+            "label": "Cancer de la thyroïde",
+            "score": 3.5,
+            "provenance": "sourceExplicit",
+            "terms": ["thyroïde", "iode-131", "enfants", "adolescents"],
+            "riskyTerms": ["cancer"]
+          },
+          {
+            "id": "psychologique",
+            "label": "Effets psychologiques",
+            "score": 2.5,
+            "provenance": "sourceExplicit",
+            "terms": ["stress", "anxiété", "psychologique"],
+            "riskyTerms": []
+          }
+        ]
+      },
+      "settings": {
+        "showWordCount": true
+      },
+      "transformations": [
+        {
+          "code": "removeSourceNumber",
+          "description": "Retrait de la numérotation source.",
+          "requiresReview": false
+        },
+        {
+          "code": "other",
+          "description": "Ajout demandé: appuyer chaque conséquence sur une information précise du texte.",
+          "requiresReview": true
+        }
+      ],
+      "issues": []
+    }
+  ],
+  "issues": []
+}

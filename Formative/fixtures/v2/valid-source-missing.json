@@ -1,0 +1,105 @@
+{
+  "schema": "cardinal.formative/2",
+  "protocolVersion": "2.0.0",
+  "packageMode": "full",
+  "assessment": {
+    "title": "Comparaison Tchernobyl et Starship",
+    "language": "fr-CA",
+    "sourceMode": "external-reference-only"
+  },
+  "sources": [
+    {
+      "id": "questions",
+      "role": "questionnaire",
+      "label": "Questionnaire",
+      "fileName": "questions.pdf",
+      "status": "provided"
+    },
+    {
+      "id": "tchernobyl",
+      "role": "text",
+      "label": "Texte Tchernobyl",
+      "fileName": "tchernobyl.pdf",
+      "status": "provided"
+    },
+    {
+      "id": "starship",
+      "role": "text",
+      "label": "Texte Starship",
+      "fileName": null,
+      "status": "missing"
+    }
+  ],
+  "items": [
+    {
+      "id": "q17",
+      "kind": "question",
+      "order": 17,
+      "source": {
+        "sourceRef": "questions",
+        "page": 4,
+        "printedPage": null,
+        "number": "17",
+        "subNumber": null,
+        "promptExact": "17) Fais un lien entre Tchernobyl et le projet Starship : dans les deux textes, il est question de risques élevés. Selon toi, quelle attitude est la plus responsable?"
+      },
+      "sourceRefs": ["tchernobyl", "starship"],
+      "prompt": "Fais un lien entre Tchernobyl et le projet Starship : dans les deux textes, il est question de risques élevés. Selon toi, quelle attitude est la plus responsable?",
+      "subtype": "longAnswer",
+      "required": true,
+      "points": {
+        "value": 4,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "manual",
+        "expectedAnswer": "La source Starship manque; aucune réponse complète ne doit être inventée.",
+        "provenance": {
+          "kind": "sourceMissing",
+          "sourceRefs": ["starship"],
+          "note": "Le texte Starship est nécessaire pour une correction complète."
+        },
+        "partialCredit": false,
+        "caseSensitive": false,
+        "requirements": [
+          {
+            "type": "compareSources",
+            "count": 2,
+            "note": "La réponse doit comparer les deux textes."
+          }
+        ],
+        "concepts": []
+      },
+      "settings": {
+        "showWordCount": true
+      },
+      "transformations": [
+        {
+          "code": "removeSourceNumber",
+          "description": "Retrait de la numérotation source.",
+          "requiresReview": false
+        }
+      ],
+      "issues": [
+        {
+          "severity": "warning",
+          "code": "SOURCE_REQUIRED",
+          "message": "Le texte Starship nécessaire à une correction fiable n'a pas été fourni.",
+          "itemId": "q17",
+          "sourceRef": "starship"
+        }
+      ]
+    }
+  ],
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "SOURCE_REQUIRED",
+      "message": "Une source requise pour la correction est manquante.",
+      "itemId": "q17",
+      "sourceRef": "starship"
+    }
+  ]
+}

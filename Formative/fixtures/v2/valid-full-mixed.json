@@ -1,0 +1,231 @@
+{
+  "schema": "cardinal.formative/2",
+  "protocolVersion": "2.0.0",
+  "packageMode": "full",
+  "assessment": {
+    "title": "Fixture Tchernobyl v2",
+    "language": "fr-CA",
+    "sourceMode": "external-reference-only",
+    "declaredTotalPoints": {
+      "value": 9,
+      "provenance": "provided"
+    }
+  },
+  "sources": [
+    {
+      "id": "questions",
+      "role": "questionnaire",
+      "label": "Questionnaire",
+      "fileName": "questions.pdf",
+      "status": "provided"
+    },
+    {
+      "id": "texte",
+      "role": "text",
+      "label": "Texte Tchernobyl",
+      "fileName": "texte.pdf",
+      "status": "provided"
+    }
+  ],
+  "items": [
+    {
+      "id": "section-comprehension",
+      "kind": "section",
+      "order": 1,
+      "content": "COMPRÉHENSION",
+      "issues": []
+    },
+    {
+      "id": "q1",
+      "kind": "question",
+      "order": 2,
+      "source": {
+        "sourceRef": "questions",
+        "page": 1,
+        "printedPage": null,
+        "number": "1",
+        "subNumber": null,
+        "promptExact": "1) Quel type de réacteur est impliqué?"
+      },
+      "sourceRefs": ["texte"],
+      "prompt": "Quel type de réacteur est impliqué?",
+      "subtype": "shortAnswer",
+      "required": true,
+      "points": {
+        "value": 2,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "Il s'agit d'un réacteur RBMK refroidi à l'eau et modéré au graphite.",
+        "provenance": {
+          "kind": "sourceExplicit",
+          "sourceRefs": ["texte"]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": [
+          {
+            "id": "rbmk",
+            "label": "Type RBMK",
+            "score": 2,
+            "provenance": "sourceExplicit",
+            "terms": ["RBMK"],
+            "riskyTerms": []
+          },
+          {
+            "id": "graphite",
+            "label": "Modération au graphite",
+            "score": 2,
+            "provenance": "sourceExplicit",
+            "terms": ["graphite", "grafite"],
+            "riskyTerms": []
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "code": "removeSourceNumber",
+          "description": "Retrait de la numérotation source.",
+          "requiresReview": false
+        }
+      ],
+      "issues": []
+    },
+    {
+      "id": "q2",
+      "kind": "question",
+      "order": 3,
+      "source": {
+        "sourceRef": "questions",
+        "page": 1,
+        "printedPage": null,
+        "number": "2",
+        "subNumber": null,
+        "promptExact": "2) Nomme deux conséquences sur la santé et explique chacune."
+      },
+      "sourceRefs": ["texte"],
+      "prompt": "Nomme deux conséquences sur la santé et explique chacune.",
+      "subtype": "longAnswer",
+      "required": true,
+      "points": {
+        "value": 4,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "assisted",
+        "expectedAnswer": "Deux conséquences possibles sont l'irradiation aiguë et le cancer de la thyroïde, chacune devant être expliquée à partir du texte.",
+        "provenance": {
+          "kind": "sourceExplicit",
+          "sourceRefs": ["texte"]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [
+          {
+            "type": "distinctConcepts",
+            "count": 2,
+            "note": "Deux conséquences différentes sont requises."
+          },
+          {
+            "type": "explainEach",
+            "count": 2,
+            "note": "Chaque conséquence doit être expliquée."
+          }
+        ],
+        "concepts": [
+          {
+            "id": "irradiation",
+            "label": "Irradiation aiguë",
+            "score": 3,
+            "provenance": "sourceExplicit",
+            "terms": ["irradiation", "brûlures"],
+            "riskyTerms": ["radiation"]
+          },
+          {
+            "id": "thyroide",
+            "label": "Cancer de la thyroïde",
+            "score": 3,
+            "provenance": "sourceExplicit",
+            "terms": ["thyroïde", "iode-131"],
+            "riskyTerms": ["cancer"]
+          }
+        ]
+      },
+      "settings": {
+        "showWordCount": true
+      },
+      "transformations": [
+        {
+          "code": "removeSourceNumber",
+          "description": "Retrait de la numérotation source.",
+          "requiresReview": false
+        }
+      ],
+      "issues": []
+    },
+    {
+      "id": "q3",
+      "kind": "question",
+      "order": 4,
+      "source": {
+        "sourceRef": "questions",
+        "page": 2,
+        "printedPage": null,
+        "number": "3",
+        "subNumber": null,
+        "promptExact": "3) Complète: année {{annee}}, pays actuel {{pays}}."
+      },
+      "sourceRefs": ["texte"],
+      "prompt": "Complète: année {{annee}}, pays actuel {{pays}}.",
+      "subtype": "fillInTheBlank",
+      "required": true,
+      "points": {
+        "value": 3,
+        "provenance": "provided",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "1986; Ukraine",
+        "provenance": {
+          "kind": "sourceExplicit",
+          "sourceRefs": ["texte"]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": []
+      },
+      "response": {
+        "blanks": [
+          {
+            "id": "annee",
+            "answers": ["1986"],
+            "conceptIds": []
+          },
+          {
+            "id": "pays",
+            "answers": ["Ukraine"],
+            "conceptIds": []
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "code": "removeSourceNumber",
+          "description": "Retrait de la numérotation source.",
+          "requiresReview": false
+        }
+      ],
+      "issues": []
+    }
+  ],
+  "issues": []
+}
