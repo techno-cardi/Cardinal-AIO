@@ -374,7 +374,10 @@
 
         const input = element('input');
         input.type = 'checkbox';
-        input.checked = true;
+        const previousSelection = Array.isArray(record.selectedQuestionIds) && record.selectedQuestionIds.length
+          ? new Set(record.selectedQuestionIds.map(String))
+          : null;
+        input.checked = previousSelection ? previousSelection.has(row.id) : true;
         input.value = row.id;
         inputs.push(input);
 
@@ -580,6 +583,32 @@
       }
 
       const action = view.primaryAction || {};
+      const selectionRows = questionSelectionRows(record.pkg);
+      const primaryOpensSelection = ['import', 'import-review', 'reimport'].includes(action.id);
+      if (
+        selectionRows.length > 1 &&
+        response.state !== 'importing' &&
+        (record.selectionConfirmed === true || !primaryOpensSelection)
+      ) {
+        const selectedCount = Array.isArray(record.selectedQuestionIds) && record.selectedQuestionIds.length
+          ? record.selectedQuestionIds.length
+          : selectionRows.length;
+        const choose = element(
+          'button',
+          record.selectionConfirmed
+            ? `Modifier la sélection (${selectedCount}/${selectionRows.length})`
+            : 'Choisir les questions'
+        );
+        choose.type = 'button';
+        choose.style.marginTop = '9px';
+        choose.style.marginRight = '7px';
+        choose.addEventListener('click', () => {
+          record.selectionConfirmed = false;
+          renderQuestionSelector(record);
+        });
+        record.shell.appendChild(choose);
+      }
+
       if (action.id && action.id !== 'none') {
         const button = element('button', action.label || 'Importer dans Formative');
         button.type = 'button';
