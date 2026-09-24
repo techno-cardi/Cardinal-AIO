@@ -1,0 +1,294 @@
+name: Formative v2 tests
+
+on:
+  push:
+    paths:
+      - 'Formative/v2/**'
+      - 'Formative/cardinal.formative.v2.schema.json'
+      - 'Formative/SCHEMA_V2.md'
+      - 'Formative/CHATGPT_GENERATOR_PROMPT_V2.md'
+      - 'Formative/standalone-0.4.1/archive/**'
+      - '.github/workflows/formative-v2-tests.yml'
+  pull_request:
+    paths:
+      - 'Formative/v2/**'
+      - 'Formative/cardinal.formative.v2.schema.json'
+      - 'Formative/SCHEMA_V2.md'
+      - 'Formative/CHATGPT_GENERATOR_PROMPT_V2.md'
+      - 'Formative/standalone-0.4.1/archive/**'
+      - '.github/workflows/formative-v2-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  node-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify archived 0.4.1 fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive_dir='Formative/standalone-0.4.1/archive'
+          zip='/tmp/Cardinal-Formative-Importer-STANDALONE-0.4.1.zip'
+          out='/tmp/cardinal-formative-041'
+
+          cat "$archive_dir"/part*.b64 | base64 --decode > "$zip"
+          echo 'b62f567aaf3917df8b021c6ae00965176391f416537662b22303c9656facfda4  '"$zip" | sha256sum --check --strict
+          unzip -t "$zip"
+          rm -rf "$out"
+          mkdir -p "$out"
+          unzip -q "$zip" -d "$out"
+
+          for f in README.txt background.js chatgpt-bridge.js formative-engine.js formative-progress-ui.js formative-session-bridge.js formative-session-main.js manifest.json popup.html popup.js smoke-test-package.json; do
+            test -s "$out/$f"
+          done
+
+          node --check "$out/background.js"
+          node --check "$out/chatgpt-bridge.js"
+          node --check "$out/formative-engine.js"
+          node --check "$out/formative-progress-ui.js"
+          node --check "$out/formative-session-bridge.js"
+          node --check "$out/formative-session-main.js"
+          node --check "$out/popup.js"
+
+          grep -q 'CARDINAL_FORMATIVE_PACKAGE_V1' "$out/chatgpt-bridge.js"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+          const manifest = JSON.parse(fs.readFileSync('/tmp/cardinal-formative-041/manifest.json', 'utf8'));
+          if (!manifest.key) throw new Error('0.4.1 manifest.key missing');
+          if (manifest.version !== '0.4.1') throw new Error(`Unexpected baseline version: ${manifest.version}`);
+          const keyHash = crypto.createHash('sha256').update(manifest.key, 'utf8').digest('hex');
+          const expectedKeyHash = 'aa8edacab725a307365f56fa25e8415344098ea93c5c4ec635a56c7f7d4d59bd';
+          if (keyHash !== expectedKeyHash) {
+            throw new Error(`0.4.1 extension identity drift: ${keyHash}`);
+          }
+          console.log(`CFI_BASELINE_MANIFEST_VERSION=${manifest.version}`);
+          console.log(`CFI_BASELINE_MANIFEST_NAME=${manifest.name || ''}`);
+          console.log(`CFI_BASELINE_KEY_SHA256=${keyHash}`);
+          NODE
+
+      - name: Legacy 0.4.1 session and background contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, re
+          from pathlib import Path
+          root = Path('/tmp/cardinal-formative-041')
+          manifest = json.loads((root / 'manifest.json').read_text(encoding='utf-8'))
+          print('=== MANIFEST CONTRACT (key omitted; hash verified separately) ===')
+          for key in ['manifest_version', 'name', 'version', 'permissions', 'host_permissions', 'background', 'content_scripts', 'action']:
+              print(f'{key}={json.dumps(manifest.get(key), ensure_ascii=False, sort_keys=True)}')
+
+          for filename in ['background.js', 'formative-session-main.js', 'formative-session-bridge.js']:
+              text = (root / filename).read_text(encoding='utf-8')
+              lines = text.splitlines()
+              print(f'=== {filename} lines={len(lines)} ===')
+              for match in re.finditer(r'(?m)^\s*(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\(', text):
+                  line = text.count('\n', 0, match.start()) + 1
+                  print(f'FUNCTION {line:04d} {match.group(1)}')
+              needles = [
+                  'onBeforeSendHeaders',
+                  'webRequest',
+                  'requestHeaders',
+                  'extraHeaders',
+                  'storage.session',
+                  'FORMATIVE_SESSION',
+                  'authorization',
+                  'x-session-id',
+                  'window.postMessage',
+                  'chrome.runtime.sendMessage'
+              ]
+              for needle in needles:
+                  hits = [i for i, line in enumerate(lines) if needle.lower() in line.lower()]
+                  if not hits:
+                      continue
+                  print(f'NEEDLE {needle}: {len(hits)}')
+                  for i in hits[:3]:
+                      lo, hi = max(0, i - 4), min(len(lines), i + 8)
+                      print(f'--- {filename} {lo + 1}-{hi} ---')
+                      for n in range(lo, hi):
+                          safe = re.sub(r'Bearer\s+[A-Za-z0-9._~+/-]+', 'Bearer <redacted>', lines[n], flags=re.I)
+                          print(f'{n + 1:04d}: {safe}')
+          PY
+
+      - name: Legacy 0.4.1 contract snippets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('/tmp/cardinal-formative-041/formative-engine.js').read_text(encoding='utf-8')
+          needles = [
+              'FormativePermissionCheck',
+              'FormativeLayout',
+              'FormativeTeacherAddFormativeItem',
+              'QuestionEditableUpdateFormativeItem',
+              'FormativeItemEditableUpdatePoints',
+              'WithChoicesMutation',
+              'FillInTheBlankEditableContainerMutation',
+              'MatchingEditableDetailsContainerMutation',
+              'TextEditableUpdate',
+              'viewerPermissions',
+              'graphql/query',
+              'graphql/mutation'
+          ]
+          lines = text.splitlines()
+          for needle in needles:
+              matches = [i for i,l in enumerate(lines) if needle in l]
+              print(f'CONTRACT_NEEDLE {needle}: {len(matches)}')
+              if not matches:
+                  continue
+              i = matches[0]
+              lo, hi = max(0, i-10), min(len(lines), i+28)
+              print(f'=== {needle} lines {lo+1}-{hi} ===')
+              for n in range(lo, hi):
+                  print(f'{n+1:05d}: {lines[n]}')
+          PY
+
+      - name: Legacy 0.4.1 helper index and primitive bodies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path('/tmp/cardinal-formative-041/formative-engine.js').read_text(encoding='utf-8')
+          lines = text.splitlines()
+          for match in re.finditer(r'(?m)^\s*(?:async\s+)?function\s+(cfi[A-Za-z0-9_]+)\s*\(', text):
+              line = text.count('\n', 0, match.start()) + 1
+              print(f'CFI_HELPER {line:05d} {match.group(1)}')
+          ranges = [
+              (121, 220, 'TEXT_AND_VALIDATION_PRIMITIVES'),
+              (374, 620, 'GRAPHQL_AND_SHORT_LONG_PRIMITIVES'),
+              (621, 801, 'FITB_AND_DISPATCH_PRIMITIVES'),
+              (1201, 1455, 'PREPARE_AND_APPLY_PRIMITIVES')
+          ]
+          for start, end, label in ranges:
+              print(f'=== CFI_RANGE {label} {start}-{end} ===')
+              for n in range(start - 1, min(end, len(lines))):
+                  print(f'{n+1:05d}: {lines[n]}')
+          PY
+
+      - name: Syntax check
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in Formative/v2/*.js; do
+            node --check "$f"
+          done
+          python -m py_compile Formative/v2/build-extension-v2.py
+
+      - name: Unit and integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in Formative/v2/*.test.js; do
+            echo "==> $f"
+            node "$f"
+          done
+
+  build-extension:
+    needs: node-regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build 0.5.0 release candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python Formative/v2/build-extension-v2.py --output-root "$RUNNER_TEMP/cardinal-formative-build"
+          zip="$RUNNER_TEMP/cardinal-formative-build/Cardinal-Formative-Importer-STANDALONE-0.5.0-rc1.zip"
+          out="$RUNNER_TEMP/cardinal-formative-built"
+          test -s "$zip"
+          unzip -t "$zip"
+          rm -rf "$out"
+          mkdir -p "$out"
+          unzip -q "$zip" -d "$out"
+
+          for f in "$out"/*.js; do
+            node --check "$f"
+          done
+
+          python - "$out" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          root = Path(sys.argv[1])
+          manifest = json.loads((root / 'manifest.json').read_text(encoding='utf-8'))
+          assert manifest['manifest_version'] == 3
+          assert manifest['version'] == '0.5.0'
+          assert manifest['version_name'] == '0.5.0-rc1'
+          assert manifest['background']['service_worker'] == 'background-v2.js'
+          assert manifest.get('action', {}).get('default_popup') == 'popup-v2.html'
+          assert (root / 'popup-v2.html').is_file()
+          assert (root / 'popup-v2.js').is_file()
+          protocol_path = root / 'CARDINAL_FORMATIVE_PROTOCOL_V2.md'
+          assert protocol_path.is_file()
+          protocol = protocol_path.read_text(encoding='utf-8')
+          assert 'cardinal.formative/2' in protocol
+          assert 'Version du protocole: 2.0.0' in protocol
+          key_hash = hashlib.sha256(manifest['key'].encode('utf-8')).hexdigest()
+          assert key_hash == 'aa8edacab725a307365f56fa25e8415344098ea93c5c4ec635a56c7f7d4d59bd'
+          scripts = [manifest['background']['service_worker']]
+          chatgpt_scripts = []
+          for block in manifest.get('content_scripts', []):
+              scripts.extend(block.get('js', []))
+              if any('chatgpt.com' in match or 'chat.openai.com' in match for match in block.get('matches', [])):
+                  chatgpt_scripts.extend(block.get('js', []))
+          assert 'legacy-session-bridge-v2.js' not in scripts
+          for script in scripts:
+              assert (root / script).is_file(), script
+          assert 'chatgpt-correction-audit-v2.js' in chatgpt_scripts
+          assert chatgpt_scripts.index('chatgpt-content-v2.js') < chatgpt_scripts.index('chatgpt-correction-audit-v2.js')
+          assert chatgpt_scripts.index('chatgpt-correction-audit-v2.js') < chatgpt_scripts.index('chatgpt-entry-v2.js')
+          assert 'CARDINAL_FORMATIVE_UI_RESCAN' in (root / 'popup-v2.js').read_text(encoding='utf-8')
+          assert 'Corrigé exact envoyé à Formative' in (root / 'chatgpt-correction-audit-v2.js').read_text(encoding='utf-8')
+          assert any(block.get('world') == 'MAIN' and 'formative-session-main-v2.js' in block.get('js', [])
+                     for block in manifest['content_scripts'])
+          assert any('chatgpt-entry-v2.js' in block.get('js', []) for block in manifest['content_scripts'])
+          assert any('formative-progress-entry-v2.js' in block.get('js', []) for block in manifest['content_scripts'])
+          web_resources = manifest.get('web_accessible_resources', [])
+          assert any(
+              'CARDINAL_FORMATIVE_PROTOCOL_V2.md' in block.get('resources', [])
+              and any('chatgpt.com' in match or 'chat.openai.com' in match for match in block.get('matches', []))
+              for block in web_resources
+          )
+          print('BUILD_MANIFEST_OK')
+          print('EXTENSION_KEY_SHA256=' + key_hash)
+          PY
+
+      - name: Stage artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifact
+          cp "$RUNNER_TEMP/cardinal-formative-build/Cardinal-Formative-Importer-STANDALONE-0.5.0-rc1.zip" artifact/
+          sha256sum artifact/Cardinal-Formative-Importer-STANDALONE-0.5.0-rc1.zip > artifact/SHA256SUMS.txt
+
+      - name: Upload release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cardinal-Formative-Importer-STANDALONE-0.5.0-rc1
+          path: artifact/*
+          if-no-files-found: error
+          retention-days: 14

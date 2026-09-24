@@ -1,0 +1,491 @@
+name: Cardinal AIO repair contract
+
+on:
+  push:
+    branches:
+      - main
+      - 'cardinal/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: cardinal-aio-repair-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Checkout pinned Classroom 1.2.3 source
+        uses: actions/checkout@v4
+        with:
+          repository: techno-cardi/Plan-de-cours
+          ref: 6887bfa2e8afd523a38a0e3286aa1f826276b8c5
+          path: _pdc
+
+      - name: Compile repair scripts
+        run: |
+          python -m py_compile Cardinal/AIO/aio_rebuild_contract.py
+          python -m py_compile Cardinal/AIO/aio_compatibility_contract.py
+          python -m py_compile Cardinal/AIO/rebuild_aio_safe.py
+          python -m py_compile Cardinal/AIO/audit_recovered_baseline.py
+          python -m py_compile Cardinal/AIO/audit_legacy_question_types.py
+          python -m py_compile Cardinal/AIO/test_aio_rebuild_contract.py
+          python -m py_compile Cardinal/AIO/test_aio_compatibility_contract.py
+
+      - name: Audit exact legacy Formative question-type transport
+        run: python Cardinal/AIO/audit_legacy_question_types.py
+
+      - name: Parse Windows baseline recovery script
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "Cardinal/AIO/recover_baseline_windows.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+
+      - name: Run rebuild contract tests
+        run: |
+          cd Cardinal/AIO
+          python -m unittest -v test_aio_rebuild_contract.py test_aio_compatibility_contract.py
+          node aio-popup.test.js
+
+      - name: Run complete Formative v2 regression suite in AIO branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in Formative/v2/*.test.js; do
+            echo "==> $f"
+            node "$f"
+          done
+
+      - name: Exercise pinned Classroom adaptation
+        shell: bash
+        run: |
+          PYTHONPATH=Cardinal/AIO python - <<'PY'
+          import subprocess
+          import tempfile
+          from pathlib import Path
+          from rebuild_aio_safe import adapt_classroom
+
+          source = Path("_pdc/chrome-classroom-native-bridge")
+          with tempfile.TemporaryDirectory() as td:
+              out = Path(td)
+              scripts = adapt_classroom(source, out)
+              expected = {
+                  "classroom-background-aio.js",
+                  "classroom-generator-aio.js",
+                  "classroom-autolink-aio.js",
+                  "classroom-aio.js",
+              }
+              assert expected.issubset({p.name for p in out.iterdir()})
+              assert not (out / "banner-autodismiss.js").exists()
+              bg = (out / "classroom-background-aio.js").read_text(encoding="utf-8")
+              gen = (out / "classroom-generator-aio.js").read_text(encoding="utf-8")
+              auto = (out / "classroom-autolink-aio.js").read_text(encoding="utf-8")
+              room = (out / "classroom-aio.js").read_text(encoding="utf-8")
+              for token in (
+                  "PDC_NATIVE_REMEMBER_GROUPS",
+                  "PDC_NATIVE_GET_GROUPS",
+                  "PDC_NATIVE_PREPARE",
+                  "PDC_NATIVE_CLAIM",
+                  "PDC_NATIVE_PASTE",
+                  "PDC_NATIVE_PUBLISH",
+                  "PDC_NATIVE_ACTIVATE",
+                  "PDC_NATIVE_COMPLETE",
+                  "PDC_NATIVE_FAIL",
+              ):
+                  assert token in (bg + gen + room)
+              for old in (
+                  "rememberGroups", "getGroups", "prepare", "claim", "paste",
+                  "publish", "activate", "complete", "fail"
+              ):
+                  assert f"'{old}'" not in (bg + gen + room)
+                  assert f'"{old}"' not in (bg + gen + room)
+              assert "QUICK_GROUPS" not in auto
+              assert "setInterval(scan, 60000)" in auto
+              assert "}, 15000);" in gen
+              assert scripts[1]["js"] == ["classroom-autolink-aio.js", "classroom-aio.js"]
+              for js in out.glob("*.js"):
+                  subprocess.run(["node", "--check", str(js)], check=True)
+              subprocess.run([
+                  "node",
+                  "Cardinal/AIO/classroom_adapter_runtime.test.js",
+                  str(out / "classroom-background-aio.js"),
+              ], check=True)
+          PY
+
+      - name: Exercise audited Formative v2 builder
+        shell: bash
+        run: |
+          PYTHONPATH=Cardinal/AIO python - <<'PY'
+          import tempfile
+          from pathlib import Path
+          from rebuild_aio_safe import build_formative_v2
+
+          with tempfile.TemporaryDirectory() as td:
+              root, manifest = build_formative_v2(Path.cwd(), Path(td))
+              assert manifest["version"] == "0.5.0"
+              assert manifest["version_name"] == "0.5.0-rc1"
+              assert (root / "background-v2.js").is_file()
+              assert (root / "presentation-v2.js").is_file()
+              assert (root / "formative-session-main-v2.js").is_file()
+          PY
+
+      - name: Assemble full synthetic AIO through production integration path
+        shell: bash
+        run: |
+          PYTHONPATH=Cardinal/AIO python - <<'PY'
+          import json
+          import subprocess
+          import tempfile
+          import zipfile
+          from pathlib import Path
+          from rebuild_aio_safe import assemble_from_extracted_baseline
+
+          with tempfile.TemporaryDirectory() as td:
+              tmp = Path(td)
+              baseline = tmp / "baseline"
+              baseline.mkdir()
+              manifest = {
+                  "manifest_version": 3,
+                  "name": "Cardinal - Gestion des notes",
+                  "version": "1.1.9",
+                  "permissions": ["scripting", "tabs", "windows", "webRequest", "storage"],
+                  "host_permissions": [
+                      "https://app.formative.com/*",
+                      "https://svc.goformative.com/*",
+                      "https://chatgpt.com/*",
+                      "https://chat.openai.com/*"
+                  ],
+                  "background": {"service_worker": "service-worker.js"},
+                  "content_scripts": [
+                      {
+                          "matches": ["https://app.formative.com/*"],
+                          "js": ["formative-network.js", "formative.js", "formative-stealth.js"],
+                          "run_at": "document_start"
+                      },
+                      {
+                          "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+                          "js": ["chatgpt.js"],
+                          "run_at": "document_idle"
+                      }
+                  ],
+                  "action": {"default_title": "Cardinal", "default_popup": "popup.html"}
+              }
+              (baseline / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+              (baseline / "service-worker.js").write_text(
+                  "chrome.webRequest.onBeforeSendHeaders.addListener((details) => {\n"
+                  "  if(details.url.startsWith('https://svc.goformative.com/graphql/')) return {};\n"
+                  "}, {urls:['https://svc.goformative.com/*']}, ['requestHeaders']);\n",
+                  encoding="utf-8"
+              )
+              for name in (
+                  "chatgpt.js",
+                  "formative-network.js",
+                  "formative.js",
+                  "formative-stealth.js",
+                  "gestion-bridge.js",
+                  "mozaik.js",
+              ):
+                  (baseline / name).write_text("'use strict';\n", encoding="utf-8")
+              (baseline / "popup.html").write_text(
+                  "<!doctype html><html><body><button>Préparer une correction</button></body></html>",
+                  encoding="utf-8"
+              )
+
+              output = tmp / "Cardinal-AIO-synthetic.zip"
+              metadata = assemble_from_extracted_baseline(
+                  extracted_root=baseline,
+                  repo_root=Path.cwd(),
+                  classroom_root=Path("_pdc/chrome-classroom-native-bridge"),
+                  output=output,
+                  scratch=tmp / "assembly",
+              )
+              assert output.is_file()
+              assert metadata.is_file()
+              with zipfile.ZipFile(output) as zf:
+                  names = set(zf.namelist())
+                  built = json.loads(zf.read("manifest.json").decode("utf-8"))
+                  worker = zf.read("service-worker.js").decode("utf-8")
+                  legacy = zf.read("legacy-service-worker.js").decode("utf-8")
+                  popup = zf.read("popup.html").decode("utf-8")
+                  popup_js = zf.read("aio-popup.js").decode("utf-8")
+              assert "key" not in built
+              assert built["action"]["default_popup"] == "popup.html"
+              flat = [name for block in built["content_scripts"] for name in block.get("js", [])]
+              assert flat.index("formative-network.js") < flat.index("formative-session-main-v2.js")
+              assert "chatgpt-ui.js" not in flat
+              assert "background-v093.js" not in names
+              assert "formative-simple-ui.js" not in names
+              assert "popup-v2.js" not in names
+              assert "aio-popup.js" in names
+              assert "Préparer une correction" in popup
+              assert popup.count("cardinal-aio-dashboard") == 1
+              assert popup.count('src="aio-popup.js"') == 1
+              for label in (
+                  "Gestion 1.1.9",
+                  "Correction Formative 1.1.3",
+                  "Importateur Formative 0.5 RC1",
+                  "Mozaïk v14",
+                  "Pont Classroom 1.2.3",
+                  "Pont ChatGPT 1.1.9",
+              ):
+                  assert label in popup_js
+              assert "classroom-background-aio.js" in names
+              assert "background-v2.js" in names
+              assert "importScripts('legacy-service-worker.js')" in worker
+              assert "importScripts('classroom-background-aio.js')" in worker
+              assert "importScripts('background-v2.js')" in worker
+              assert "graphql(?:[/?]|$)" in legacy
+              meta = json.loads(metadata.read_text(encoding="utf-8"))
+              assert meta["manifestKeyPresent"] is False
+              assert meta["experimental09xFallback"] is False
+              assert meta["popupPath"] == "popup.html"
+              assert len(meta["originalPopupSha256"]) == 64
+              assert len(meta["adaptedPopupSha256"]) == 64
+              assert meta["originalPopupSha256"] != meta["adaptedPopupSha256"]
+              assert meta["runtimeBootValidated"] is True
+              assert meta["contentScriptParseCompatibility"]["bundleCount"] >= 1
+              assert meta["popupScriptCompatibility"]["collisions"] == []
+              assert meta["popupScriptCompatibility"]["scriptCount"] >= 1
+              assert meta["compatibility"]["legacyVsFormative"]["collisions"] == []
+              assert meta["compatibility"]["legacyVsClassroom"]["collisions"] == []
+              assert meta["compatibility"]["formativeVsClassroom"]["collisions"] == []
+              assert meta["standaloneCapabilityParity"]["missingPermissions"] == []
+              assert meta["standaloneCapabilityParity"]["missingHosts"] == []
+              assert meta["standaloneCapabilityParity"]["formativeContentScriptsPreserved"] is True
+              assert meta["standaloneCapabilityParity"]["classroomAdaptationPreserved"] is True
+              assert meta["standaloneCapabilityParity"]["formativeWebResourcesPreserved"] is True
+
+              boot_dir = tmp / "boot-dist"
+              boot_dir.mkdir()
+              with zipfile.ZipFile(output) as zf:
+                  zf.extractall(boot_dir)
+              subprocess.run([
+                  "node",
+                  "Cardinal/AIO/aio_service_worker.boot.test.js",
+                  str(boot_dir),
+              ], check=True)
+          PY
+
+      - name: Verify missing baseline fails closed
+        shell: bash
+        run: |
+          set +e
+          python Cardinal/AIO/rebuild_aio_safe.py \
+            --classroom-root /tmp/not-used \
+            --output /tmp/should-not-exist.zip \
+            >/tmp/aio.out 2>/tmp/aio.err
+          rc=$?
+          set -e
+          cat /tmp/aio.err
+          test "$rc" -eq 2
+          grep -F "BUILD_REFUSED=Aucun paquet Gestion fourni" /tmp/aio.err
+          grep -F "b8ef9a94cb9f55aca5957371ba239c67efdff943aa457b5aeed56afd005f69d7" /tmp/aio.err
+          grep -F "1a8b2f592f7b112e68ce488a4b63c2175fc535c54eebb17d0fd195d53c0a9a0d" /tmp/aio.err
+          test ! -e /tmp/should-not-exist.zip
+
+      - name: Guard against beta fallback source
+        shell: bash
+        run: |
+          ! grep -F "cardinal-mozaik-extension-v0.9.3-beta.zip" Cardinal/AIO/rebuild_aio_safe.py
+          ! grep -F "vendor/cardinal-mozaik-extension-v0.9" Cardinal/AIO/rebuild_aio_safe.py
+          ! grep -F "releases/experimental" Cardinal/AIO/rebuild_aio_safe.py
+
+
+  build_user_verified_118:
+    needs: contract
+    if: github.repository == 'techno-cardi/database'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Checkout pinned Classroom 1.2.3 source
+        uses: actions/checkout@v4
+        with:
+          repository: techno-cardi/Plan-de-cours
+          ref: 6887bfa2e8afd523a38a0e3286aa1f826276b8c5
+          path: _pdc
+
+      - name: Reconstruct exact user-provided Gestion 1.1.8 baseline
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          expected_sha = "1a8b2f592f7b112e68ce488a4b63c2175fc535c54eebb17d0fd195d53c0a9a0d"
+          expected_size = 89836
+          labels = [
+              *(f"{i:02}/12" for i in range(1, 8)),
+              "08A/12", "08B/12",
+              "09A/12", "09B/12",
+              "10A/12", "10B/12",
+              "11A/12", "11B/12",
+              "12A/12", "12B/12",
+          ]
+          markers = {label: f"CARDINAL_BASELINE_118_PART {label}" for label in labels}
+          found = {label: [] for label in labels}
+
+          page = 1
+          while True:
+              url = f"https://api.github.com/repos/{repo}/issues/8/comments?per_page=100&page={page}"
+              req = urllib.request.Request(
+                  url,
+                  headers={
+                      "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                      "Accept": "application/vnd.github+json",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              with urllib.request.urlopen(req) as resp:
+                  rows = json.load(resp)
+              for row in rows:
+                  body = row.get("body") or ""
+                  first, sep, rest = body.partition("\n")
+                  for label, marker in markers.items():
+                      if first == marker:
+                          if not sep:
+                              raise SystemExit(f"Commentaire sans payload pour {marker}")
+                          found[label].append((row.get("id"), rest.strip()))
+              if len(rows) < 100:
+                  break
+              page += 1
+
+          for label in labels:
+              rows = found[label]
+              if len(rows) != 1:
+                  raise SystemExit(
+                      f"Baseline 1.1.8 fail-closed: {label} a {len(rows)} commentaire(s), exactement 1 attendu."
+                  )
+
+          encoded = "".join(found[label][0][1] for label in labels)
+          raw = base64.b64decode(encoded, validate=True)
+          actual_sha = hashlib.sha256(raw).hexdigest()
+          if len(raw) != expected_size:
+              raise SystemExit(f"Taille baseline invalide: {len(raw)}, attendu {expected_size}")
+          if actual_sha != expected_sha:
+              raise SystemExit(f"SHA baseline invalide: {actual_sha}, attendu {expected_sha}")
+
+          out = Path("/tmp/cardinal-gestion-1.1.8-user-verified.zip")
+          out.write_bytes(raw)
+          print(f"BASELINE_PATH={out}")
+          print(f"BASELINE_SIZE={len(raw)}")
+          print(f"BASELINE_SHA256={actual_sha}")
+          PY
+
+      - name: Build exact AIO candidate from Gestion 1.1.8
+        shell: bash
+        run: |
+          mkdir -p dist
+          python Cardinal/AIO/rebuild_aio_safe.py \
+            --baseline /tmp/cardinal-gestion-1.1.8-user-verified.zip \
+            --baseline-profile gestion-1.1.8-user-verified \
+            --repo-root . \
+            --classroom-root _pdc/chrome-classroom-native-bridge \
+            --output dist/Cardinal-AIO-1.2.0-rc3-repair-g118.zip
+
+      - name: Re-extract and verify generated candidate
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import tempfile
+          import zipfile
+          from pathlib import Path
+
+          archive = Path("dist/Cardinal-AIO-1.2.0-rc3-repair-g118.zip")
+          metadata = archive.with_suffix(".json")
+          assert archive.is_file()
+          assert metadata.is_file()
+
+          meta = json.loads(metadata.read_text(encoding="utf-8"))
+          assert meta["baselineProfile"] == "gestion-1.1.8-user-verified"
+          assert meta["baselineVersion"] == "1.1.8"
+          assert meta["baselineChatGptBridgeVersion"] == "1.1.8"
+          assert meta["baselineZipSha256"] == "1a8b2f592f7b112e68ce488a4b63c2175fc535c54eebb17d0fd195d53c0a9a0d"
+          assert meta["runtimeBootValidated"] is True
+          assert meta["experimental09xFallback"] is False
+
+          digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+          assert digest == meta["outputSha256"]
+
+          with zipfile.ZipFile(archive) as zf:
+              manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
+              popup_js = zf.read("aio-popup.js").decode("utf-8")
+              names = set(zf.namelist())
+              assert manifest["version"] == "1.2.0"
+              assert manifest["version_name"] == "1.2.0-rc3-repair-g118"
+              assert "Gestion 1.1.8" in popup_js
+              assert "Pont ChatGPT 1.1.8" in popup_js
+              assert "background-v093.js" not in names
+              assert "chatgpt-ui.js" not in names
+              assert "formative-simple-ui.js" not in names
+              assert "popup-v2.js" not in names
+
+          print(f"AIO_SHA256={digest}")
+          PY
+
+      - name: Upload exact AIO candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cardinal-AIO-1.2.0-rc3-repair-g118
+          path: |
+            dist/Cardinal-AIO-1.2.0-rc3-repair-g118.zip
+            dist/Cardinal-AIO-1.2.0-rc3-repair-g118.json
+          if-no-files-found: error
+          retention-days: 30
+
+
+  recovery_windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Execute Windows baseline recovery self-test
+        shell: pwsh
+        run: |
+          & "Cardinal/AIO/recover_baseline_windows.ps1" `
+            -SelfTest `
+            -OutputRoot (Join-Path $env:RUNNER_TEMP "Cardinal-Recovery-SelfTest")
