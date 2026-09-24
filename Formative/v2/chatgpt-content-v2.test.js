@@ -76,6 +76,65 @@ const U = require('./chatgpt-content-v2.js');
   assert.deepEqual(U.actionIntent({ primaryAction: { id: 'none' } }), { command: 'NONE' });
   assert.deepEqual(U.actionIntent({ primaryAction: { id: 'future-action' } }), { command: 'NONE' });
 
+
+  // Manual page analysis must acknowledge the popup and report what the scan
+  // actually found instead of silently scheduling work with no response.
+  {
+    let listener = null;
+    const doc = {
+      documentElement: {},
+      querySelectorAll() { return []; },
+      createElement() { return { style: {}, dataset: {}, replaceChildren() {}, remove() {} }; }
+    };
+    const runtime = {
+      id: 'cardinal-test',
+      onMessage: {
+        addListener(fn) { listener = fn; },
+        removeListener(fn) { if (listener === fn) listener = null; }
+      }
+    };
+    const scanner = {
+      scan() {
+        return {
+          messages: [{
+            messageRoot: null,
+            technicalNode: null,
+            parse: { state: 'found', package: { pkg: {
+              schema: 'cardinal.formative/2',
+              protocolVersion: '2.0.0',
+              packageMode: 'full',
+              assessment: { title: 'Test' },
+              sources: [],
+              items: [],
+              issues: []
+            }, rawJson: '{"schema":"cardinal.formative/2"}' } }
+          }],
+          ignored: []
+        };
+      },
+      placementAnchor() { return { mode: 'append-end', anchor: null, parent: null, table: null }; }
+    };
+    const parser = { SENTINEL: 'CARDINAL_FORMATIVE_PACKAGE_V2' };
+    const bridge = U.createContentBridge({
+      document: doc,
+      runtime,
+      scanner,
+      parser,
+      errorPresenter: { present(error) { return { message: error?.message || String(error) }; } },
+      MutationObserver: null,
+      storage: null
+    });
+    bridge.start();
+    assert.equal(typeof listener, 'function');
+    const response = await new Promise(resolve => {
+      const claimed = listener({ type: U.UI_RESCAN_MESSAGE }, {}, resolve);
+      assert.equal(claimed, true);
+    });
+    assert.equal(response.ok, true);
+    assert.equal(response.packages, 1);
+    bridge.stop();
+  }
+
   console.log('chatgpt-content-v2: all tests passed');
 })().catch(error => {
   console.error(error);
