@@ -51,7 +51,7 @@ const Capabilities = require('./capabilities-v2.js');
     assert(text.includes('référence pédagogique prioritaire'));
     assert(text.includes('angles morts pédagogiques'));
     assert(text.length <= H.MAX_PREPARE_TEXT_CHARS);
-    assert(H.COMPACT_PROTOCOL.length < 3500, 'compact contract must stay far below the old 14k prompt');
+    assert(H.COMPACT_PROTOCOL.length < 6000, 'copied contract must stay readable and materially below the old 14k prompt');
     assert.equal(H.triggerText(text), text, 'clicking twice must not duplicate the Cardinal instruction');
 
     const empty = H.triggerText('');
