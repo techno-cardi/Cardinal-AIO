@@ -23,7 +23,7 @@ from aio_rebuild_contract import (
     verify_core_hashes,
     verify_tree_hashes,
 )
-from rebuild_aio_safe import augment_historical_popup, make_zip, patch_historical_graphql, patch_user_verified_118_changed_answer_force, patch_user_verified_118_chatgpt_batch_binding, validate_content_script_parse_compatibility, validate_output, validate_popup_script_compatibility
+from rebuild_aio_safe import augment_historical_popup, make_zip, patch_historical_graphql, patch_user_verified_118_changed_answer_force, patch_user_verified_118_chatgpt_batch_binding, patch_user_verified_118_chatgpt_current_ui, validate_content_script_parse_compatibility, validate_output, validate_popup_script_compatibility
 from audit_recovered_baseline import audit_baseline
 
 
@@ -309,6 +309,42 @@ class AioRebuildContractTests(unittest.TestCase):
             broken.write_text("'use strict';", encoding="utf-8")
             with self.assertRaisesRegex(BaselineContractError, "ChatGPT|Adaptation"):
                 patch_user_verified_118_chatgpt_batch_binding(broken)
+
+    def test_chatgpt_current_ui_patch_adds_explicit_role_markers(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            chatgpt = root / "chatgpt.js"
+            chatgpt.write_text(
+                """  function turnRole(turn){
+    if(turn.matches?.('[data-testid="user-message"]') || turn.querySelector?.('[data-testid="user-message"]')) return 'user';
+    if(turn.matches?.('[data-testid="assistant-message"]') || turn.querySelector?.('[data-testid="assistant-message"]')) return 'assistant';
+
+    const testid=String(turn.getAttribute?.('data-testid')||'').toLowerCase();
+  }
+
+  function conversationTurns(){
+    const selectors=['[data-testid^="conversation-turn-"]'];
+    for(const selector of selectors){
+      const all=[...document.querySelectorAll(selector)];
+      if(!all.length) continue;
+      const outer=all.filter(node=>!all.some(other=>other!==node && other.contains(node)));
+      return outer.length ? outer : all;
+    }
+    return [];
+  }
+""",
+                encoding="utf-8",
+            )
+            patch_user_verified_118_chatgpt_current_ui(chatgpt)
+            text = chatgpt.read_text(encoding="utf-8")
+            self.assertIn("data-chatgpt-search-unit-key", text)
+            self.assertIn("data-content-search-unit-key", text)
+            self.assertIn("data-user-message-bubble", text)
+
+            bad = root / "bad.js"
+            bad.write_text("'use strict';", encoding="utf-8")
+            with self.assertRaisesRegex(BaselineContractError, "current ChatGPT|Adaptation"):
+                patch_user_verified_118_chatgpt_current_ui(bad)
 
     def test_historical_graphql_patch_is_exact_and_fail_closed(self):
         with tempfile.TemporaryDirectory() as td:
