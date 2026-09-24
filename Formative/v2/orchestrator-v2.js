@@ -121,8 +121,37 @@
       // Recovery takes priority over generating a fresh diff. A partially
       // completed run may already have changed Formative and the baseline, so a
       // fresh planner result is not an equivalent replacement for the old plan.
-      const existingJournal = await deps.persistence.loadJournal(targetFormativeId, assessmentFingerprint);
-      const existingIncomplete = existingJournal && !deps.journal.isSummaryComplete(existingJournal.summary || {});
+      let existingJournal = await deps.persistence.loadJournal(targetFormativeId, assessmentFingerprint);
+      let existingIncomplete = existingJournal && !deps.journal.isSummaryComplete(existingJournal.summary || {});
+      let abandonedRecovery = null;
+
+      // A journal already proven BLOCKED with no uncertain/in-progress write can
+      // never make progress by resuming the same immutable plan. Clear only
+      // that safe class of stale recovery, then do a fresh server read/dry-run.
+      // Any operation that may have committed remains protected and must still
+      // reconcile before Cardinal is allowed to mutate again.
+      if (existingIncomplete) {
+        const resume = deps.journal.resumePlan(existingJournal);
+        const stuck = resume.some(step => step.decision === 'BLOCKED');
+        const unknownOutcome = resume.some(step => step.decision === 'RECONCILE');
+        if (stuck && !unknownOutcome && typeof deps.persistence.clearJournal === 'function') {
+          abandonedRecovery = {
+            runId: existingJournal.runId || null,
+            reasons: uniqueSorted(
+              resume.filter(step => step.decision === 'BLOCKED')
+                .map(step => step.reason || 'BLOCKED')
+            )
+          };
+          await deps.persistence.clearJournal(
+            targetFormativeId,
+            assessmentFingerprint,
+            { allowIncomplete: true, expectedRunId: existingJournal.runId }
+          );
+          existingJournal = null;
+          existingIncomplete = false;
+        }
+      }
+
       if (existingIncomplete) {
         const recoveryCheck = validateRecoveryJournal(existingJournal);
         if (!recoveryCheck.ok) {
@@ -209,6 +238,7 @@
           const token = reconciliationToken(input, analysis);
           return {
             ok: true,
+            abandonedRecovery,
             canImport: false,
             state: 'reconciliation_required',
             mode: 'bootstrap',
@@ -226,6 +256,7 @@
 
         return {
           ok: false,
+          abandonedRecovery,
           state: 'blocked',
           mode: 'new',
           targetFormativeId,
@@ -252,6 +283,7 @@
         ok: true,
         state: preflight.state,
         mode: 'new',
+        abandonedRecovery,
         targetFormativeId,
         targetTabId: input.targetTabId ?? null,
         assessmentFingerprint,
