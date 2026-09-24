@@ -77,6 +77,32 @@
     return error;
   }
 
+  // CREATE operations share one preflight snapshot. After Cardinal creates
+  // and verifies question 1, question 2 must accept that new ID as an expected
+  // in-run change while still rejecting any unrelated/manual new item.
+  function runVerifiedCreatedIds(journal, deps, exceptOperationId) {
+    const verified = deps.journal.STATUS?.VERIFIED || 'VERIFIED';
+    return [...new Set((journal?.operations || [])
+      .filter(row => row.operationId !== exceptOperationId &&
+        row.action === 'CREATE' &&
+        row.status === verified &&
+        row.result?.formativeItemId)
+      .map(row => String(row.result.formativeItemId)))];
+  }
+
+  function withRunCreatedIds(op, journal, deps) {
+    if (op?.action !== 'CREATE' || !Array.isArray(op.preexistingServerItemIds)) return op;
+    const created = runVerifiedCreatedIds(journal, deps, op.operationId);
+    if (!created.length) return op;
+    return {
+      ...op,
+      preexistingServerItemIds: [...new Set([
+        ...op.preexistingServerItemIds.map(String),
+        ...created
+      ])].sort()
+    };
+  }
+
   async function verifyPrecondition({ op, journal, callbacks, deps, context }) {
     let verdict;
     try {
@@ -157,7 +183,7 @@
     // Critical TOCTOU guard: preflight may be seconds old. Re-read/assert the
     // exact target/item immediately before changing the journal to IN_PROGRESS
     // and before sending any mutation. A manual server edit blocks the write.
-    const precondition = await verifyPrecondition({ op, journal, callbacks, deps, context });
+    const precondition = await verifyPrecondition({ op: withRunCreatedIds(op, journal, deps), journal, callbacks, deps, context });
     journal = precondition.journal;
     if (precondition.stopped) return precondition;
 
@@ -224,7 +250,7 @@
   }
 
   async function reconcileOne({ op, journal, callbacks, deps, context }) {
-    const verdict = await requiredFn(callbacks, 'reconcileOperation')({ op, context });
+    const verdict = await requiredFn(callbacks, 'reconcileOperation')({ op: withRunCreatedIds(op, journal, deps), context });
 
     if (!verdict || !['committed', 'not_committed', 'conflict'].includes(verdict.state)) {
       throw new Error('reconcileOperation must return committed, not_committed or conflict');
@@ -492,6 +518,8 @@
   }
 
   const api = {
+    runVerifiedCreatedIds,
+    withRunCreatedIds,
     executableOperations,
     makeJournalOperations,
     run
