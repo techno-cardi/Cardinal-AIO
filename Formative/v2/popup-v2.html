@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cardinal · Formative</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; width: 320px; font: 13px/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color: CanvasText; background: Canvas; }
+    main { padding: 14px; }
+    h1 { margin: 0; font-size: 16px; }
+    .sub { margin: 3px 0 12px; opacity: .72; font-size: 12px; }
+    .status { padding: 9px 10px; border: 1px solid rgba(128,128,128,.3); border-radius: 9px; margin-bottom: 10px; }
+    .status strong { display: block; }
+    .actions { display: grid; gap: 7px; }
+    button { width: 100%; text-align: left; padding: 9px 10px; border-radius: 8px; border: 1px solid rgba(128,128,128,.35); background: transparent; color: inherit; cursor: pointer; }
+    button:hover { background: rgba(128,128,128,.1); }
+    button:disabled { opacity: .55; cursor: default; }
+    #message { min-height: 18px; margin-top: 9px; font-size: 12px; opacity: .78; }
+    footer { margin-top: 12px; padding-top: 9px; border-top: 1px solid rgba(128,128,128,.25); font-size: 11px; opacity: .65; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Cardinal · Formative</h1>
+    <div class="sub">Importeur v0.5.0-rc1</div>
+    <div class="status">
+      <strong id="formativeStatus">Vérification…</strong>
+      <span id="chatgptStatus"></span>
+    </div>
+    <div class="actions">
+      <button id="rescan" type="button">Analyser cette page ChatGPT</button>
+      <button id="restore" type="button">Réafficher les barres masquées</button>
+    </div>
+    <div id="message" role="status" aria-live="polite"></div>
+    <footer>Les suppressions et les imports incertains restent bloqués jusqu’à vérification.</footer>
+  </main>
+  <script src="popup-v2.js"></script>
+</body>
+</html>
