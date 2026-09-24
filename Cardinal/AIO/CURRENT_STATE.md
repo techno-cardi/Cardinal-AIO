@@ -1,3 +1,61 @@
+# MISE À JOUR CHATGPT / FORMATIVE - 2026-09-24
+
+État validé sur la branche `cardinal/chatgpt-resilient-scanner-20260924`.
+
+## Robustesse de détection ChatGPT
+
+Le scanner Formative v2 ne dépend plus d'un seul DOM ChatGPT ni de la présence obligatoire d'un bloc `<pre>/<code>`.
+
+Signaux pris en charge, de façon défensive et fail-closed :
+
+- `data-message-author-role`;
+- `data-turn`;
+- `data-role`;
+- `data-message-author`;
+- wrappers `data-testid="conversation-turn-*"`;
+- `article`;
+- action assistant `copy-turn-action-button` comme signal de secours.
+
+Le paquet `CARDINAL_FORMATIVE_PACKAGE_V2` est recherché dans le texte complet d'un tour assistant. Le HTML `pre/code` sert seulement d'ancrage facultatif pour masquer le bloc technique et placer la barre. Un paquet présent dans un tour utilisateur reste refusé.
+
+`Analyser cette page` renvoie maintenant un résultat observable. Si aucun content script ne répond, le popup AIO réinjecte la chaîne ChatGPT Formative v2 avec `chrome.scripting.executeScript`, puis relance le scan. Le bouton n'est donc plus dépendant du scanner qu'il est censé récupérer.
+
+## Prompt Formative copié
+
+`Copier le prompt Formative` copie une consigne structurée et lisible d'environ 5,3 k caractères. Elle conserve le contrat technique `cardinal.formative/2` et reprend les exigences pédagogiques du protocole de correction Cardinal :
+
+- indépendance des pointages actuels;
+- critères de réussite établis avant le corrigé;
+- priorité au corrigé/barème/exemples de l'enseignant;
+- équivalence sémantique;
+- cohérence entre réponses équivalentes;
+- traitement élément par élément des questions multiparties;
+- gestion des ambiguïtés raisonnables;
+- blocage lorsque la source nécessaire manque;
+- deuxième passe silencieuse de cohérence;
+- vérification explicite des angles morts pédagogiques.
+
+## Build public autonome
+
+La baseline utilisateur vérifiée Gestion 1.1.8 est maintenant persistée sous :
+
+`Cardinal/AIO/baselines/gestion-1.1.8-user-verified/`
+
+Contrat :
+
+- taille ZIP : 89836 octets;
+- SHA-256 : `1a8b2f592f7b112e68ce488a4b63c2175fc535c54eebb17d0fd195d53c0a9a0d`.
+
+Le workflow public `Cardinal AIO repair contract` reconstruit cette baseline localement, construit le candidat AIO, le réextrait, le revalide et téléverse l'artefact.
+
+Run de validation complet : `36067661617`.
+
+Artefact : `Cardinal-AIO-1.2.0-rc3-repair-g118`.
+
+Digest de l'artefact Actions : `sha256:ff09797724237354062bbef8d33b155e628ef0730cba9916e4c80da5e36cc6ac`.
+
+---
+
 # AVIS DE RÉPARATION - 2026-09-23
 
 L'état de publication décrit plus bas correspond à la RC2 originale auditée localement les 21-22 septembre 2026. Son ZIP exact n'est plus récupérable dans les sources persistantes disponibles.
