@@ -48,7 +48,7 @@ from aio_rebuild_contract import (
 AIO_VERSION = "1.2.0"
 AIO_VERSION_NAME = "1.2.0-rc4"
 CLASSROOM_COMMIT = "6887bfa2e8afd523a38a0e3286aa1f826276b8c5"
-FORMATIVE_TREE_SHA = "40ce923022963e9e24373045a0e9f725efdff8a2"
+FORMATIVE_TREE_SHA = "bd796201ae1c52b4becbe0223e50fe71c0bba8fb"
 FORMATIVE_V2_ZIP = "Cardinal-Formative-Importer-STANDALONE-0.5.0-rc1.zip"
 AIO_POPUP_JS = "aio-popup.js"
 
