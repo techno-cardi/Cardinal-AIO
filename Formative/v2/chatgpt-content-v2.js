@@ -503,19 +503,31 @@
     }
 
     async function scanNow() {
-      if (stopped) return;
+      if (stopped) {
+        return { ok: false, scanned: false, packages: 0, bars: bars.size, invalid: 0, ignored: 0 };
+      }
       let result;
       try {
         result = scanner.scan(doc, parser);
-      } catch {
-        return;
+      } catch (error) {
+        return {
+          ok: false,
+          scanned: false,
+          packages: 0,
+          bars: bars.size,
+          invalid: 0,
+          ignored: 0,
+          error: error?.message || String(error)
+        };
       }
 
       const found = [];
+      let invalidCount = 0;
       for (const message of result.messages || []) {
         if (message.parse?.state === 'found' && message.parse.package?.pkg) {
           found.push({ message, parsed: message.parse.package });
         } else if (message.parse?.state === 'invalid' || message.parse?.state === 'ambiguous') {
+          invalidCount += 1;
           await renderInvalid(message, message.parse.error);
         }
       }
@@ -552,6 +564,14 @@
         await prepare(record);
       }
       removeSuperseded(activeSignatures);
+      return {
+        ok: true,
+        scanned: true,
+        packages: found.length,
+        bars: bars.size,
+        invalid: invalidCount,
+        ignored: (result.ignored || []).length
+      };
     }
 
     function scheduleScan() {
@@ -563,10 +583,20 @@
       }, SCAN_DEBOUNCE_MS);
     }
 
-    function onRuntimeMessage(message) {
+    function onRuntimeMessage(message, _sender, sendResponse) {
       if (message?.type === UI_RESCAN_MESSAGE) {
-        scheduleScan();
-        return false;
+        Promise.resolve(scanNow())
+          .then(summary => sendResponse?.(summary))
+          .catch(error => sendResponse?.({
+            ok: false,
+            scanned: false,
+            packages: 0,
+            bars: bars.size,
+            invalid: 0,
+            ignored: 0,
+            error: error?.message || String(error)
+          }));
+        return true;
       }
       if (message?.type !== 'CARDINAL_FORMATIVE_IMPORT_PROGRESS') return false;
       const event = message.payload || {};
