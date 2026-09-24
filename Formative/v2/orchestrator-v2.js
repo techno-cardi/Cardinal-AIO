@@ -344,15 +344,18 @@
         };
       }
 
-      const unsafe = (freshAnalysis.proposals || []).filter(row => row.safeToAdoptDesiredAsBaseline !== true);
-      if (unsafe.length) {
+      const unlinkable = (freshAnalysis.proposals || []).filter(row =>
+        row.safeToAdoptServerAsBaseline !== true &&
+        row.safeToAdoptDesiredAsBaseline !== true
+      );
+      if (unlinkable.length) {
         return {
           ok: false,
           state: 'review_required',
           reason: 'RECONCILIATION_CONFLICTS_REQUIRE_RESOLUTION',
-          message: `${unsafe.length} question(s) semblent correspondre à un ancien import, mais leur contenu actuel a changé. Cardinal ne les écrasera pas automatiquement.`,
+          message: `${unlinkable.length} correspondance(s) ne peuvent pas être reliées de façon sûre.`,
           reconciliation: { ...freshAnalysis, analysisToken: freshToken },
-          conflicts: unsafe
+          conflicts: unlinkable
         };
       }
 
