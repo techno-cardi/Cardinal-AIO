@@ -820,6 +820,21 @@
       }, SCAN_DEBOUNCE_MS);
     }
 
+    function isOwnMutation(record) {
+      const target = record?.target;
+      const host = target?.nodeType === 3 ? target.parentNode : target;
+      if (host && scanner.insideCardinalUi?.(host)) return true;
+      const added = [...(record?.addedNodes || [])];
+      const removed = [...(record?.removedNodes || [])];
+      if (removed.length || !added.length) return false;
+      return added.every(node => scanner.isCardinalUiElement?.(node));
+    }
+
+    function onMutations(records) {
+      if (Array.isArray(records) && records.length && records.every(isOwnMutation)) return;
+      scheduleScan();
+    }
+
     function onRuntimeMessage(message, _sender, sendResponse) {
       if (message?.type === UI_RESCAN_MESSAGE) {
         Promise.resolve(scanNow())
@@ -851,7 +866,7 @@
         runtime.onMessage.addListener(onRuntimeMessage);
       }
       if (MutationObserverApi) {
-        observer = new MutationObserverApi(scheduleScan);
+        observer = new MutationObserverApi(onMutations);
         observer.observe(doc.documentElement || doc.body, { childList: true, subtree: true, characterData: true });
       }
       scheduleScan();
@@ -870,7 +885,7 @@
       return true;
     }
 
-    const api = Object.freeze({ start, stop, scanNow, scheduleScan, onRuntimeMessage });
+    const api = Object.freeze({ start, stop, scanNow, scheduleScan, onMutations, isOwnMutation, onRuntimeMessage });
     return api;
   }
 
