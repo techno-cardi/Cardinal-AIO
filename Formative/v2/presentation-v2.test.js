@@ -73,6 +73,54 @@ function pkg() {
   assert.equal(view.recovery.uncertain, 1);
 }
 
+// Recovery with zero verified operations and only a possibly committed UPDATE
+// is offered as a fresh recheck, not a replay of the stale execution plan.
+{
+  const journal = {
+    runId: 'R-safe',
+    summary: { verified: 0, remaining: 2, uncertain: 1, failed: 0 },
+    operations: [
+      {
+        operationId: 'update:q1',
+        action: 'UPDATE',
+        formativeItemId: 'existing-q1',
+        status: 'UNCERTAIN',
+        mutationMayHaveCommitted: true
+      },
+      {
+        operationId: 'create:q2',
+        action: 'CREATE',
+        formativeItemId: null,
+        status: 'PENDING',
+        mutationMayHaveCommitted: false
+      }
+    ]
+  };
+  assert.equal(P.recoveryFreshPrepareSafe(journal), true);
+  const view = P.buildPreparedView({
+    ok: true, state: 'recovery', mode: 'resume', targetTitle: 'Tchernobyl', journal
+  });
+  assert.equal(view.primaryAction.id, 'reimport');
+  assert.equal(view.primaryAction.label, 'Revérifier et reprendre');
+}
+
+// A possibly committed CREATE is never discarded automatically because a fresh
+// create could duplicate a server item.
+{
+  const journal = {
+    runId: 'R-unsafe',
+    summary: { verified: 0, remaining: 1, uncertain: 1, failed: 0 },
+    operations: [{
+      operationId: 'create:q1',
+      action: 'CREATE',
+      formativeItemId: 'maybe-created',
+      status: 'UNCERTAIN',
+      mutationMayHaveCommitted: true
+    }]
+  };
+  assert.equal(P.recoveryFreshPrepareSafe(journal), false);
+}
+
 // Completed import keeps a non-destructive reimport action available.
 {
   const view = P.buildExecutionView({ state: 'completed', journal: { summary: { verified: 3, skipped: 2 } } }, { targetTitle: 'T' });
