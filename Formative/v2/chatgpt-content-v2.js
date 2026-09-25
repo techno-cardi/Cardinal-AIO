@@ -149,9 +149,23 @@
     const selectedSet = new Set(selected);
     const clone = JSON.parse(JSON.stringify(pkg));
     clone.packageMode = 'patch';
-    clone.items = (clone.items || []).filter(item =>
-      item?.kind === 'question' && selectedSet.has(String(item.id))
-    );
+
+    // Question selection must never strip context silently. Keep structural
+    // text/instructions, and keep any passageGroup that owns a selected
+    // question. This prevents a subset import from bypassing a passage/source
+    // blocker by dropping the parent context.
+    clone.items = (clone.items || []).flatMap(item => {
+      if (item?.kind === 'question') {
+        return selectedSet.has(String(item.id)) ? [item] : [];
+      }
+      if (item?.kind === 'section' || item?.kind === 'instruction') return [item];
+      if (item?.kind === 'passageGroup') {
+        const questionIds = (item.questionIds || []).map(String).filter(id => selectedSet.has(id));
+        return questionIds.length ? [{ ...item, questionIds }] : [];
+      }
+      return [];
+    });
+    const keptItemIds = new Set((clone.items || []).map(item => String(item?.id || '')).filter(Boolean));
 
     // A subset is not the complete assessment anymore. Keeping the original
     // declared total would be misleading for downstream validation/reporting.
@@ -159,11 +173,12 @@
       delete clone.assessment.declaredTotalPoints;
     }
 
-    // Item-specific issues for unselected questions are irrelevant. A full-
-    // assessment total mismatch is also irrelevant in patch mode.
+    // Item-specific issues for removed items are irrelevant. A full-assessment
+    // total mismatch is also irrelevant in patch mode. Issues on retained
+    // context/passages remain binding.
     clone.issues = (clone.issues || []).filter(issue => {
       if (issue?.code === 'TOTAL_POINTS_MISMATCH') return false;
-      if (issue?.itemId) return selectedSet.has(String(issue.itemId));
+      if (issue?.itemId) return keptItemIds.has(String(issue.itemId));
       return true;
     });
 
