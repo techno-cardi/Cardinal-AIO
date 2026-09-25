@@ -541,6 +541,81 @@ def patch_user_verified_118_chatgpt_no_auto_reload(chatgpt: Path) -> None:
     chatgpt.write_text(text, encoding="utf-8")
 
 
+def patch_user_verified_118_chatgpt_live_ping(chatgpt: Path) -> None:
+    """Expose a live bridge ping so the worker avoids redundant reinjection."""
+    text = chatgpt.read_text(encoding="utf-8")
+    text = replace_exactly(
+        text,
+        """  try {
+    chrome.runtime.onMessage.addListener(message=>{
+      if(message?.type==='CARDINAL_SIMPLE_CONTEXT_CLEARED'){
+        cachedContext=null;
+        $('panel').classList.add('hidden');
+        refreshButton();
+      }
+    });
+  } catch {}
+""",
+        """  try {
+    chrome.runtime.onMessage.addListener((message,_sender,sendResponse)=>{
+      if(message?.type==='CARDINAL_CHATGPT_BRIDGE_PING'){
+        sendResponse?.({ok:true,bridgeVersion:BRIDGE_VERSION});
+        return;
+      }
+      if(message?.type==='CARDINAL_SIMPLE_CONTEXT_CLEARED'){
+        cachedContext=null;
+        $('panel').classList.add('hidden');
+        refreshButton();
+      }
+    });
+  } catch {}
+""",
+        label="Gestion 1.1.8 live ChatGPT bridge ping",
+    )
+    if "CARDINAL_CHATGPT_BRIDGE_PING" not in text:
+        raise BaselineContractError("Ping du pont ChatGPT 1.1.8 absent.")
+    chatgpt.write_text(text, encoding="utf-8")
+
+
+def patch_user_verified_118_worker_chatgpt_ping(worker: Path) -> None:
+    """Ping the live bridge before injecting chatgpt.js on focus/activation."""
+    text = worker.read_text(encoding="utf-8")
+    text = replace_exactly(
+        text,
+        """async function cardinalReinjectChatGptBridge1000(tabId) {
+  if (!tabId) return;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const url = String(tab?.url || '');
+    if (!/^https:\/\/(chatgpt\.com|chat\.openai\.com)\//i.test(url)) return;
+    await chrome.scripting.executeScript({ target:{ tabId }, files:['chatgpt.js'] });
+  } catch {}
+}
+""",
+        """async function cardinalReinjectChatGptBridge1000(tabId) {
+  if (!tabId) return;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const url = String(tab?.url || '');
+    if (!/^https:\/\/(chatgpt\.com|chat\.openai\.com)\//i.test(url)) return;
+
+    let live = null;
+    try {
+      live = await chrome.tabs.sendMessage(tabId, { type:'CARDINAL_CHATGPT_BRIDGE_PING' });
+    } catch {}
+    if (live?.ok && live?.bridgeVersion === '1.1.8') return;
+
+    await chrome.scripting.executeScript({ target:{ tabId }, files:['chatgpt.js'] });
+  } catch {}
+}
+""",
+        label="Gestion 1.1.8 ping-before-reinject ChatGPT bridge",
+    )
+    if "CARDINAL_CHATGPT_BRIDGE_PING" not in text:
+        raise BaselineContractError("Worker ChatGPT ping-before-reinject absent.")
+    worker.write_text(text, encoding="utf-8")
+
+
 def replace_exactly(text: str, old: str, new: str, *, label: str, expected: int = 1) -> str:
     count = text.count(old)
     if count != expected:
@@ -1188,6 +1263,7 @@ def assemble_from_extracted_baseline(
         patch_user_verified_118_chatgpt_batch_binding(chatgpt_path)
         patch_user_verified_118_chatgpt_current_ui(chatgpt_path)
         patch_user_verified_118_chatgpt_no_auto_reload(chatgpt_path)
+        patch_user_verified_118_chatgpt_live_ping(chatgpt_path)
     patched_chatgpt_sha256 = sha256(chatgpt_path)
     validated_core_hashes = snapshot_core_hashes(dist)
 
@@ -1206,6 +1282,7 @@ def assemble_from_extracted_baseline(
     patch_historical_graphql(legacy_worker)
     if gestion_version == "1.1.8":
         patch_user_verified_118_changed_answer_force(legacy_worker)
+        patch_user_verified_118_worker_chatgpt_ping(legacy_worker)
     patched_legacy_worker_sha256 = sha256(legacy_worker)
 
     formative_root, formative_manifest = build_formative_v2(repo_root, scratch)
