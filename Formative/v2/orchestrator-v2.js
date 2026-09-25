@@ -263,8 +263,11 @@
           targetTabId: input.targetTabId ?? null,
           targetTitle: input.targetTitle || null,
           assessmentFingerprint,
+          packageFingerprint: input.packageFingerprint || null,
+          pkg: input.pkg,
           baselineRecord,
           preflight,
+          issues: preflight.issues || [],
           reason: 'PREFLIGHT_BLOCKED'
         };
       }
