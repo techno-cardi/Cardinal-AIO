@@ -66,7 +66,6 @@
       const value = Number(view[key] || 0);
       if (value > 0) parts.push(`${value} ${value === 1 ? singular : plural}`);
     }
-    if (Number(view.warnings || 0) > 0) parts.push(`${Number(view.warnings)} avertissement${Number(view.warnings) > 1 ? 's' : ''}`);
     if (Number(view.blockers || 0) > 0) parts.push(`${Number(view.blockers)} blocage${Number(view.blockers) > 1 ? 's' : ''}`);
     return parts.join(' · ') || oneLine(view.statusLabel) || 'Prêt';
   }
@@ -75,12 +74,11 @@
     const action = view?.primaryAction || {};
     switch (action.id) {
       case 'import':
+        return { command: 'APPLY', acknowledgeWarnings: Number(view?.warnings || 0) > 0 };
       case 'resume':
-        return { command: 'APPLY', acknowledgeWarnings: false };
+        return { command: 'APPLY', acknowledgeWarnings: true };
       case 'import-review':
-        return reviewAcknowledged
-          ? { command: 'APPLY', acknowledgeWarnings: true }
-          : { command: 'OPEN_REVIEW' };
+        return { command: 'APPLY', acknowledgeWarnings: true };
       case 'reimport':
       case 'refresh-reconciliation':
         return { command: 'REPREPARE' };
@@ -154,11 +152,8 @@
     return { pkg: clone, partial: true, selectedQuestionIds: selected };
   }
 
-  function shouldOfferQuestionSelection(record, view = {}) {
-    if (!record || record.selectionConfirmed === true) return false;
-    const actionId = view?.primaryAction?.id;
-    if (!['import', 'import-review', 'reimport'].includes(actionId)) return false;
-    return questionSelectionRows(record.pkg).length > 1;
+  function shouldOfferQuestionSelection() {
+    return false;
   }
 
   function createContentBridge(options = {}) {
@@ -485,7 +480,7 @@
       Object.assign(cancel.style, { padding: '6px 10px', borderRadius: '8px' });
       cancel.addEventListener('click', () => renderResponse(record, previousResponse));
 
-      const confirm = element('button', 'Préparer l’import');
+      const confirm = element('button', 'Appliquer la sélection');
       confirm.type = 'button';
       Object.assign(confirm.style, {
         padding: '6px 11px',
@@ -502,8 +497,8 @@
         status.textContent = `${count} sur ${rows.length} sélectionnée${count === 1 ? '' : 's'}`;
         confirm.disabled = count === 0;
         confirm.textContent = count === rows.length
-          ? 'Préparer l’import'
-          : `Préparer ${count}`;
+          ? 'Appliquer la sélection'
+          : `Importer ${count}`;
       }
 
       for (const input of inputs) input.addEventListener('change', updateStatus);
@@ -522,7 +517,7 @@
           record.selectionConfirmed = true;
           record.selectedQuestionIds = selection.selectedQuestionIds;
           record.activePkg = selection.pkg;
-          record.shell.replaceChildren(element('div', 'Cardinal relit le Formative déjà lié…'));
+          record.shell.replaceChildren(element('div', 'Cardinal applique la sélection…'));
           const response = await send('CARDINAL_FORMATIVE_IMPORT_REPREPARE', {
             token: record.token || previousResponse?.token,
             pkg: selection.pkg
@@ -672,20 +667,13 @@
 
       const action = view.primaryAction || {};
       const selectionRows = questionSelectionRows(record.pkg);
-      const primaryOpensSelection = ['import', 'import-review', 'reimport'].includes(action.id);
-      if (
-        selectionRows.length > 1 &&
-        response.state !== 'importing' &&
-        (record.selectionConfirmed === true || !primaryOpensSelection)
-      ) {
+      if (selectionRows.length > 1 && response.state !== 'importing') {
         const selectedCount = Array.isArray(record.selectedQuestionIds) && record.selectedQuestionIds.length
           ? record.selectedQuestionIds.length
           : selectionRows.length;
         const choose = element(
           'button',
-          record.selectionConfirmed
-            ? `Modifier la sélection (${selectedCount}/${selectionRows.length})`
-            : 'Choisir les questions'
+          `Questions ${selectedCount}/${selectionRows.length} · Modifier`
         );
         choose.type = 'button';
         choose.style.marginTop = '9px';
@@ -718,7 +706,7 @@
     }
 
     async function prepare(record, target = {}, pkgOverride = null) {
-      record.shell.replaceChildren(element('div', 'Cardinal vérifie le questionnaire et le Formative ouvert…'));
+      record.shell.replaceChildren(element('div', 'Cardinal analyse le questionnaire et le Formative ouvert…'));
       try {
         const pkgToPrepare = pkgOverride || record.activePkg || record.pkg;
         record.activePkg = pkgToPrepare;
