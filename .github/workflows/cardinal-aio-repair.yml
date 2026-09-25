@@ -450,6 +450,11 @@ jobs:
               assert "Je reprends l’envoi vers Formative" not in legacy_chatgpt, "ChatGPT auto replay must never ship"
               assert "Recharge ChatGPT manuellement une seule fois" in legacy_chatgpt, "Manual recovery guidance missing"
 
+              assert "CARDINAL_CHATGPT_BRIDGE_PING" in legacy_chatgpt, "Live ChatGPT bridge ping missing"
+              assert "bridgeVersion:BRIDGE_VERSION" in legacy_chatgpt, "ChatGPT bridge ping version missing"
+              assert "CARDINAL_CHATGPT_BRIDGE_PING" in legacy_worker, "Worker ping-before-reinject missing"
+              assert "if (live?.ok && live?.bridgeVersion === '1.1.8') return;" in legacy_worker, "Worker must skip reinjection when bridge is live"
+
           print(f"AIO_SHA256={digest}")
           PY
 
