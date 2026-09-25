@@ -56,6 +56,36 @@ const T = require('./target-enumerator-v2.js');
     assert.equal(calls.filter(x => x[0] === 'inspect').length, 1);
   }
 
+  // The concrete tab URL is the target identity. A page/server observation
+  // is kept as evidence but can never silently replace that identity.
+  {
+    const tabsApi = {
+      async query() {
+        return [{ id: 22, url: 'https://app.formative.com/formatives/url-id/edit', active: true }];
+      }
+    };
+    const product = {
+      async inspectTarget(input) {
+        return {
+          targetFormativeId: 'observed-id',
+          urlTargetFormativeId: 'url-id',
+          serverTargetFormativeId: 'server-id',
+          tabId: input.targetTabId,
+          title: 'Observed',
+          canEdit: true,
+          authState: 'authenticated',
+          pageKind: 'editor'
+        };
+      }
+    };
+    const rows = await T.createEnumerator({ tabsApi, product }).enumerate();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].targetFormativeId, 'url-id');
+    assert.equal(rows[0].urlTargetFormativeId, 'url-id');
+    assert.equal(rows[0].observedTargetFormativeId, 'observed-id');
+    assert.equal(rows[0].serverTargetFormativeId, 'server-id');
+  }
+
   // One broken/expired tab does not hide another valid target.
   {
     const tabsApi = {
