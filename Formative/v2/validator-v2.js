@@ -65,6 +65,16 @@
       .trim();
   }
 
+  function normalizeVisibleText(value) {
+    return asString(value)
+      .normalize('NFC')
+      .replace(/[’‘`´]/g, "'")
+      .replace(/[‐‑‒–—−]/g, '-')
+      .replace(/\s+/g, ' ')
+      .replace(/\s+([,.;:!?])/g, '$1')
+      .trim();
+  }
+
   function normalizeTerm(value, caseSensitive = false) {
     let text = asString(value)
       .normalize('NFD')
@@ -376,8 +386,8 @@
       issue(issues, 'warning', 'SOURCE_NUMBER_IN_PROMPT', 'Le prompt Formative semble encore contenir la numérotation source.', id);
     }
 
-    const exactBase = normalizeText(stripSourceNumber(item?.source?.promptExact));
-    const promptBase = normalizeText(item.prompt);
+    const exactBase = normalizeVisibleText(stripSourceNumber(item?.source?.promptExact));
+    const promptBase = normalizeVisibleText(item.prompt);
     if (exactBase && promptBase && exactBase !== promptBase) {
       const declaredMeaningful = (item.transformations || []).some(t => t?.code && !['removeSourceNumber', 'normalizeTypography'].includes(t.code));
       if (!declaredMeaningful) {
@@ -720,9 +730,15 @@
       if (sequence.length < 2 || sequence.some(value => !value)) {
         issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'Resequence exige au moins deux éléments non vides.', id);
       }
-      const normalized = sequence.map(value => normalizeText(value));
+      const normalized = sequence.map(value => normalizeVisibleText(value));
       if (new Set(normalized).size !== normalized.length) {
-        issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'Resequence contient des éléments dupliqués ou indiscernables.', id);
+        issue(
+          issues,
+          'warning',
+          'DUPLICATE_VISIBLE_LABEL',
+          'Resequence contient des libellés visuellement identiques; Cardinal les transporte sans modifier la tâche.',
+          id
+        );
       }
     }
 
@@ -736,10 +752,16 @@
           issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'Matching contient une paire vide.', id);
         }
       }
-      const left = pairs.map(pair => normalizeText(pair?.left));
-      const right = pairs.map(pair => normalizeText(pair?.right));
+      const left = pairs.map(pair => normalizeVisibleText(pair?.left));
+      const right = pairs.map(pair => normalizeVisibleText(pair?.right));
       if (new Set(left).size !== left.length || new Set(right).size !== right.length) {
-        issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'Matching contient des libellés dupliqués ou ambigus.', id);
+        issue(
+          issues,
+          'warning',
+          'DUPLICATE_VISIBLE_LABEL',
+          'Matching contient des libellés visuellement identiques; Cardinal conserve les paires et les clés internes distinctes.',
+          id
+        );
       }
     }
   }
