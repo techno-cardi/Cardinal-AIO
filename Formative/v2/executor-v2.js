@@ -250,10 +250,26 @@
   }
 
   async function reconcileOne({ op, journal, callbacks, deps, context }) {
-    const verdict = await requiredFn(callbacks, 'reconcileOperation')({ op: withRunCreatedIds(op, journal, deps), context });
+    const journalOp = findJournalOp(journal, op.operationId);
+    const recoveryOp = {
+      ...withRunCreatedIds(op, journal, deps),
+      recoveryFormativeItemId: journalOp?.lastError?.formativeItemId || null,
+      uncertainFinishedAt: journalOp?.finishedAt || null
+    };
+    const verdict = await requiredFn(callbacks, 'reconcileOperation')({ op: recoveryOp, context });
 
-    if (!verdict || !['committed', 'not_committed', 'conflict'].includes(verdict.state)) {
-      throw new Error('reconcileOperation must return committed, not_committed or conflict');
+    if (!verdict || !['committed', 'not_committed', 'conflict', 'repairable'].includes(verdict.state)) {
+      throw new Error('reconcileOperation must return committed, not_committed, repairable or conflict');
+    }
+
+    if (verdict.state === 'repairable') {
+      const mutationResult = await requiredFn(callbacks, 'repairPartialCreate')({
+        op: recoveryOp,
+        formativeItemId: verdict.formativeItemId,
+        context
+      });
+      journal = await verifyAndCommit({ op: recoveryOp, mutationResult, journal, callbacks, deps, context });
+      return journal;
     }
 
     if (verdict.state === 'committed') {
