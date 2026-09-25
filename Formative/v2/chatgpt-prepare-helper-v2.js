@@ -61,7 +61,7 @@
     'FIDÉLITÉ ET PRÉSENTATION',
     'Conserve source.promptExact. prompt est la version Formative; retire seulement la numérotation source sans changer le fond. transformations utilise toujours {code,description,requiresReview}; transformation de fond => code=splitQuestion/changeResponseType/other avec requiresReview=true; numéro retiré => code=removeSourceNumber avec requiresReview=false. N’utilise jamais type à la place de code.',
     'Sections/consignes non notées; prompts en courts paragraphes et sous-parties sur lignes distinctes, sans HTML ni tableau Markdown dans le prompt.',
-    'Images/tableaux/extraits/médias: conserve la dépendance. Source nécessaire absente => grading.provenance.kind="sourceMissing" + SOURCE_REQUIRED ou MEDIA_DEPENDENCY_MISSING. Mets severity="blocker" seulement si la question devient réellement inutilisable; sinon warning. Cette décision pédagogique t’appartient et Cardinal la respectera telle quelle.',
+    'Média/source nécessaire absente: conserve la dépendance, provenance.kind="sourceMissing", issue SOURCE_REQUIRED ou MEDIA_DEPENDENCY_MISSING; blocker si la question devient inutilisable, sinon warning. Cardinal respecte ce jugement.',
     '',
     'CONTRÔLE FINAL',
     'Vérifie toutes les questions et sous-parties, ordre, sources, promptExact, points, total, types, réponses, concepts, risques, transformations, JSON valide et absence d’ID/session Formative inventé. Le tableau humain et le JSON doivent décrire exactement la même évaluation.'
