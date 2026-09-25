@@ -46,9 +46,9 @@ from aio_rebuild_contract import (
 )
 
 AIO_VERSION = "1.2.0"
-AIO_VERSION_NAME = "1.2.0-rc13"
+AIO_VERSION_NAME = "1.2.0-rc14-formative-pedago3"
 CLASSROOM_COMMIT = "6887bfa2e8afd523a38a0e3286aa1f826276b8c5"
-FORMATIVE_TREE_SHA = "ec87aa23f279d0762b3f7478d2db6afa4dccbb6d"
+FORMATIVE_TREE_SHA = "02a331c67380d9252c4a0033600cfa174c2f7c7e"
 FORMATIVE_V2_ZIP = "Cardinal-Formative-Importer-STANDALONE-0.5.0-rc1.zip"
 AIO_POPUP_JS = "aio-popup.js"
 
@@ -1447,7 +1447,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("dist/Cardinal-AIO-1.2.0-rc13.zip"),
+        default=Path("dist/Cardinal-AIO-1.2.0-rc14-formative-pedago3.zip"),
     )
     args = parser.parse_args(argv)
 
