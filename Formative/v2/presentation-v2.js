@@ -61,14 +61,15 @@
     };
   }
 
-  function buildValidationRows(pkg) {
+  function buildValidationRows(pkg, extraIssues = []) {
     const rows = [];
     let visibleNumber = 0;
+    const combinedIssues = [...(pkg?.issues || []), ...(extraIssues || [])];
 
     for (const item of [...(pkg?.items || [])].sort((a, b) => Number(a.order || 0) - Number(b.order || 0))) {
       if (item?.kind !== 'question') continue;
       visibleNumber += 1;
-      const issues = questionIssues(pkg?.issues || [], item);
+      const issues = questionIssues(combinedIssues, item);
       const correction = correctionFor(item);
       const blockers = issues.filter(x => x.severity === 'blocker').length;
       const warnings = issues.filter(x => x.severity === 'warning').length;
@@ -245,25 +246,46 @@
     }
 
     const ui = prepared?.preflight?.data?.ui || {};
+    const validation = prepared?.preflight?.data?.validation || null;
+    const preflightIssues = [
+      ...(prepared?.preflight?.issues || []),
+      ...((prepared?.issues || []).filter(issue =>
+        !(prepared?.preflight?.issues || []).some(existing =>
+          existing?.severity === issue?.severity &&
+          existing?.code === issue?.code &&
+          existing?.itemId === issue?.itemId &&
+          existing?.message === issue?.message
+        )
+      ))
+    ];
+    const issueBlockers = preflightIssues.filter(issue => issue?.severity === 'blocker').length;
+    const issueWarnings = preflightIssues.filter(issue => issue?.severity === 'warning').length;
+    const validationRows = buildValidationRows(prepared.pkg || {}, preflightIssues);
+    const count = (value, fallback = 0) => {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : Number(fallback || 0);
+    };
+    const blockers = count(ui.blockers, issueBlockers || (prepared.ok ? 0 : 1));
+    const warnings = count(ui.warnings, issueWarnings);
     const model = {
       state: prepared.state || (prepared.ok ? 'ready' : 'blocked'),
-      statusLabel: Number(ui.blockers || (prepared.ok ? 0 : 1)) > 0
-        ? (ui.status || '✕ Bloqué')
-        : '✓ Prêt',
+      statusLabel: blockers > 0 ? (ui.status || '✕ Bloqué') : '✓ Prêt',
       targetTitle: prepared.targetTitle || ui.targetTitle || null,
-      questions: Number(ui.questions || 0),
-      auto: Number(ui.auto || 0),
-      assisted: Number(ui.assisted || 0),
-      manual: Number(ui.manual || 0),
-      create: Number(ui.create || 0),
-      update: Number(ui.update || 0),
-      unchanged: Number(ui.unchanged || 0),
-      preserveExternal: Number(ui.preserveExternal || 0),
-      deleteProposed: Number(ui.deleteProposed || 0),
-      warnings: Number(ui.warnings || 0),
-      blockers: Number(ui.blockers || (prepared.ok ? 0 : 1)),
+      questions: count(ui.questions, validation?.stats?.questions ?? validationRows.length),
+      auto: count(ui.auto, validation?.stats?.auto),
+      assisted: count(ui.assisted, validation?.stats?.assisted),
+      manual: count(ui.manual, validation?.stats?.manual),
+      create: count(ui.create),
+      update: count(ui.update),
+      unchanged: count(ui.unchanged),
+      preserveExternal: count(ui.preserveExternal),
+      deleteProposed: count(ui.deleteProposed),
+      warnings,
+      blockers,
       packageFingerprint: prepared.packageFingerprint || null,
-      validationRows: buildValidationRows(prepared.pkg || {})
+      validationRows,
+      issues: preflightIssues,
+      globalIssues: preflightIssues.filter(issue => !issue?.itemId)
     };
     model.primaryAction = primaryAction(model);
     model.showCorrectionButton = model.validationRows.some(row =>
