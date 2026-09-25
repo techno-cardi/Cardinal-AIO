@@ -24,10 +24,20 @@
   function cleanError(error) {
     if (!error) return null;
     if (typeof error === 'string') return { message: error.slice(0, 1000) };
+    const gql = Array.isArray(error.graphQLErrors)
+      ? error.graphQLErrors.slice(0, 4).map(row => ({
+          message: row?.message ? String(row.message).slice(0, 500) : null,
+          code: row?.extensions?.code ? String(row.extensions.code).slice(0, 120) : null
+        }))
+      : null;
     return {
       code: error.code ? String(error.code).slice(0, 120) : null,
       message: error.message ? String(error.message).slice(0, 1000) : String(error).slice(0, 1000),
-      phase: error.phase ? String(error.phase).slice(0, 120) : null
+      phase: error.phase ? String(error.phase).slice(0, 120) : null,
+      operationName: error.operationName ? String(error.operationName).slice(0, 160) : null,
+      status: Number.isFinite(Number(error.status)) ? Number(error.status) : null,
+      formativeItemId: error.formativeItemId ? String(error.formativeItemId).slice(0, 200) : null,
+      graphQLErrors: gql
     };
   }
 
