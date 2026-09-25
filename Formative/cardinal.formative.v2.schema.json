@@ -161,12 +161,12 @@
     "option": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "label", "correct"],
+      "required": ["id", "text", "correct"],
       "properties": {
         "id": {"type": "string", "minLength": 1},
-        "label": {"type": "string", "minLength": 1},
+        "text": {"type": "string", "minLength": 1},
         "correct": {"type": "boolean"},
-        "score": {"type": "number", "minimum": 0, "multipleOf": 0.1}
+        "points": {"type": "number", "minimum": 0, "multipleOf": 0.1}
       }
     },
     "blank": {

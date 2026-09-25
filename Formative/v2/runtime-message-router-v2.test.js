@@ -270,7 +270,35 @@ const popupSender = { id: 'ext-1', url: 'chrome-extension://ext-1/popup.html' };
     assert.equal(removed, listener);
   }
 
-  console.log('runtime-message-router-v2: all tests passed');
+  
+
+(async () => {
+  const calls = [];
+  const controller = {
+    async preparePackage() { return { ok: true }; },
+    async execute() { return { ok: true }; },
+    async reprepare(token, pkg) {
+      calls.push({ token, pkg });
+      return { ok: true, token: 'next' };
+    },
+    async confirmReconciliation() { return { ok: true }; },
+    dismiss() { return true; },
+    snapshot() { return null; }
+  };
+  const router = R.createRouter({ controller });
+  const pkg = { schema: 'cardinal.formative/2', packageMode: 'patch' };
+  const result = await router.route({
+    type: 'CARDINAL_FORMATIVE_IMPORT_REPREPARE',
+    payload: { token: 'old', pkg }
+  }, { url: 'https://chatgpt.com/c/test' });
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls, [{ token: 'old', pkg }]);
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
+
+console.log('runtime-message-router-v2: all tests passed');
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;

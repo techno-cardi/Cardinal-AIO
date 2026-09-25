@@ -430,8 +430,8 @@ Utiliser `response.options`:
 {
   "response": {
     "options": [
-      {"id": "a", "label": "Réponse A", "correct": false},
-      {"id": "b", "label": "Réponse B", "correct": true}
+      {"id": "a", "text": "Réponse A", "correct": false},
+      {"id": "b", "text": "Réponse B", "correct": true}
     ]
   }
 }
@@ -442,7 +442,9 @@ Règles:
 - IDs d'option uniques dans la question;
 - Multiple Choice: exactement une option correcte;
 - Multiple Selection: au moins une correcte;
-- un `score` optionnel peut être utilisé lorsque la pondération partielle est explicitement voulue et supportée.
+- `text` est le libellé visible envoyé à Formative;
+- si `grading.partialCredit=true` pour une Multiple Selection, chaque bonne option doit fournir `points` et la somme des `points` des bonnes options doit égaler exactement `question.points.value`;
+- si aucune pondération défendable n'est disponible, utiliser `grading.partialCredit=false` au lieu d'inventer des poids.
 
 ## Fill In The Blank
 

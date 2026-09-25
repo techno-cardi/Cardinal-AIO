@@ -93,6 +93,74 @@
     }
   }
 
+  function questionSelectionRows(pkg = {}) {
+    return [...(pkg?.items || [])]
+      .filter(item => item?.kind === 'question' && item?.id)
+      .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
+      .map((item, index) => ({
+        id: String(item.id),
+        number: oneLine(item?.source?.number) || String(index + 1),
+        prompt: oneLine(item.prompt),
+        points: Number(item?.points?.value || 0),
+        subtype: item.subtype || null
+      }));
+  }
+
+  function buildSelectedQuestionPackage(pkg = {}, selectedIds = []) {
+    const rows = questionSelectionRows(pkg);
+    const allIds = rows.map(row => row.id);
+    const available = new Set(allIds);
+    const selected = [...new Set((selectedIds || []).map(String))];
+
+    if (!selected.length) {
+      const error = new Error('Choisis au moins une question à importer.');
+      error.code = 'QUESTION_SELECTION_EMPTY';
+      throw error;
+    }
+
+    const unknown = selected.filter(id => !available.has(id));
+    if (unknown.length) {
+      const error = new Error(`Sélection inconnue: ${unknown.join(', ')}`);
+      error.code = 'QUESTION_SELECTION_UNKNOWN';
+      error.unknownQuestionIds = unknown;
+      throw error;
+    }
+
+    if (selected.length === allIds.length && allIds.every(id => selected.includes(id))) {
+      return { pkg, partial: false, selectedQuestionIds: allIds };
+    }
+
+    const selectedSet = new Set(selected);
+    const clone = JSON.parse(JSON.stringify(pkg));
+    clone.packageMode = 'patch';
+    clone.items = (clone.items || []).filter(item =>
+      item?.kind === 'question' && selectedSet.has(String(item.id))
+    );
+
+    // A subset is not the complete assessment anymore. Keeping the original
+    // declared total would be misleading for downstream validation/reporting.
+    if (clone.assessment && typeof clone.assessment === 'object') {
+      delete clone.assessment.declaredTotalPoints;
+    }
+
+    // Item-specific issues for unselected questions are irrelevant. A full-
+    // assessment total mismatch is also irrelevant in patch mode.
+    clone.issues = (clone.issues || []).filter(issue => {
+      if (issue?.code === 'TOTAL_POINTS_MISMATCH') return false;
+      if (issue?.itemId) return selectedSet.has(String(issue.itemId));
+      return true;
+    });
+
+    return { pkg: clone, partial: true, selectedQuestionIds: selected };
+  }
+
+  function shouldOfferQuestionSelection(record, view = {}) {
+    if (!record || record.selectionConfirmed === true) return false;
+    const actionId = view?.primaryAction?.id;
+    if (!['import', 'import-review', 'reimport'].includes(actionId)) return false;
+    return questionSelectionRows(record.pkg).length > 1;
+  }
+
   function createContentBridge(options = {}) {
     const doc = required(options.document || globalThis.document, 'document');
     const runtime = required(options.runtime || globalThis.chrome?.runtime, 'chrome.runtime');
@@ -230,6 +298,25 @@
       const message = element('div', presentation.message || 'Cardinal a bloqué cette opération.');
       message.style.marginTop = '3px';
       body.append(title, message);
+      if (presentation.technicalDetails) {
+        const details = element('details');
+        details.style.marginTop = '7px';
+        const summary = element('summary', 'Détails techniques');
+        summary.style.cursor = 'pointer';
+        summary.style.fontSize = '11px';
+        summary.style.opacity = '.72';
+        const technical = element('div', presentation.technicalDetails);
+        Object.assign(technical.style, {
+          marginTop: '5px',
+          fontSize: '11px',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'anywhere',
+          opacity: '.82'
+        });
+        details.append(summary, technical);
+        body.appendChild(details);
+      }
       const close = element('button', '×');
       close.type = 'button';
       close.title = 'Masquer cette version';
@@ -245,8 +332,11 @@
       record.shell.appendChild(title);
       const list = element('div');
       list.style.display = 'grid';
-      list.style.gap = '7px';
+      list.style.gap = '6px';
       list.style.marginTop = '9px';
+      list.style.maxHeight = '260px';
+      list.style.overflowY = 'auto';
+      list.style.padding = '4px 2px';
       for (const row of response.chooserRows || []) {
         const button = element('button', `${row.title || 'Formative'}${row.active ? ' · onglet actif' : ''}`);
         button.type = 'button';
@@ -258,6 +348,197 @@
         list.appendChild(button);
       }
       record.shell.appendChild(list);
+    }
+
+
+    function renderQuestionSelector(record) {
+      const rows = questionSelectionRows(record.pkg);
+      if (rows.length <= 1) return false;
+
+      const previousResponse = record.response;
+      record.shell.replaceChildren();
+
+      const panel = element('div');
+      Object.assign(panel.style, {
+        border: '1px solid rgba(127,127,127,.22)',
+        borderRadius: '12px',
+        overflow: 'hidden',
+        background: 'rgba(127,127,127,.035)'
+      });
+
+      const header = element('div');
+      Object.assign(header.style, {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '10px 12px',
+        borderBottom: '1px solid rgba(127,127,127,.18)'
+      });
+
+      const headingWrap = element('div');
+      headingWrap.style.flex = '1';
+      const title = element('div', 'Questions à importer');
+      title.style.fontWeight = '650';
+      const note = element('div', 'Décoche seulement ce que tu veux laisser intact dans Formative.');
+      Object.assign(note.style, { marginTop: '2px', opacity: '.68', fontSize: '11px' });
+      headingWrap.append(title, note);
+
+      const compactControls = element('div');
+      Object.assign(compactControls.style, { display: 'flex', gap: '5px', alignItems: 'center' });
+      const selectAll = element('button', 'Toutes');
+      const selectNone = element('button', 'Aucune');
+      for (const button of [selectAll, selectNone]) {
+        button.type = 'button';
+        Object.assign(button.style, {
+          padding: '4px 8px',
+          minHeight: '28px',
+          borderRadius: '8px',
+          fontSize: '11px'
+        });
+      }
+      compactControls.append(selectAll, selectNone);
+      header.append(headingWrap, compactControls);
+      panel.appendChild(header);
+
+      const list = element('div');
+      Object.assign(list.style, {
+        display: 'grid',
+        maxHeight: '255px',
+        overflowY: 'auto',
+        padding: '4px 0'
+      });
+
+      const inputs = [];
+      const previousSelection = Array.isArray(record.selectedQuestionIds) && record.selectedQuestionIds.length
+        ? new Set(record.selectedQuestionIds.map(String))
+        : null;
+
+      for (const row of rows) {
+        const label = element('label');
+        Object.assign(label.style, {
+          display: 'grid',
+          gridTemplateColumns: '22px minmax(0,1fr) auto',
+          gap: '8px',
+          alignItems: 'center',
+          padding: '7px 11px',
+          cursor: 'pointer',
+          borderBottom: '1px solid rgba(127,127,127,.10)'
+        });
+
+        const input = element('input');
+        input.type = 'checkbox';
+        input.checked = previousSelection ? previousSelection.has(row.id) : true;
+        input.value = row.id;
+        input.style.margin = '0';
+        inputs.push(input);
+
+        const textWrap = element('div');
+        textWrap.style.minWidth = '0';
+        const line1 = element('div', `Q${row.number} · ${row.subtype || 'question'}`);
+        Object.assign(line1.style, {
+          fontWeight: '600',
+          fontSize: '12px',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        });
+
+        const promptText = row.prompt || row.id;
+        const line2 = element('div', promptText);
+        line2.title = promptText;
+        Object.assign(line2.style, {
+          marginTop: '1px',
+          fontSize: '11px',
+          opacity: '.68',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        });
+        textWrap.append(line1, line2);
+
+        const points = element('div', `${row.points} pt${row.points === 1 ? '' : 's'}`);
+        Object.assign(points.style, {
+          fontSize: '11px',
+          opacity: '.72',
+          whiteSpace: 'nowrap'
+        });
+
+        label.append(input, textWrap, points);
+        list.appendChild(label);
+      }
+      panel.appendChild(list);
+
+      const footer = element('div');
+      Object.assign(footer.style, {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '9px 11px',
+        borderTop: '1px solid rgba(127,127,127,.18)'
+      });
+
+      const status = element('div');
+      Object.assign(status.style, { flex: '1', fontSize: '11px', opacity: '.72' });
+
+      const cancel = element('button', 'Annuler');
+      cancel.type = 'button';
+      Object.assign(cancel.style, { padding: '6px 10px', borderRadius: '8px' });
+      cancel.addEventListener('click', () => renderResponse(record, previousResponse));
+
+      const confirm = element('button', 'Préparer l’import');
+      confirm.type = 'button';
+      Object.assign(confirm.style, {
+        padding: '6px 11px',
+        borderRadius: '8px',
+        fontWeight: '600'
+      });
+
+      function selectedIds() {
+        return inputs.filter(input => input.checked).map(input => String(input.value));
+      }
+
+      function updateStatus() {
+        const count = selectedIds().length;
+        status.textContent = `${count} sur ${rows.length} sélectionnée${count === 1 ? '' : 's'}`;
+        confirm.disabled = count === 0;
+        confirm.textContent = count === rows.length
+          ? 'Préparer l’import'
+          : `Préparer ${count}`;
+      }
+
+      for (const input of inputs) input.addEventListener('change', updateStatus);
+      selectAll.addEventListener('click', () => {
+        for (const input of inputs) input.checked = true;
+        updateStatus();
+      });
+      selectNone.addEventListener('click', () => {
+        for (const input of inputs) input.checked = false;
+        updateStatus();
+      });
+
+      confirm.addEventListener('click', async () => {
+        try {
+          const selection = buildSelectedQuestionPackage(record.pkg, selectedIds());
+          record.selectionConfirmed = true;
+          record.selectedQuestionIds = selection.selectedQuestionIds;
+          record.activePkg = selection.pkg;
+          record.shell.replaceChildren(element('div', 'Cardinal relit le Formative déjà lié…'));
+          const response = await send('CARDINAL_FORMATIVE_IMPORT_REPREPARE', {
+            token: record.token || previousResponse?.token,
+            pkg: selection.pkg
+          });
+          renderResponse(record, response);
+        } catch (error) {
+          status.textContent = error?.message || String(error);
+          status.style.opacity = '1';
+        }
+      });
+
+      updateStatus();
+      footer.append(status, cancel, confirm);
+      panel.appendChild(footer);
+      record.shell.appendChild(panel);
+      return true;
     }
 
     function correctionPanel(record, view) {
@@ -390,6 +671,32 @@
       }
 
       const action = view.primaryAction || {};
+      const selectionRows = questionSelectionRows(record.pkg);
+      const primaryOpensSelection = ['import', 'import-review', 'reimport'].includes(action.id);
+      if (
+        selectionRows.length > 1 &&
+        response.state !== 'importing' &&
+        (record.selectionConfirmed === true || !primaryOpensSelection)
+      ) {
+        const selectedCount = Array.isArray(record.selectedQuestionIds) && record.selectedQuestionIds.length
+          ? record.selectedQuestionIds.length
+          : selectionRows.length;
+        const choose = element(
+          'button',
+          record.selectionConfirmed
+            ? `Modifier la sélection (${selectedCount}/${selectionRows.length})`
+            : 'Choisir les questions'
+        );
+        choose.type = 'button';
+        choose.style.marginTop = '9px';
+        choose.style.marginRight = '7px';
+        choose.addEventListener('click', () => {
+          record.selectionConfirmed = false;
+          renderQuestionSelector(record);
+        });
+        record.shell.appendChild(choose);
+      }
+
       if (action.id && action.id !== 'none') {
         const button = element('button', action.label || 'Importer dans Formative');
         button.type = 'button';
@@ -400,14 +707,23 @@
         record.shell.appendChild(button);
       }
       if (response.state === 'ready') setProgress(record, { percent: 42, label: 'Prêt à importer' });
-      if (response.state === 'completed') setProgress(record, { percent: 100, label: 'Import vérifié' });
+      if (response.state === 'completed') {
+        setProgress(record, { percent: 100, label: 'Import vérifié' });
+        // A later reimport is a fresh decision. Re-open the selector and start
+        // from the original package rather than silently reusing a past subset.
+        record.selectionConfirmed = false;
+        record.selectedQuestionIds = null;
+        record.activePkg = record.pkg;
+      }
     }
 
-    async function prepare(record, target = {}) {
+    async function prepare(record, target = {}, pkgOverride = null) {
       record.shell.replaceChildren(element('div', 'Cardinal vérifie le questionnaire et le Formative ouvert…'));
       try {
+        const pkgToPrepare = pkgOverride || record.activePkg || record.pkg;
+        record.activePkg = pkgToPrepare;
         const response = await send('CARDINAL_FORMATIVE_IMPORT_PREPARE', {
-          pkg: record.pkg,
+          pkg: pkgToPrepare,
           ...target
         });
         renderResponse(record, response);
@@ -420,6 +736,12 @@
     async function act(record, button) {
       if (!record.token) return;
       const view = record.response?.view || {};
+
+      if (shouldOfferQuestionSelection(record, view)) {
+        renderQuestionSelector(record);
+        return;
+      }
+
       const intent = actionIntent(view, record.reviewAcknowledged === true);
 
       if (intent.command === 'OPEN_REVIEW') {
@@ -503,19 +825,31 @@
     }
 
     async function scanNow() {
-      if (stopped) return;
+      if (stopped) {
+        return { ok: false, scanned: false, packages: 0, bars: bars.size, invalid: 0, ignored: 0 };
+      }
       let result;
       try {
         result = scanner.scan(doc, parser);
-      } catch {
-        return;
+      } catch (error) {
+        return {
+          ok: false,
+          scanned: false,
+          packages: 0,
+          bars: bars.size,
+          invalid: 0,
+          ignored: 0,
+          error: error?.message || String(error)
+        };
       }
 
       const found = [];
+      let invalidCount = 0;
       for (const message of result.messages || []) {
         if (message.parse?.state === 'found' && message.parse.package?.pkg) {
           found.push({ message, parsed: message.parse.package });
         } else if (message.parse?.state === 'invalid' || message.parse?.state === 'ambiguous') {
+          invalidCount += 1;
           await renderInvalid(message, message.parse.error);
         }
       }
@@ -545,13 +879,24 @@
           technicalNode: row.message.technicalNode,
           token: null,
           response: null,
-          reviewAcknowledged: false
+          reviewAcknowledged: false,
+          activePkg: row.parsed.pkg,
+          selectionConfirmed: false,
+          selectedQuestionIds: null
         };
         record.shell = insertShell(record);
         bars.set(sig, record);
         await prepare(record);
       }
       removeSuperseded(activeSignatures);
+      return {
+        ok: true,
+        scanned: true,
+        packages: found.length,
+        bars: bars.size,
+        invalid: invalidCount,
+        ignored: (result.ignored || []).length
+      };
     }
 
     function scheduleScan() {
@@ -563,10 +908,35 @@
       }, SCAN_DEBOUNCE_MS);
     }
 
-    function onRuntimeMessage(message) {
+    function isOwnMutation(record) {
+      const target = record?.target;
+      const host = target?.nodeType === 3 ? target.parentNode : target;
+      if (host && scanner.insideCardinalUi?.(host)) return true;
+      const added = [...(record?.addedNodes || [])];
+      const removed = [...(record?.removedNodes || [])];
+      if (removed.length || !added.length) return false;
+      return added.every(node => scanner.isCardinalUiElement?.(node));
+    }
+
+    function onMutations(records) {
+      if (Array.isArray(records) && records.length && records.every(isOwnMutation)) return;
+      scheduleScan();
+    }
+
+    function onRuntimeMessage(message, _sender, sendResponse) {
       if (message?.type === UI_RESCAN_MESSAGE) {
-        scheduleScan();
-        return false;
+        Promise.resolve(scanNow())
+          .then(summary => sendResponse?.(summary))
+          .catch(error => sendResponse?.({
+            ok: false,
+            scanned: false,
+            packages: 0,
+            bars: bars.size,
+            invalid: 0,
+            ignored: 0,
+            error: error?.message || String(error)
+          }));
+        return true;
       }
       if (message?.type !== 'CARDINAL_FORMATIVE_IMPORT_PROGRESS') return false;
       const event = message.payload || {};
@@ -584,7 +954,7 @@
         runtime.onMessage.addListener(onRuntimeMessage);
       }
       if (MutationObserverApi) {
-        observer = new MutationObserverApi(scheduleScan);
+        observer = new MutationObserverApi(onMutations);
         observer.observe(doc.documentElement || doc.body, { childList: true, subtree: true, characterData: true });
       }
       scheduleScan();
@@ -603,7 +973,7 @@
       return true;
     }
 
-    const api = Object.freeze({ start, stop, scanNow, scheduleScan, onRuntimeMessage });
+    const api = Object.freeze({ start, stop, scanNow, scheduleScan, onMutations, isOwnMutation, onRuntimeMessage });
     return api;
   }
 
@@ -617,6 +987,9 @@
     invalidContextMessage,
     summarizeView,
     actionIntent,
+    questionSelectionRows,
+    buildSelectedQuestionPackage,
+    shouldOfferQuestionSelection,
     createContentBridge
   };
 

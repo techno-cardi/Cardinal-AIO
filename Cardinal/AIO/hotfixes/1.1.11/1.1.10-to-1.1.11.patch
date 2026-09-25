@@ -1,0 +1,301 @@
+--- a/formative.js
++++ b/formative.js
+@@ -1,5 +1,5 @@
+ (() => {
+-  const BRIDGE_VERSION = '1.1.10';
++  const BRIDGE_VERSION = '1.1.11';
+   const EXTENSION_BUILD = (() => {
+     try {
+       const manifest = chrome.runtime?.getManifest?.() || {};
+@@ -285,8 +285,26 @@
+   }
+ 
+   function pickSection(cat){
++    const sections=Array.isArray(cat?.sections)?cat.sections:[];
+     const p=params();
+-    return (cat.sections||[]).find(x=>String(x.assignmentId)===String(p.assignmentId)) || ((cat.sections||[]).length===1?cat.sections[0]:null);
++    const saved=loadChooserState();
++    const current=String($('sectionSelect')?.value||'');
++    const assignmentCandidates=[
++      p.assignmentId,
++      cat?.activeAssignmentId,
++      current,
++      saved?.assignmentId
++    ].map(value=>String(value||'')).filter(Boolean);
++    for(const id of assignmentCandidates){
++      const hit=sections.find(x=>String(x.assignmentId)===id);
++      if(hit)return hit;
++    }
++    const sectionCandidates=[cat?.activeSectionId].map(value=>String(value||'')).filter(Boolean);
++    for(const id of sectionCandidates){
++      const hit=sections.find(x=>String(x.sectionId)===id);
++      if(hit)return hit;
++    }
++    return sections.length===1?sections[0]:null;
+   }
+   function pickQuestion(cat){
+     const p=params();
+@@ -836,8 +854,22 @@
+   async function sendGlobal(){
+     const b=$('gestionBtn');b.disabled=true;
+     try{
+-      const c=await loadCatalog();const p=params();let sec=(c.sections||[]).find(x=>String(x.assignmentId)===String(p.assignmentId))||((c.sections||[]).length===1?c.sections[0]:null);
+-      if(!sec){fillChooser(c);open('chooseModal');throw new Error('Choisis d’abord la classe dans Formative, puis relance « Résultat global → Gestion ».');}
++      const c=await loadCatalog();
++      let sec=pickSection(c);
++      if(!sec){
++        fillChooser(c);
++        sec=pickSection(c);
++      }
++      if(!sec){
++        open('chooseModal');
++        throw new Error('Cardinal voit plusieurs classes pour ce Formative et ne peut pas choisir sans preuve. Choisis la classe dans ce menu; le choix sera mémorisé pour « Résultat global → Gestion ».');
++      }
++      // Persist the resolved class so a later global send does not depend on
++      // Formative keeping selectedAssignmentId in its URL.
++      try{
++        const saved=loadChooserState()||{};
++        sessionStorage.setItem(CHOOSER_STATE_KEY,JSON.stringify({...saved,assignmentId:String(sec.assignmentId||'')}));
++      }catch{}
+       const r=await request('sendGlobalToGestionV3',{formativeId,assignmentId:sec.assignmentId,sectionId:sec.sectionId});
+       if(!r?.ok)throw new Error(r?.message||'Impossible de transmettre les résultats.');
+       showStatus('Gestion des notes',`${sec.title} : ${r.studentCount||0} élève${Number(r.studentCount||0)===1?'':'s'} transmis. Gestion des notes s’ouvre avec les questions ayant un pointage corrigé présélectionnées pour former un seul résultat global.`,'ok');
+--- a/legacy-service-worker.js
++++ b/legacy-service-worker.js
+@@ -1785,16 +1785,55 @@
+     return String(a.number || a.label).localeCompare(String(b.number || b.label), 'fr', { numeric:true, sensitivity:'base' });
+   });
+ 
++  const sections = (f.assignments || []).filter(a => a?._id && a?.section?._id).map(a => ({
++    assignmentId: String(a._id),
++    sectionId: String(a.section._id),
++    title: String(a.section.title || 'Classe'),
++    studentCount: Number(a.section.studentCount || 0)
++  }));
++
++  // Formative does not consistently keep the selected class in the URL.
++  // Recover the active class from the most recent GraphQL variables already
++  // observed in this exact tab. We only accept IDs that match the authoritative
++  // teacherAssignments list returned above, so no class is guessed.
++  let activeAssignmentId = '';
++  let activeSectionId = '';
++  try {
++    const records = Array.isArray(window.__cardinalFormativeGraphqlCache) ? window.__cardinalFormativeGraphqlCache : [];
++    const collectIds = value => {
++      const out = [];
++      const walk = (v, key='') => {
++        if (v == null) return;
++        if (Array.isArray(v)) { v.forEach(x => walk(x, key)); return; }
++        if (typeof v === 'object') { for (const [k,x] of Object.entries(v)) walk(x, k); return; }
++        if (!/(assignment|section)/i.test(String(key || ''))) return;
++        const text = String(v || '').trim();
++        if (text) out.push(text);
++      };
++      walk(value);
++      return out;
++    };
++    for (let i = records.length - 1; i >= 0; i--) {
++      const ids = new Set(collectIds(records[i]?.variables || {}));
++      if (!ids.size) continue;
++      const byAssignment = sections.find(section => ids.has(String(section.assignmentId)));
++      const bySection = sections.find(section => ids.has(String(section.sectionId)));
++      const hit = byAssignment || bySection;
++      if (hit) {
++        activeAssignmentId = String(hit.assignmentId || '');
++        activeSectionId = String(hit.sectionId || '');
++        break;
++      }
++    }
++  } catch {}
++
+   return {
+     ok: true,
+     formativeId: String(f._id),
+     title: String(f.title || 'Formative'),
+-    sections: (f.assignments || []).filter(a => a?._id && a?.section?._id).map(a => ({
+-      assignmentId: String(a._id),
+-      sectionId: String(a.section._id),
+-      title: String(a.section.title || 'Classe'),
+-      studentCount: Number(a.section.studentCount || 0)
+-    })),
++    activeAssignmentId,
++    activeSectionId,
++    sections,
+     questions
+   };
+ }
+--- a/validator-v2.js
++++ b/validator-v2.js
+@@ -273,7 +273,7 @@
+     if (pkg.packageMode === 'full' && declared && Number.isFinite(declared.value)) {
+       const roundedTotal = Math.round(total * 10) / 10;
+       if (Math.abs(roundedTotal - declared.value) > 1e-9) {
+-        issue(issues, 'blocker', 'TOTAL_POINTS_MISMATCH', `Total déclaré ${declared.value}, total calculé ${roundedTotal}.`);
++        issue(issues, 'warning', 'TOTAL_POINTS_MISMATCH', `Total déclaré ${declared.value}, total calculé ${roundedTotal}. Vérifie ce total avant d’importer.`);
+       }
+     }
+ 
+@@ -381,8 +381,7 @@
+       (requirement?.count == null || requirement.count >= 2 || ['compareSources', 'argumentAndEvidence', 'chooseNofM', 'relation'].includes(requirement?.type))
+     );
+     if (grading.mode === 'auto' && hasMultipart) {
+-      const constructed = ['shortAnswer', 'longAnswer'].includes(item.subtype);
+-      issue(issues, constructed ? 'blocker' : 'warning', 'ASSISTED_REQUIRED', 'La tâche exige plusieurs composantes ou une relation que le matching Keyword ne vérifie pas complètement.', id);
++      issue(issues, 'warning', 'ASSISTED_REQUIRED', 'La tâche exige plusieurs composantes ou une relation que le matching Keyword ne vérifie pas complètement. Vérifie le mode de correction avant d’importer.', id);
+     }
+ 
+     if (['shortAnswer', 'longAnswer'].includes(item.subtype) && grading.mode !== 'manual' &&
+--- a/presentation-v2.js
++++ b/presentation-v2.js
+@@ -29,11 +29,27 @@
+     return value == null ? '' : String(value).replace(/\s+/g, ' ').trim();
+   }
+ 
++  function packageReportedIssue(value) {
++    if (!value || typeof value !== 'object') return value;
++    // ChatGPT can report a serious pedagogical concern, but it is not the
++    // technical authority that decides whether Formative can safely mutate.
++    // Keep the concern visible and require review, while only Cardinal's own
++    // validator/planner/server checks may create a hard import blocker.
++    if (value.severity !== 'blocker') return { ...value, origin: value.origin || 'package' };
++    return {
++      ...value,
++      severity: 'warning',
++      reportedSeverity: 'blocker',
++      origin: value.origin || 'package',
++      message: oneLine(value.message) || value.code || 'Blocage signalé par ChatGPT'
++    };
++  }
++
+   function questionIssues(pkgIssues, item, validationIssues = []) {
+     const out = [];
+-    for (const i of item?.issues || []) out.push(i);
++    for (const i of item?.issues || []) out.push(packageReportedIssue(i));
+     for (const i of pkgIssues || []) {
+-      if (i?.itemId === item?.id) out.push(i);
++      if (i?.itemId === item?.id) out.push(packageReportedIssue(i));
+     }
+     for (const i of validationIssues || []) {
+       if (i?.itemId === item?.id) out.push(i);
+@@ -121,10 +137,26 @@
+     return [...groups.values()].map(group => ({ ...group, itemCount: group.itemIds.length }));
+   }
+ 
++  function buildWarningGroups(issues = []) {
++    const groups = new Map();
++    for (const issue of issues) {
++      if (issue?.severity !== 'warning') continue;
++      const key = [issue.code || 'WARNING', issue.message || 'Point à vérifier'].join('|');
++      let group = groups.get(key);
++      if (!group) {
++        group = { code: issue.code || 'WARNING', message: oneLine(issue.message) || 'Point à vérifier', count: 0, itemIds: [] };
++        groups.set(key, group);
++      }
++      group.count += 1;
++      if (issue.itemId && !group.itemIds.includes(String(issue.itemId))) group.itemIds.push(String(issue.itemId));
++    }
++    return [...groups.values()].map(group => ({ ...group, itemCount: group.itemIds.length }));
++  }
++
+   function collectIssues(pkg = {}, validationIssues = []) {
+     const issues = [
+-      ...(pkg?.issues || []),
+-      ...(pkg?.items || []).flatMap(item => (item?.issues || []).map(issue => ({ ...issue, itemId: issue?.itemId || item?.id }))),
++      ...(pkg?.issues || []).map(packageReportedIssue),
++      ...(pkg?.items || []).flatMap(item => (item?.issues || []).map(issue => packageReportedIssue({ ...issue, itemId: issue?.itemId || item?.id }))),
+       ...(validationIssues || [])
+     ];
+     const seen = new Set();
+@@ -280,8 +312,14 @@
+       packageFingerprint: prepared.packageFingerprint || null,
+       validationRows,
+       blockerDetails: validationIssues.filter(issue => issue?.severity === 'blocker'),
+-      blockerGroups: buildBlockerGroups(validationIssues)
++      blockerGroups: buildBlockerGroups(validationIssues),
++      warningDetails: validationIssues.filter(issue => issue?.severity === 'warning'),
++      warningGroups: buildWarningGroups(validationIssues)
+     };
++    // ui.status comes from the technical preflight only. Package-reported
++    // concerns may add review warnings after preflight, so recompute the label
++    // from the final combined counts.
++    model.statusLabel = model.blockers > 0 ? '✕ Bloqué' : model.warnings > 0 ? '⚠ À vérifier' : '✓ Prêt';
+     const blockerRows = model.validationRows.filter(row => row.status === 'blocked');
+     const hasGlobalBlocker = model.blockerDetails.some(issue => !issue.itemId);
+     model.totalQuestionCount = model.validationRows.length;
+@@ -335,6 +373,7 @@
+     RECONCILIATION_LABELS,
+     buildValidationRows,
+     buildBlockerGroups,
++    buildWarningGroups,
+     buildReconciliationRows,
+     buildPreparedView,
+     buildExecutionView,
+--- a/chatgpt-content-v2.js
++++ b/chatgpt-content-v2.js
+@@ -675,7 +675,7 @@
+       record.shell.appendChild(progressBar(record));
+ 
+       if (view.showCorrectionButton || (view.validationRows || []).length) {
+-        const correction = element('button', Number(view.blockers || 0) > 0 ? 'Voir les détails des blocages' : 'Voir le corrigé préparé');
++        const correction = element('button', Number(view.blockers || 0) > 0 ? 'Voir les blocages techniques' : Number(view.warnings || 0) > 0 ? 'Voir les points à vérifier' : 'Voir le corrigé préparé');
+         correction.type = 'button';
+         correction.style.marginTop = '9px';
+         correction.addEventListener('click', () => {
+@@ -699,6 +699,19 @@
+         Object.assign(more.style, { marginTop: '4px', fontSize: '11px', opacity: '.72' });
+         record.shell.appendChild(more);
+       }
++      for (const group of (view.warningGroups || []).slice(0, 3)) {
++        const questions = group.itemCount > 0 ? ` sur ${group.itemCount} question${group.itemCount === 1 ? '' : 's'}` : '';
++        const count = Number(group.count || 0) > 1 ? ` (${group.count} occurrences${questions})` : questions ? ` (${questions.slice(4)})` : '';
++        const detail = element('div', `À vérifier : ${group.message}${count}`);
++        Object.assign(detail.style, { marginTop: '6px', fontSize: '12px', opacity: '.9' });
++        record.shell.appendChild(detail);
++      }
++      if ((view.warningGroups || []).length > 3) {
++        const remaining = view.warningGroups.length - 3;
++        const more = element('div', `${remaining} autre${remaining === 1 ? '' : 's'} avertissement${remaining === 1 ? '' : 's'} dans les détails.`);
++        Object.assign(more.style, { marginTop: '4px', fontSize: '11px', opacity: '.72' });
++        record.shell.appendChild(more);
++      }
+       if (view.blockerNextStep) {
+         const nextStep = element('div', view.blockerNextStep);
+         Object.assign(nextStep.style, { marginTop: '6px', fontSize: '12px', fontWeight: '600' });
+--- a/aio-popup.js
++++ b/aio-popup.js
+@@ -19,7 +19,7 @@
+ 
+   const MODULES = Object.freeze([
+     Object.freeze({ id: 'gestion', label: 'Gestion 1.1.8' }),
+-    Object.freeze({ id: 'formativeCorrection', label: 'Correction Formative 1.1.10' }),
++    Object.freeze({ id: 'formativeCorrection', label: 'Correction Formative 1.1.11' }),
+     Object.freeze({ id: 'formativeImporter', label: 'Importateur Formative 0.5 RC1' }),
+     Object.freeze({ id: 'mozaik', label: 'Mozaïk v14' }),
+     Object.freeze({ id: 'classroom', label: 'Pont Classroom 1.2.3' }),
+--- a/manifest.json
++++ b/manifest.json
+@@ -172,5 +172,5 @@
+       ]
+     }
+   ],
+-  "version_name": "1.2.0-formative-1.1.10-g118"
++  "version_name": "1.2.0-formative-1.1.11-g118"
+ }
+--- a/README.txt
++++ b/README.txt
+@@ -1,3 +1,15 @@
++CARDINAL AIO 1.2.0 - correction Formative 1.1.11 - sélection de classe et blocages import durcis
++
++=== Version 1.1.11 ===
++- Résultat global vers Gestion ne dépend plus uniquement de selectedAssignmentId dans l'URL Formative. Cardinal résout la classe avec la sélection URL, la classe active observée dans les requêtes Formative, le choix Cardinal mémorisé, puis le cas d'une classe unique.
++- La classe active est récupérée uniquement si son assignmentId/sectionId correspond à teacherAssignments de l'évaluation courante. Aucun groupe n'est deviné.
++- Le choix de classe Cardinal est mémorisé par Formative et réutilisé pour Résultat global -> Gestion.
++- Les issues marquées blocker par ChatGPT restent visibles mais deviennent des éléments à vérifier tant que le validateur technique Cardinal ne confirme pas lui-même un blocage. ChatGPT ne peut donc plus rendre un paquet techniquement valide impossible à importer par une simple étiquette blocker.
++- TOTAL_POINTS_MISMATCH devient une vérification explicite avant import au lieu d'une impasse: l'utilisateur doit voir/reconnaître l'avertissement avant l'écriture.
++- ASSISTED_REQUIRED est aligné sur la spécification GitHub: avertissement de correction, pas blocage technique.
++- Les vrais blocages techniques restent bloquants: schéma invalide, structure impossible, points invalides, subtype non supporté, placeholders incohérents, source requise incompatible avec auto, conflits serveur, cible ambiguë, etc.
++- L'UI distingue maintenant « blocages techniques » et « points à vérifier ».
++
+ CARDINAL AIO 1.2.0 - correction Formative 1.1.10 - ouverture correction durable
+ 
+ === Version 1.1.10 ===

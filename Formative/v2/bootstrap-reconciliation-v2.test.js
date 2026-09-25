@@ -85,6 +85,25 @@ function approval(proposal) {
     assert.equal(result.ok, true);
     assert.equal(result.proposals[0].match, 'legacy-changed');
     assert.equal(result.proposals[0].safeToAdoptDesiredAsBaseline, false);
+    assert.equal(result.proposals[0].safeToAdoptServerAsBaseline, true);
+  }
+
+  // Without a historical mapping, one unique question with the same subtype
+  // and prompt can be explicitly linked to its current server state. A later
+  // dry-run will then generate UPDATE instead of duplicating it.
+  {
+    const result = analyze([
+      serverFromV1('I16', raw => {
+        raw.details.points = 3;
+        raw.details.correctAnswers = ['ancienne réponse'];
+        raw.details.answerChoicePoints = [3];
+      })
+    ]);
+    assert.equal(result.ok, true);
+    assert.equal(result.proposals.length, 1);
+    assert.equal(result.proposals[0].match, 'prompt-changed');
+    assert.equal(result.proposals[0].safeToAdoptDesiredAsBaseline, false);
+    assert.equal(result.proposals[0].safeToAdoptServerAsBaseline, true);
   }
 
   // Two identical server questions are ambiguous; Cardinal refuses to pick one.
@@ -146,21 +165,23 @@ function approval(proposal) {
     );
   }
 
-  // A changed legacy item cannot be approved as if it already matched desired.
+  // A changed linked item is adopted at its CURRENT server state, not at
+  // desired state. This makes the next dry-run a genuine UPDATE.
   {
     const analysis = analyze(
       [serverFromV1('I16', raw => { raw.details.points = 3; })],
       [{ logicalId: 'q16', formativeItemId: 'I16' }]
     );
-    assert.throws(
-      () => Bootstrap.buildBaseline({
-        analysis,
-        targetFormativeId: 'F1',
-        assessmentFingerprint,
-        approvedProposals: [approval(analysis.proposals[0])]
-      }, deps),
-      e => e.code === 'BOOTSTRAP_CHANGED_ITEM_NOT_ADOPTABLE_AS_DESIRED'
-    );
+    const record = Bootstrap.buildBaseline({
+      analysis,
+      targetFormativeId: 'F1',
+      assessmentFingerprint,
+      approvedProposals: [approval(analysis.proposals[0])]
+    }, deps);
+    assert.equal(record.entries.length, 1);
+    assert.equal(record.entries[0].formativeItemId, 'I16');
+    assert.equal(record.entries[0].managedState.points, 3);
+    assert.notEqual(record.entries[0].managedState.points, 4);
   }
 
   console.log('bootstrap-reconciliation-v2: all tests passed');
