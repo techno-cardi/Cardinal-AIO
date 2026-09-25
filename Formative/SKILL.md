@@ -126,6 +126,8 @@ Ordre obligatoire:
 2. écrire les `answerChoicePoints` finaux;
 3. ne plus changer le maximum.
 
+Preuve réelle du 2026-09-25: lors de l'écriture Keyword, Formative aligne aussi `details.points` sur le plus grand `answerChoicePoints`. Donc `max(answerChoicePoints)` doit correspondre au maximum de la question. Pour une question `assisted` dont tous les concepts sont partiels, Cardinal utilise la réponse attendue complète déjà fournie comme ancre de pleine note, sans gonfler le score d'un mot isolé.
+
 Ne jamais sommer les matches côté Cardinal.
 
 ### Free Response / Long Answer
