@@ -30,13 +30,35 @@
     return value == null ? '' : String(value).replace(/\s+/g, ' ').trim();
   }
 
+  function issueKey(issue) {
+    return [
+      issue?.severity || '',
+      issue?.code || '',
+      issue?.itemId || '',
+      issue?.sourceRef || '',
+      issue?.message || ''
+    ].join('|');
+  }
+
+  function dedupeIssues(values = []) {
+    const seen = new Set();
+    const out = [];
+    for (const current of values || []) {
+      const key = issueKey(current);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(current);
+    }
+    return out;
+  }
+
   function questionIssues(pkgIssues, item) {
     const out = [];
     for (const i of item?.issues || []) out.push(i);
     for (const i of pkgIssues || []) {
       if (i?.itemId === item?.id) out.push(i);
     }
-    return out;
+    return dedupeIssues(out);
   }
 
   function correctionFor(item) {
@@ -247,17 +269,10 @@
 
     const ui = prepared?.preflight?.data?.ui || {};
     const validation = prepared?.preflight?.data?.validation || null;
-    const preflightIssues = [
+    const preflightIssues = dedupeIssues([
       ...(prepared?.preflight?.issues || []),
-      ...((prepared?.issues || []).filter(issue =>
-        !(prepared?.preflight?.issues || []).some(existing =>
-          existing?.severity === issue?.severity &&
-          existing?.code === issue?.code &&
-          existing?.itemId === issue?.itemId &&
-          existing?.message === issue?.message
-        )
-      ))
-    ];
+      ...(prepared?.issues || [])
+    ]);
     const issueBlockers = preflightIssues.filter(issue => issue?.severity === 'blocker').length;
     const issueWarnings = preflightIssues.filter(issue => issue?.severity === 'warning').length;
     const validationRows = buildValidationRows(prepared.pkg || {}, preflightIssues);
@@ -330,6 +345,7 @@
     TYPE_LABELS,
     GRADING_LABELS,
     RECONCILIATION_LABELS,
+    dedupeIssues,
     buildValidationRows,
     buildReconciliationRows,
     buildPreparedView,
