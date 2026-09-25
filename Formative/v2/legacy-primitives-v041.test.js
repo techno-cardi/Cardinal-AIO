@@ -209,6 +209,7 @@ function mutationCalls(h) {
     assert.deepEqual(m[1].variables.input.blanks.map(x => x.key), ['k1', 'k2']);
     assert.deepEqual(m[1].variables.input.blanks.map(x => x.correctAnswers), [['eau'], ['graphite']]);
     assert.equal(m[2].variables.input.isRequired, true);
+    assert.equal(m[2].variables.input.text, m[1].variables.input.text);
     assert.equal(m[3].variables.input.points, 2);
   }
 
@@ -304,8 +305,10 @@ function mutationCalls(h) {
     });
     const m = mutationCalls(h);
     assert.deepEqual(m[2].variables.input.correctAnswers, ['k1', 'k3']);
-    assert.deepEqual(m[3].variables.input.answerChoicePoints, [2, 0, 2]);
-    assert.equal(m[3].variables.input.isPartialCredit, true);
+    assert.equal(m[3].variables.input.points, 4);
+    assert.deepEqual(m[4].variables.input.answerChoicePoints, [2, 0, 2]);
+    assert.equal(m[4].variables.input.isPartialCredit, true);
+    assert.equal(m.slice(4).some(call => Object.prototype.hasOwnProperty.call(call.variables.input || {}, 'points')), false);
   }
 
   {
@@ -338,6 +341,12 @@ function mutationCalls(h) {
     assert.deepEqual(defs[0].correctAnswers, [defs[0].choices[0]]);
     assert.deepEqual(defs[1].choiceLabels, ['nom', 'verbe']);
     assert.deepEqual(defs[1].correctAnswers, [defs[1].choices[1]]);
+    assert.equal(m[2].variables.input.text, m[1].variables.input.text);
+    const visible = JSON.parse(m[2].variables.input.text);
+    const serialized = JSON.stringify(visible);
+    assert(serialized.includes('Ces '));
+    assert(serialized.includes(' élèves '));
+    assert(serialized.includes('blankItem'));
   }
 
   {
