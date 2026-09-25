@@ -65,6 +65,39 @@ function pkg() {
   assert.equal(view.statusLabel, '✓ Prêt');
 }
 
+// A preflight blocker must keep the original questions and expose the exact
+// reason instead of collapsing the UI to "0 question / 1 blocage".
+{
+  const blockedPkg = pkg();
+  const issue = {
+    severity: 'blocker',
+    code: 'TECHNICAL_BLOCK',
+    itemId: 'q2',
+    message: 'Blocage technique de test'
+  };
+  const prepared = {
+    ok: false,
+    state: 'blocked',
+    targetTitle: 'Tchernobyl',
+    pkg: blockedPkg,
+    preflight: {
+      issues: [issue],
+      data: {
+        validation: {
+          stats: { questions: 2, auto: 1, assisted: 1, manual: 0 }
+        }
+      }
+    }
+  };
+  const view = P.buildPreparedView(prepared);
+  assert.equal(view.questions, 2);
+  assert.equal(view.blockers, 1);
+  assert.equal(view.validationRows.length, 2);
+  assert(view.validationRows[1].issues.some(x => x.code === 'TECHNICAL_BLOCK'));
+  assert.equal(view.issues[0].message, 'Blocage technique de test');
+  assert.equal(view.primaryAction.id, 'none');
+}
+
 // Recovery is explicit and resumable.
 {
   const view = P.buildPreparedView({
