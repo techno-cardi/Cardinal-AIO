@@ -330,6 +330,44 @@ assert.notEqual(A.targetAssessmentId('FORMATIVE-123'), A.targetAssessmentId('FOR
   ]);
 }
 
+// Repeated visible labels are a pedagogical choice from ChatGPT, not a
+// transport blocker. Formative keys keep the underlying entries distinct.
+{
+  const q = baseQuestion({
+    subtype: 'resequence',
+    grading: {
+      mode: 'auto', expectedAnswer: 'A, A', provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      partialCredit: true, caseSensitive: false, requirements: [], concepts: []
+    },
+    response: { sequence: ['A', 'A'] }
+  });
+  const result = A.adaptPackageV2ToV1(pkg([q]), { targetFormativeId: 'FORMATIVE-123' });
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'ADAPTER_DUPLICATE_VISIBLE_LABEL'));
+  assert.deepEqual(result.packageV1.items[0].choices, ['A', 'A']);
+}
+
+{
+  const q = baseQuestion({
+    subtype: 'matching',
+    grading: {
+      mode: 'auto', expectedAnswer: 'Nom-chat; Nom-court', provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      partialCredit: true, caseSensitive: false, requirements: [], concepts: []
+    },
+    response: { pairs: [
+      { left: 'Nom', right: 'chat' },
+      { left: 'Nom', right: 'court' }
+    ] }
+  });
+  const result = A.adaptPackageV2ToV1(pkg([q]), { targetFormativeId: 'FORMATIVE-123' });
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'ADAPTER_DUPLICATE_VISIBLE_LABEL'));
+  assert.deepEqual(result.packageV1.items[0].pairs, [
+    { left: 'Nom', right: 'chat' },
+    { left: 'Nom', right: 'court' }
+  ]);
+}
+
 // No concrete target: never invent a lineage.
 {
   const result = A.adaptPackageV2ToV1(pkg([baseQuestion()]));
