@@ -418,4 +418,71 @@ function pkg(items, overrides = {}) {
   assert(!result.issues.some(x => x.code === 'SCORE_GT_MAX'));
 }
 
+// Malformed sources must fail closed without throwing.
+{
+  const input = pkg([baseQuestion()], { sources: { bad: true } });
+  const result = V2.validatePackageV2(input);
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'BLOCKED_STRUCTURE' && /sources/.test(x.message)));
+}
+
+// Cardinal must never invent required/partial-credit/case semantics omitted by
+// the package.
+{
+  const q = baseQuestion({ required: undefined });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'BLOCKED_STRUCTURE' && /required/.test(x.message)));
+}
+
+{
+  const q = baseQuestion({
+    subtype: 'multipleSelection',
+    grading: {
+      mode: 'auto',
+      expectedAnswer: 'A et B',
+      provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      caseSensitive: false,
+      requirements: [],
+      concepts: []
+    },
+    response: {
+      options: [
+        { id: 'a', text: 'A', correct: true },
+        { id: 'b', text: 'B', correct: true },
+        { id: 'c', text: 'C', correct: false }
+      ]
+    }
+  });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'GRADING_PARTIAL_CREDIT_REQUIRED'));
+  assert(!result.issues.some(x => x.code === 'MULTISELECT_WEIGHTS_REQUIRED'));
+}
+
+{
+  const grading = { ...baseQuestion().grading };
+  delete grading.caseSensitive;
+  const q = baseQuestion({ grading });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'GRADING_CASE_SENSITIVE_REQUIRED'));
+}
+
+// Only an official/provided total is a blocking contradiction. Proposed or
+// derived totals are advisory because question points remain authoritative.
+{
+  const input = pkg([baseQuestion()], {
+    assessment: {
+      title: 'Fixture',
+      language: 'fr-CA',
+      sourceMode: 'external-reference-only',
+      declaredTotalPoints: { value: 9, provenance: 'proposed' }
+    }
+  });
+  const result = V2.validatePackageV2(input);
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'TOTAL_POINTS_MISMATCH' && x.severity === 'warning'));
+}
+
 console.log('validator-v2: all tests passed');
