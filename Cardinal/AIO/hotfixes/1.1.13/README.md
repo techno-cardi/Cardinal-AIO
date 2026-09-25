@@ -62,6 +62,8 @@ Les avertissements pédagogiques restent dans `Détails` mais ne créent plus un
 
 Les états `Préparer`, `Vérifier`, `Importer après vérification` ne sont plus empilés pour un paquet techniquement valide.
 
+La carte ChatGPT a aussi été simplifiée visuellement: statut compact, boutons cohérents, aucun faux indicateur de progression lorsque le paquet est simplement prêt et détails pédagogiques gardés à la demande.
+
 Une interruption réelle propose `Reprendre l'import`; la reprise relit Formative avant toute nouvelle écriture.
 
 ## Erreurs exploitables
@@ -80,8 +82,8 @@ Le journal conserve maintenant, quand disponible:
 
 - Version name: `1.2.0-formative-1.1.13-flow-fix-g118`
 - ZIP: `Cardinal-AIO-1.2.0-Formative-1.1.13-flow-fix.zip`
-- SHA-256: `bfa8667cd2fe9c01ce44f1300d5b8b4758a86e1acb8260e8dfac259ae4f2be3c`
-- Patch local 1.1.12 -> 1.1.13 SHA-256: `1a2127624b01fa5eb8a59759409574cdc0df1c9ae2c3c9bea18ed21e4bac9345`
+- SHA-256: `12c9ead0b3019c5ebe720c28e1a873b16a41748f8a3cdee2908739ecdeb31b90`
+- Patch local 1.1.12 -> 1.1.13 SHA-256: `0553d2dd7356977d59f230b883cdda048dc945bff5e2795e642ed4d75017afd6`
 
 ## Tests exécutés
 
