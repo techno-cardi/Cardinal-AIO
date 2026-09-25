@@ -1329,6 +1329,8 @@ def assemble_from_extracted_baseline(
         shutil.copy2(repo_root / HOTFIX_113_OVERLAY / "popup.html", popup_path)
         adapted_popup_sha256 = sha256(popup_path)
         dashboard = (repo_root / "Cardinal" / "AIO" / AIO_POPUP_JS).read_text(encoding="utf-8")
+        dashboard = dashboard.replace("Gestion 1.1.9", f"Gestion {gestion_version}")
+        dashboard = dashboard.replace("Pont ChatGPT 1.1.9", f"Pont ChatGPT {chatgpt_version}")
         (dist / AIO_POPUP_JS).write_text(dashboard, encoding="utf-8")
     else:
         popup_name, original_popup_sha256, adapted_popup_sha256 = augment_historical_popup(
