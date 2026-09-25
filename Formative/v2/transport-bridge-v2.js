@@ -172,8 +172,14 @@
       const raw = await readItem({ targetFormativeId: context.targetFormativeId, formativeItemId, context });
       const normalized = await normalizeServerItem(raw);
       const expectedSubtype = op.desired?.subtype || op.adaptedItem?.subtype || null;
-      if (!raw || !normalized?.managedState || !deps.reconciliation.isBareCreateState?.(normalized.managedState, expectedSubtype)) {
-        const error = new Error('L’item partiellement créé a changé. Cardinal refuse de le modifier automatiquement.');
+      const exactAcknowledgedId = op.recoveryFormativeItemId &&
+        String(op.recoveryFormativeItemId) === String(formativeItemId);
+      const subtypeMatches = raw && String(raw.subtype || '') === String(expectedSubtype || '');
+      const safelyOwnedCreate = exactAcknowledgedId && subtypeMatches && normalized?.managedState;
+      const bareCreate = normalized?.managedState &&
+        deps.reconciliation.isBareCreateState?.(normalized.managedState, expectedSubtype);
+      if (!raw || !normalized?.managedState || (!safelyOwnedCreate && !bareCreate)) {
+        const error = new Error('L’item partiellement créé ne peut pas être attribué avec certitude à cette opération Cardinal.');
         error.code = 'PARTIAL_CREATE_REPAIR_PRECONDITION_FAILED';
         error.formativeItemId = String(formativeItemId);
         error.mutationMayHaveCommitted = false;
