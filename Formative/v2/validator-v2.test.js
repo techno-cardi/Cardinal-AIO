@@ -171,6 +171,83 @@ function pkg(items, overrides = {}) {
 
 {
   const q = baseQuestion({
+    subtype: 'multipleSelection',
+    grading: {
+      mode: 'auto', expectedAnswer: 'A et C', provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      partialCredit: true, caseSensitive: false, requirements: [], concepts: []
+    },
+    response: {
+      options: [
+        { id: 'a', text: 'A', correct: true },
+        { id: 'b', text: 'B', correct: false },
+        { id: 'c', text: 'C', correct: true }
+      ]
+    }
+  });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'MULTISELECT_WEIGHTS_REQUIRED'));
+}
+
+{
+  const q = baseQuestion({
+    subtype: 'multipleSelection',
+    grading: {
+      mode: 'auto', expectedAnswer: 'A et C', provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      partialCredit: true, caseSensitive: false, requirements: [], concepts: []
+    },
+    response: {
+      options: [
+        { id: 'a', text: 'A', correct: true, points: 1 },
+        { id: 'b', text: 'B', correct: false },
+        { id: 'c', text: 'C', correct: true, points: 1 }
+      ]
+    }
+  });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'ready');
+}
+
+{
+  const q = baseQuestion();
+  const malformed = pkg([q], {
+    assessment: {
+      title: 'Fixture',
+      language: 'fr-CA',
+      sourceMode: 'external-reference-only',
+      declaredTotalPoints: 2
+    }
+  });
+  const result = V2.validatePackageV2(malformed);
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'DECLARED_TOTAL_INVALID'));
+}
+
+{
+  const q = baseQuestion({
+    grading: {
+      ...baseQuestion().grading,
+      provenance: { kind: 'answerKey', sourceRefs: ['texte'] }
+    },
+    transformations: [
+      { type: 'splitQuestion', description: 'Découpage', requiresReview: false }
+    ]
+  });
+  const malformed = pkg([q], {
+    sources: [
+      { id: 'questions', role: 'questionnaire', status: 'provided' },
+      { id: 'texte', role: 'text', label: 'Texte', status: 'provided' }
+    ]
+  });
+  const result = V2.validatePackageV2(malformed);
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'GRADING_PROVENANCE_INVALID'));
+  assert(result.issues.some(x => x.code === 'TRANSFORMATION_INVALID'));
+  assert(result.issues.some(x => x.code === 'BLOCKED_STRUCTURE' && x.sourceRef === 'questions'));
+}
+
+{
+  const q = baseQuestion({
     subtype: 'inlineChoice',
     prompt: 'Classe {{mot}}.',
     grading: {
