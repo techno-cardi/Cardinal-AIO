@@ -21,7 +21,7 @@
     'CARDINAL_FORMATIVE_COMPACT_V2',
     '',
     'OBJECTIF',
-    'Prépare fidèlement la demande actuelle pour un import Cardinal Formative. Utilise seulement le contenu pédagogique pertinent de cette conversation et les PDF/DOCX/pièces jointes utiles. Ne mélange jamais un ancien examen/document du chat sauf si la demande actuelle le vise.',
+    'Prépare fidèlement la demande actuelle pour Cardinal Formative. Utilise seulement le contenu pédagogique pertinent et les PDF/DOCX/pièces jointes utiles. Ne mélange aucun ancien document hors demande.',
     '',
     'MÉTHODE PÉDAGOGIQUE',
     '- Évalue indépendamment de tout pointage actuellement affiché dans Formative.',
