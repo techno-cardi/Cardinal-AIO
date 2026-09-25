@@ -81,7 +81,7 @@
     // the archived engine contract. For question updates the 0.4.1 engine used
     // the generic updateFormativeItem mutation; there is no separate literal
     // FormativeItemEditableUpdatePoints operation in the archived 0.4.1 file.
-    updateQuestion: `mutation QuestionEditableUpdateFormativeItem($formativeItemId: ID!, $input: FormativeItemInput!, $withHasItemTags: Boolean!) {
+    updateQuestion: `mutation QuestionEditableUpdateFormativeItem($formativeItemId: ID!, $input: FormativeItemInput!) {
       updateFormativeItem(id: $formativeItemId, input: $input) {
         formativeItem {
           _id
