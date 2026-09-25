@@ -14,7 +14,10 @@
       seen.add(String(tabId));
       out.push({
         tabId,
-        targetFormativeId: text(raw.targetFormativeId) || null,
+        targetFormativeId: text(raw.urlTargetFormativeId || raw.targetFormativeId) || null,
+        urlTargetFormativeId: text(raw.urlTargetFormativeId || raw.targetFormativeId) || null,
+        observedTargetFormativeId: text(raw.observedTargetFormativeId) || null,
+        serverTargetFormativeId: text(raw.serverTargetFormativeId) || null,
         title: text(raw.title) || 'Formative sans titre',
         active: raw.active === true,
         canEdit: raw.canEdit === true,
@@ -90,6 +93,9 @@
       targetFormativeId: x.targetFormativeId,
       title: x.title,
       subtitle: x.targetFormativeId ? `ID ${x.targetFormativeId}` : 'ID inconnu',
+      urlTargetFormativeId: x.urlTargetFormativeId || null,
+      observedTargetFormativeId: x.observedTargetFormativeId || null,
+      serverTargetFormativeId: x.serverTargetFormativeId || null,
       active: x.active === true
     }));
   }
