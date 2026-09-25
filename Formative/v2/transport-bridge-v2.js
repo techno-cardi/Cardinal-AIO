@@ -162,6 +162,32 @@
       return error;
     }
 
+    async function repairPartialCreate({ op, formativeItemId, context = {} }) {
+      if (op?.action !== 'CREATE' || !formativeItemId || !op?.adaptedItem) {
+        const error = new Error('Réparation CREATE invalide.');
+        error.code = 'PARTIAL_CREATE_REPAIR_INVALID';
+        error.mutationMayHaveCommitted = false;
+        throw error;
+      }
+      const raw = await readItem({ targetFormativeId: context.targetFormativeId, formativeItemId, context });
+      const normalized = await normalizeServerItem(raw);
+      const expectedSubtype = op.desired?.subtype || op.adaptedItem?.subtype || null;
+      if (!raw || !normalized?.managedState || !deps.reconciliation.isBareCreateState?.(normalized.managedState, expectedSubtype)) {
+        const error = new Error('L’item partiellement créé a changé. Cardinal refuse de le modifier automatiquement.');
+        error.code = 'PARTIAL_CREATE_REPAIR_PRECONDITION_FAILED';
+        error.formativeItemId = String(formativeItemId);
+        error.mutationMayHaveCommitted = false;
+        throw error;
+      }
+      return updateItem({
+        targetFormativeId: context.targetFormativeId,
+        formativeItemId: String(formativeItemId),
+        item: op.adaptedItem,
+        operationId: op.operationId,
+        context: { ...context, phase: 'partial-create-repair' }
+      });
+    }
+
     async function applyMutation({ op, context = {} }) {
       try {
         if (op.action === 'CREATE') {
@@ -283,6 +309,7 @@
       assertFreshTarget,
       assertOperationPrecondition,
       applyMutation,
+      repairPartialCreate,
       readServerForVerification,
       verifyOperation,
       reconcileOperation
