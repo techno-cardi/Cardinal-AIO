@@ -225,6 +225,7 @@ function baselineFor(sourcePkg, target = 'F') {
     await persistence.saveJournal(j);
     const opId = j.operations[0].operationId;
     j = journal.startOperation(j, opId);
+    await persistence.saveJournal(j);
     const createError = new Error('configuration failed after create');
     createError.formativeItemId = 'I-partial';
     j = journal.markFailed(j, opId, createError, { mutationMayHaveCommitted: true });
