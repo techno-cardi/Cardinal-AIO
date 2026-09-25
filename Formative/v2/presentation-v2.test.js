@@ -62,7 +62,7 @@ function pkg() {
   const view = P.buildPreparedView(prepared);
   assert.equal(view.primaryAction.id, 'import');
   assert.equal(view.primaryAction.label, 'Importer dans Formative');
-  assert.equal(view.statusLabel, '✓ Prêt');
+  assert.equal(view.statusLabel, '⚠ À vérifier');
 }
 
 // A preflight blocker must keep the original questions and expose the exact
