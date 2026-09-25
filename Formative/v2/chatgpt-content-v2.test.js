@@ -278,7 +278,7 @@ const U = require('./chatgpt-content-v2.js');
   // Exact blocker messages must be available to the visible ChatGPT bar instead
 // of collapsing to an opaque "1 blocage".
 {
-  const messages = Content.issueMessages({
+  const messages = U.issueMessages({
     issues: [
       { severity: 'blocker', code: 'X', message: 'Raison exacte' },
       { severity: 'blocker', code: 'X2', message: 'Raison exacte' },
