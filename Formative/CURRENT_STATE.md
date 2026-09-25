@@ -150,11 +150,16 @@ Supportés de bout en bout dans la 0.5.x actuelle:
 
 - `shortAnswer`;
 - `longAnswer`;
-- `fillInTheBlank`.
+- `fillInTheBlank`;
+- `multipleChoice`;
+- `multipleSelection`;
+- `inlineChoice`;
+- `resequence`;
+- `matching`.
 
 Les blocs texte nécessaires aux sections/instructions sont aussi représentés par les primitives historiques prouvées.
 
-Les autres subtypes Formative restent bloqués tant que CREATE + READ + UPDATE + VERIFY n'ont pas été prouvés avec leur contrat natif exact.
+`categorize`, `passageGroup` et les autres subtypes partiels/non prouvés restent bloqués tant que CREATE + READ + UPDATE + VERIFY n'ont pas été verrouillés avec leur contrat natif exact.
 
 ## 8. Couche exécutable 0.5.x
 
