@@ -103,6 +103,55 @@
     uniquePush(issues, out);
   }
 
+  function ingestDeclaredIssue(raw, issues, fallbackItemId = null) {
+    const valid =
+      raw &&
+      typeof raw === 'object' &&
+      !Array.isArray(raw) &&
+      ['warning', 'blocker'].includes(raw.severity) &&
+      typeof raw.code === 'string' &&
+      /^[A-Z0-9_:-]{2,}$/.test(raw.code) &&
+      typeof raw.message === 'string' &&
+      raw.message.trim();
+
+    if (!valid) {
+      issue(
+        issues,
+        'blocker',
+        'DECLARED_ISSUE_INVALID',
+        'Une issue déclarée dans le paquet est invalide. Cardinal ne peut pas deviner son intention.',
+        fallbackItemId || null
+      );
+      return;
+    }
+
+    issue(
+      issues,
+      raw.severity,
+      raw.code,
+      raw.message.trim(),
+      raw.itemId || fallbackItemId || null,
+      raw.sourceRef || null
+    );
+  }
+
+  function ingestDeclaredIssues(pkg, issues) {
+    if (!Array.isArray(pkg?.issues)) {
+      issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'issues doit être un tableau.');
+    } else {
+      for (const current of pkg.issues) ingestDeclaredIssue(current, issues);
+    }
+
+    for (const item of pkg?.items || []) {
+      if (item?.kind === 'question' && !Array.isArray(item?.issues)) {
+        issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'Chaque question doit contenir un tableau issues.', item?.id || '(sans id)');
+        continue;
+      }
+      if (!Array.isArray(item?.issues)) continue;
+      for (const current of item.issues) ingestDeclaredIssue(current, issues, item?.id || null);
+    }
+  }
+
   function refsFromQuestion(item) {
     const refs = new Set();
     if (item?.source?.sourceRef) refs.add(item.source.sourceRef);
@@ -183,6 +232,11 @@
       issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'items doit être un tableau.');
       return finish(pkg, issues);
     }
+
+    // ChatGPT is the pedagogical authority for the package. Its explicit
+    // warnings/blockers are part of the contract and must never be discarded
+    // by Cardinal. Cardinal only adds technical consistency/safety findings.
+    ingestDeclaredIssues(pkg, issues);
 
     const sourceMap = new Map();
     for (const source of pkg.sources || []) {
@@ -367,11 +421,23 @@
       }
     }
 
-    const sourceMissing = grading?.provenance?.kind === 'sourceMissing' || refsFromQuestion(item).some(ref => sourceMap.get(ref)?.status === 'missing');
-    if (sourceMissing) {
-      // ChatGPT owns the pedagogical judgment. Cardinal reports the source gap
-      // but does not silently override or reject the grading mode chosen upstream.
-      issue(issues, 'warning', 'SOURCE_REQUIRED', 'Une source nécessaire à la correction est indiquée comme manquante dans le paquet.', id);
+    const declaredSourceMissing = grading?.provenance?.kind === 'sourceMissing';
+    const referencedSourceMissing = refsFromQuestion(item).some(ref => sourceMap.get(ref)?.status === 'missing');
+    if (declaredSourceMissing) {
+      issue(issues, 'warning', 'SOURCE_REQUIRED', 'Le paquet déclare explicitement qu’une source nécessaire à la correction est manquante.', id);
+      if (grading.mode === 'auto') {
+        issue(
+          issues,
+          'blocker',
+          'SOURCE_MODE_CONFLICT',
+          'Contradiction du paquet: grading.provenance.kind=sourceMissing ne peut pas être combiné à grading.mode=auto.',
+          id
+        );
+      }
+    } else if (referencedSourceMissing) {
+      // A missing referenced source is a consistency signal, not permission for
+      // Cardinal to redo ChatGPT's pedagogical judgment.
+      issue(issues, 'warning', 'SOURCE_REFERENCE_MISSING', 'Une source référencée est marquée manquante; Cardinal conserve le mode de correction fourni par ChatGPT.', id);
     }
 
     const requirements = grading.requirements || [];
@@ -431,48 +497,64 @@
     const max = item?.points?.value;
 
     for (const concept of concepts) {
-      if (!concept?.id) {
-        issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'Concept sans id.', id);
+      const conceptId = asString(concept?.id).trim();
+      if (!conceptId) {
+        // Concept ids are pedagogical metadata. They do not participate in the
+        // Formative mutation itself.
+        issue(issues, 'warning', 'CONCEPT_ID_MISSING', 'Concept sans id; ses termes restent validés individuellement.', id);
+      } else if (conceptIds.has(conceptId)) {
+        issue(issues, 'warning', 'DUPLICATE_CONCEPT_ID', `Concept dupliqué: ${conceptId}.`, id);
+      }
+      if (conceptId) conceptIds.add(conceptId);
+
+      if (concept?.terms != null && !Array.isArray(concept.terms)) {
+        issue(issues, 'blocker', 'CONCEPT_TERMS_INVALID', `Concept ${conceptId || '?'}: terms doit être un tableau.`, id);
         continue;
       }
 
-      if (conceptIds.has(concept.id)) {
-        issue(issues, 'blocker', 'DUPLICATE_CONCEPT_ID', `Concept dupliqué: ${concept.id}.`, id);
-      }
-      conceptIds.add(concept.id);
-
-      if (!Array.isArray(concept.terms) || concept.terms.length === 0) {
-        issue(issues, 'blocker', 'EMPTY_CONCEPT_TERMS', `Concept ${concept.id} sans terme actif.`, id);
+      const rawTerms = Array.isArray(concept?.terms) ? concept.terms : [];
+      const activeTerms = rawTerms.filter(term => normalizeTerm(term, caseSensitive));
+      if (!activeTerms.length) {
+        issue(issues, 'warning', 'EMPTY_CONCEPT_TERMS', `Concept ${conceptId || '?'} sans terme actif; il ne sera pas envoyé comme match Keyword.`, id);
       }
 
-      if (Number.isFinite(max) && Number.isFinite(concept.score) && concept.score > max + 1e-9) {
-        issue(issues, 'blocker', 'SCORE_GT_MAX', `Concept ${concept.id}: score ${concept.score} > maximum ${max}.`, id);
+      // Score validity is blocking only when that score would actually be
+      // transported to Formative through at least one active term.
+      if (activeTerms.length && !oneDecimal(concept?.score)) {
+        issue(issues, 'blocker', 'INVALID_POINTS', `Concept ${conceptId || '?'}: score invalide ${concept?.score}.`, id);
+      }
+      if (activeTerms.length && Number.isFinite(max) && Number.isFinite(concept?.score) && concept.score > max + 1e-9) {
+        issue(issues, 'blocker', 'SCORE_GT_MAX', `Concept ${conceptId || '?'}: score ${concept.score} > maximum ${max}.`, id);
       }
 
-      if (!oneDecimal(concept.score)) {
-        issue(issues, 'blocker', 'INVALID_POINTS', `Concept ${concept.id}: score invalide ${concept.score}.`, id);
+      if (concept?.provenance === 'sourceMissing' && activeTerms.length) {
+        issue(
+          issues,
+          'blocker',
+          'CONCEPT_PROVENANCE_CONFLICT',
+          `Concept ${conceptId || '?'}: des termes actifs sont déclarés malgré provenance=sourceMissing.`,
+          id
+        );
       }
 
-      if (concept.provenance === 'sourceMissing' && (concept.terms || []).length) {
-        issue(issues, 'blocker', 'CONCEPT_PROVENANCE_CONFLICT', `Concept ${concept.id}: termes actifs malgré sourceMissing.`, id);
-      }
-
-      for (const term of concept.terms || []) {
+      for (const term of rawTerms) {
         const normalized = normalizeTerm(term, caseSensitive);
         if (!normalized) {
-          issue(issues, 'blocker', 'EMPTY_CONCEPT_TERMS', `Concept ${concept.id}: terme vide.`, id);
+          issue(issues, 'warning', 'EMPTY_CONCEPT_TERM', `Concept ${conceptId || '?'}: terme vide ignoré.`, id);
           continue;
         }
 
         const previous = termMap.get(normalized);
         if (previous) {
           if (Math.abs(previous.score - concept.score) > 1e-9) {
+            // This affects the exact payload sent to Formative and therefore is
+            // a true transport ambiguity, not a pedagogical second opinion.
             issue(issues, 'blocker', 'TERM_SCORE_CONFLICT', `Terme « ${term} » normalisé déjà utilisé avec un autre score.`, id);
-          } else if (previous.conceptId !== concept.id) {
-            issue(issues, 'warning', 'DUPLICATE_TERM', `Terme « ${term} » partagé entre ${previous.conceptId} et ${concept.id}.`, id);
+          } else if (previous.conceptId !== conceptId) {
+            issue(issues, 'warning', 'DUPLICATE_TERM', `Terme « ${term} » partagé entre ${previous.conceptId || '?'} et ${conceptId || '?'}.`, id);
           }
         } else {
-          termMap.set(normalized, { score: concept.score, conceptId: concept.id });
+          termMap.set(normalized, { score: concept.score, conceptId: conceptId || null });
         }
 
         if (GENERIC_TERMS.has(normalized)) {
@@ -480,8 +562,8 @@
         }
       }
 
-      if (Array.isArray(concept.riskyTerms) && concept.riskyTerms.length) {
-        issue(issues, 'warning', 'RISKY_TERM', `Concept ${concept.id}: ${concept.riskyTerms.length} terme(s) risqué(s) gardé(s) hors import automatique.`, id);
+      if (Array.isArray(concept?.riskyTerms) && concept.riskyTerms.length) {
+        issue(issues, 'warning', 'RISKY_TERM', `Concept ${conceptId || '?'}: ${concept.riskyTerms.length} terme(s) risqué(s) gardé(s) hors import automatique.`, id);
       }
     }
   }
@@ -648,11 +730,11 @@
     const missing = refs.some(ref => sourceMap.get(ref)?.status === 'missing');
     issue(
       issues,
-      missing ? 'blocker' : 'warning',
+      'warning',
       missing ? 'MEDIA_DEPENDENCY_MISSING' : 'MEDIA_DEPENDENCY',
       missing
-        ? 'La question semble dépendre d’un média/source manquant.'
-        : 'La question semble dépendre d’un média ou document externe; vérifier qu’il sera accessible aux élèves.',
+        ? 'La consigne semble dépendre d’un média/source marqué manquant. Cardinal le signale sans refaire le jugement pédagogique de ChatGPT.'
+        : 'La consigne semble dépendre d’un média ou document externe; vérifier qu’il sera accessible aux élèves.',
       item.id
     );
   }
