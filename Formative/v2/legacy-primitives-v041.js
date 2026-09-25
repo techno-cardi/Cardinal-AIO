@@ -277,7 +277,25 @@
       if (!item || item.kind !== 'question' || !MANAGED_SUBTYPES.has(item.subtype)) {
         throw makeError(`Subtype non branché dans les primitives 0.4.1: ${item?.subtype || item?.kind || 'inconnu'}.`, 'LEGACY_MANAGED_SUBTYPE_UNSUPPORTED');
       }
-      if (oneDecimal(item.points) === null) throw makeError('Points absents ou invalides.', 'POINTS_INVALID');
+      const points = oneDecimal(item.points);
+      if (points === null) throw makeError('Points absents ou invalides.', 'POINTS_INVALID');
+
+      if (['shortAnswer', 'longAnswer'].includes(item.subtype) && item?.grading?.mode === 'keyword-absolute') {
+        const matches = enabledMatches(item);
+        if (!matches.length) {
+          throw makeError('Une correction Keyword ne contient aucun mot-clé actif.', 'KEYWORD_MATCHES_EMPTY', {
+            mutationMayHaveCommitted: false
+          });
+        }
+        const maximumMatch = Math.max(...matches.map(match => match.score));
+        if (oneDecimal(maximumMatch) !== points) {
+          throw makeError(
+            `Le score Keyword maximal (${oneDecimal(maximumMatch)}) doit correspondre au maximum de la question (${points}) pour conserver le pointage dans Formative.`,
+            'KEYWORD_MAX_SCORE_MISMATCH',
+            { mutationMayHaveCommitted: false }
+          );
+        }
+      }
     }
 
     async function configureKeywordQuestion(id, item, currentRaw = null) {
@@ -303,18 +321,13 @@
         isCaseSensitive: item.grading?.caseSensitive === true
       });
 
+      // Formative lie le maximum visible au plus grand score Keyword. Pour un
+      // item Keyword représentable, fixer d'abord le maximum, puis écrire les
+      // pondérations finales, et ne plus toucher au maximum ensuite.
+      await setPoints(id, item.points);
+
       if (gradingMode === 'keyword-absolute') {
         const matches = enabledMatches(item);
-        if (!matches.length) {
-          throw makeError('Une correction Keyword ne contient aucun mot-clé actif.', 'KEYWORD_MATCHES_EMPTY', {
-            mutationMayHaveCommitted: true,
-            formativeItemId: String(id)
-          });
-        }
-
-        // Formative peut recalculer details.points à partir de
-        // answerChoicePoints lorsqu'on écrit le corrigé Keyword. Le maximum
-        // pédagogique doit donc être réaffirmé APRÈS les pondérations.
         await updateQuestion(id, {
           correctAnswers: matches.map(match => match.text),
           answerChoicePoints: matches.map(match => match.score),
@@ -322,11 +335,7 @@
           isPartialCredit: item.grading?.partialCredit !== false,
           isCaseSensitive: item.grading?.caseSensitive === true
         });
-        await setPoints(id, item.points);
-        return;
       }
-
-      await setPoints(id, item.points);
     }
 
     function buildFitb(item, blankKeys) {
