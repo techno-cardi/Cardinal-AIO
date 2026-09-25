@@ -42,7 +42,7 @@ const U = require('./chatgpt-content-v2.js');
       unchanged: 3,
       deleteProposed: 2,
       warnings: 1
-    }), '2 à créer · 1 à mettre à jour · 3 inchangés · 2 retraits à vérifier · 1 avertissement');
+    }), '2 à créer · 1 à mettre à jour · 3 inchangés · 2 retraits à vérifier');
 
     assert.equal(U.summarizeView({
       create: 1,
@@ -51,12 +51,13 @@ const U = require('./chatgpt-content-v2.js');
     }), '1 à créer · 1 inchangé · 1 retrait à vérifier');
   }
 
-  // Warnings require an explicit review gesture before APPLY can acknowledge
-  // them. The first click never mutates Formative.
+  // Pedagogical warnings remain visible in Details but no longer create a
+  // mechanical review step before an otherwise technically valid import.
   {
-    const view = { primaryAction: { id: 'import-review' } };
-    assert.deepEqual(U.actionIntent(view, false), { command: 'OPEN_REVIEW' });
-    assert.deepEqual(U.actionIntent(view, true), { command: 'APPLY', acknowledgeWarnings: true });
+    const view = { warnings: 4, primaryAction: { id: 'import' } };
+    assert.deepEqual(U.actionIntent(view, false), { command: 'APPLY', acknowledgeWarnings: true });
+    assert.deepEqual(U.actionIntent({ warnings: 0, primaryAction: { id: 'import' } }, false), { command: 'APPLY', acknowledgeWarnings: false });
+    assert.deepEqual(U.actionIntent({ primaryAction: { id: 'import-review' } }, false), { command: 'APPLY', acknowledgeWarnings: true });
   }
 
   // Reimport always means fresh dry-run first, never replay the old mutation.
@@ -136,14 +137,8 @@ const U = require('./chatgpt-content-v2.js');
         { pkg: original, selectionConfirmed: false },
         { primaryAction: { id: 'import' } }
       ),
-      true
-    );
-    assert.equal(
-      U.shouldOfferQuestionSelection(
-        { pkg: original, selectionConfirmed: true },
-        { primaryAction: { id: 'import' } }
-      ),
-      false
+      false,
+      'question selection is optional and must not interrupt the normal import flow'
     );
   }
 
