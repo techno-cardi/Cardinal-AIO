@@ -243,14 +243,31 @@
 
     function styleShell(shell) {
       Object.assign(shell.style, {
-        border: '1px solid rgba(128,128,128,.35)',
-        borderRadius: '12px',
-        padding: '12px 14px',
+        border: '1px solid rgba(128,128,128,.24)',
+        borderRadius: '14px',
+        padding: '14px 16px',
         margin: '12px 0',
-        background: 'var(--main-surface-primary, rgba(127,127,127,.08))',
+        background: 'var(--main-surface-primary, rgba(127,127,127,.055))',
+        boxShadow: '0 1px 2px rgba(0,0,0,.04)',
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         fontSize: '14px',
         lineHeight: '1.35'
+      });
+    }
+
+    function styleButton(button, kind = 'secondary') {
+      Object.assign(button.style, {
+        appearance: 'none',
+        borderRadius: '9px',
+        padding: '7px 11px',
+        marginTop: '10px',
+        marginRight: '7px',
+        cursor: 'pointer',
+        fontSize: '13px',
+        fontWeight: kind === 'primary' ? '700' : '600',
+        border: kind === 'primary' ? '1px solid transparent' : '1px solid rgba(128,128,128,.28)',
+        background: kind === 'primary' ? 'var(--text-primary, #111)' : 'transparent',
+        color: kind === 'primary' ? 'var(--main-surface-primary, #fff)' : 'inherit'
       });
     }
 
@@ -315,6 +332,7 @@
       const close = element('button', '×');
       close.type = 'button';
       close.title = 'Masquer cette version';
+      Object.assign(close.style, { border: '0', background: 'transparent', cursor: 'pointer', fontSize: '18px', lineHeight: '1', opacity: '.62', padding: '2px 4px' });
       close.addEventListener('click', () => dismiss(record));
       row.append(body, close);
       record.shell.appendChild(row);
@@ -638,12 +656,25 @@
       top.style.alignItems = 'center';
       const body = element('div');
       body.style.flex = '1';
-      const title = element('div', view.statusLabel || (response.ok ? 'Cardinal · Formative prêt' : 'Cardinal · Formative'));
-      title.style.fontWeight = '650';
-      const summary = element('div', summarizeView(view));
-      summary.style.marginTop = '2px';
-      summary.style.opacity = '.82';
-      body.append(title, summary);
+      const heading = element('div');
+      Object.assign(heading.style, { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' });
+      const title = element('div', 'Cardinal Formative');
+      title.style.fontWeight = '750';
+      const status = element('span', view.statusLabel || (response.ok ? '✓ Prêt' : 'Cardinal'));
+      Object.assign(status.style, {
+        fontSize: '11px',
+        fontWeight: '700',
+        padding: '2px 7px',
+        borderRadius: '999px',
+        border: '1px solid rgba(128,128,128,.24)',
+        opacity: '.82'
+      });
+      heading.append(title, status);
+      const summaryText = summarizeView(view);
+      const summary = element('div', summaryText);
+      summary.style.marginTop = summaryText ? '4px' : '0';
+      summary.style.opacity = '.76';
+      body.append(heading, summary);
 
       const close = element('button', '×');
       close.type = 'button';
@@ -651,12 +682,16 @@
       close.addEventListener('click', () => dismiss(record));
       top.append(body, close);
       record.shell.appendChild(top);
-      record.shell.appendChild(progressBar(record));
+      record.progressFill = null;
+      record.progressLabel = null;
+      if (['importing', 'recovery', 'uncertain'].includes(String(response?.state || ''))) {
+        record.shell.appendChild(progressBar(record));
+      }
 
       if (view.showCorrectionButton || (view.validationRows || []).length) {
         const correction = element('button', 'Voir le corrigé préparé');
         correction.type = 'button';
-        correction.style.marginTop = '9px';
+        styleButton(correction, 'secondary');
         correction.addEventListener('click', () => {
           const existing = record.shell.querySelector?.('[data-cardinal-formative-review="1"]');
           if (existing) existing.remove();
@@ -676,8 +711,7 @@
           `Questions ${selectedCount}/${selectionRows.length} · Modifier`
         );
         choose.type = 'button';
-        choose.style.marginTop = '9px';
-        choose.style.marginRight = '7px';
+        styleButton(choose, 'secondary');
         choose.addEventListener('click', () => {
           record.selectionConfirmed = false;
           renderQuestionSelector(record);
@@ -689,7 +723,7 @@
         const button = element('button', action.label || 'Importer dans Formative');
         button.type = 'button';
         button.disabled = action.enabled === false;
-        button.style.marginTop = '9px';
+        styleButton(button, action.emphasis === 'warning' ? 'secondary' : 'primary');
         button.addEventListener('click', () => act(record, button));
         record.actionButton = button;
         record.shell.appendChild(button);
