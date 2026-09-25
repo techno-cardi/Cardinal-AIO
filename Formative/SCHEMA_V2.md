@@ -79,6 +79,8 @@ Champs canoniques:
 
 Cardinal recalcule toujours le total effectif.
 
+Si un total `provided` ne correspond pas à la somme des questions, l'import est bloqué. Un total `proposed` ou `derived` incohérent produit un avertissement: les points explicites des questions restent la donnée à transporter.
+
 ## Sources
 
 Chaque source reçoit une clé logique locale au paquet.
@@ -288,6 +290,17 @@ Sous-types autorisés par le schéma initial:
 `unsupported` signifie: la question est préservée dans le paquet mais l'import doit être bloqué ou transformé explicitement. Cela vaut mieux que d'inventer un subtype.
 
 Le fait qu'un subtype soit permis par le schéma ne suffit pas: Cardinal vérifie aussi la matrice de capacités intégrées de sa propre version.
+
+## Champs de notation qui doivent rester explicites
+
+Le schéma JSON garde certains champs optionnels pour compatibilité de protocole, mais le pipeline de production ne doit jamais inventer une décision de notation absente.
+
+Avant mutation:
+
+- `required` doit être un booléen explicite sur chaque question;
+- `grading.partialCredit` doit être explicite pour `fillInTheBlank`, `inlineChoice`, `multipleSelection`, `resequence` et `matching`;
+- pour `shortAnswer` / `longAnswer` en `auto` ou `assisted`, `grading.partialCredit` et `grading.caseSensitive` doivent être explicites;
+- un champ absent dans ces cas est un problème de contrat technique, pas une invitation pour Cardinal à choisir une valeur par défaut.
 
 ## Points
 
