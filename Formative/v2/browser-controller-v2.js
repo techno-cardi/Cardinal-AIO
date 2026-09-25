@@ -18,6 +18,26 @@
     return error;
   }
 
+  function canFreshReprepareRecovery(prepared = {}) {
+    if (prepared?.mode !== 'resume' || prepared?.state !== 'recovery') return false;
+    const journal = prepared?.journal;
+    if (!journal || !Array.isArray(journal.operations)) return false;
+    if (Number(journal?.summary?.verified || 0) !== 0) return false;
+
+    for (const op of journal.operations) {
+      if (op?.status === 'VERIFIED') return false;
+      const mayHaveCommitted =
+        op?.status === 'UNCERTAIN' ||
+        op?.status === 'IN_PROGRESS' ||
+        (op?.status === 'FAILED' && op?.mutationMayHaveCommitted === true);
+
+      if (mayHaveCommitted && (op?.action !== 'UPDATE' || !op?.formativeItemId)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   function defaultToken(sequence) {
     if (globalThis.crypto?.randomUUID) return `cfi-ui-${globalThis.crypto.randomUUID()}`;
     return `cfi-ui-${Date.now().toString(36)}-${sequence.toString(36)}`;
@@ -309,6 +329,26 @@
       } catch (error) {
         return failure(error, { state: 'stale', token });
       }
+
+      // If an old run has not verified any operation and the only mutation that
+      // may have committed was an UPDATE on an already-known Formative item, a
+      // fresh dry-run is safer than replaying the stale execution plan. The
+      // baseline mapping is retained, so the fresh planner updates the same
+      // server item instead of creating a duplicate.
+      if (canFreshReprepareRecovery(selected.prepared)) {
+        if (typeof deps.product.discardIncompleteRecovery !== 'function') {
+          return failure(makeError(
+            'RECOVERY_FRESH_PREPARE_UNAVAILABLE',
+            'La reprise peut être revérifiée sans doublon, mais le moteur courant ne peut pas encore libérer l’ancien journal.'
+          ), { state: 'blocked', token });
+        }
+        await deps.product.discardIncompleteRecovery({
+          targetFormativeId: selected.prepared.targetFormativeId || selected.targetFormativeId,
+          assessmentFingerprint: selected.prepared.assessmentFingerprint,
+          expectedRunId: selected.prepared.journal?.runId
+        });
+      }
+
       // Reimport/retry always performs a fresh target selection + server read.
       // It never replays the previous prepared object or runId.
       return preparePackage({ ...selected.originalInput });
@@ -331,7 +371,7 @@
     });
   }
 
-  const api = { createController };
+  const api = { canFreshReprepareRecovery, createController };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   globalThis.CardinalFormativeV2BrowserController = api;
 })();
