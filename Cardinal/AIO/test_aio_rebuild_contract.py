@@ -23,7 +23,7 @@ from aio_rebuild_contract import (
     verify_core_hashes,
     verify_tree_hashes,
 )
-from rebuild_aio_safe import augment_historical_popup, make_zip, patch_historical_graphql, patch_user_verified_118_changed_answer_force, patch_user_verified_118_chatgpt_batch_binding, patch_user_verified_118_chatgpt_current_ui, validate_content_script_parse_compatibility, validate_output, validate_popup_script_compatibility
+from rebuild_aio_safe import augment_historical_popup, make_zip, patch_historical_graphql, patch_user_verified_118_changed_answer_force, patch_user_verified_118_chatgpt_batch_binding, patch_user_verified_118_chatgpt_current_ui, patch_user_verified_118_chatgpt_no_auto_reload, validate_content_script_parse_compatibility, validate_output, validate_popup_script_compatibility
 from audit_recovered_baseline import audit_baseline
 
 
@@ -309,6 +309,63 @@ class AioRebuildContractTests(unittest.TestCase):
             broken.write_text("'use strict';", encoding="utf-8")
             with self.assertRaisesRegex(BaselineContractError, "ChatGPT|Adaptation"):
                 patch_user_verified_118_chatgpt_batch_binding(broken)
+
+    def test_chatgpt_auto_reload_and_replay_are_removed_fail_closed(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            chatgpt = root / "chatgpt.js"
+            chatgpt.write_text(
+                """  function queueReloadRecovery(rows,source,error,binding=null){
+    let previousAttempts=0;
+    try {
+      const prev=JSON.parse(sessionStorage.getItem(RELOAD_QUEUE_KEY)||'null');
+      if(prev && Date.now()-Number(prev.createdAt||0)<120000) previousAttempts=Number(prev.attempts||0);
+    } catch {}
+    if(previousAttempts>=1) throw error;
+    try {
+      sessionStorage.setItem(RELOAD_QUEUE_KEY,JSON.stringify({rows,source,binding:binding?{batchId:String(binding.batchId||''),batchConfidence:String(binding.batchConfidence||''),questionNumber:String(binding.questionNumber||''),isInline:!!binding.isInline}:null,createdAt:Date.now(),attempts:previousAttempts+1}));
+    } catch {}
+    $('panel').classList.remove('hidden');
+    $('paste').classList.add('hidden');
+    $('parsePaste').classList.add('hidden');
+    $('msg').className='small';
+    $('msg').textContent='Cardinal vient d’être rechargé. Je recharge ChatGPT une fois et je reprends automatiquement cet envoi…';
+    setTimeout(()=>location.reload(),450);
+  }
+
+  async function resumeReloadQueue(){
+    let pending=null;
+    try { pending=JSON.parse(sessionStorage.getItem(RELOAD_QUEUE_KEY)||'null'); } catch {}
+    if(!pending?.rows?.length) return;
+    if(Date.now()-Number(pending.createdAt||0)>120000){
+      try{sessionStorage.removeItem(RELOAD_QUEUE_KEY);}catch{}
+      return;
+    }
+    try{sessionStorage.removeItem(RELOAD_QUEUE_KEY);}catch{}
+    $('panel').classList.remove('hidden');
+    $('paste').classList.add('hidden');
+    $('parsePaste').classList.add('hidden');
+    $('msg').className='small';
+    $('msg').textContent='Cardinal reconnecté. Je reprends l’envoi vers Formative…';
+    try { await sendRows(pending.rows,`${pending.source||'ChatGPT'} · reprise après mise à jour`,pending.binding||null); }
+    catch(e){
+      $('msg').textContent=e?.message||String(e);$('msg').className='small err';$('paste').classList.remove('hidden');$('parsePaste').classList.remove('hidden');
+    }
+  }
+""",
+                encoding="utf-8",
+            )
+            patch_user_verified_118_chatgpt_no_auto_reload(chatgpt)
+            text = chatgpt.read_text(encoding="utf-8")
+            self.assertNotIn("location.reload()", text)
+            self.assertNotIn("Je reprends l’envoi vers Formative", text)
+            self.assertIn("Recharge ChatGPT manuellement une seule fois", text)
+            self.assertIn("sessionStorage.removeItem(RELOAD_QUEUE_KEY)", text)
+
+            bad = root / "bad.js"
+            bad.write_text("'use strict';", encoding="utf-8")
+            with self.assertRaisesRegex(BaselineContractError, "disable ChatGPT auto reload|Adaptation"):
+                patch_user_verified_118_chatgpt_no_auto_reload(bad)
 
     def test_chatgpt_current_ui_patch_adds_explicit_role_markers(self):
         with tempfile.TemporaryDirectory() as td:
