@@ -379,7 +379,7 @@ jobs:
             --baseline-profile gestion-1.1.8-user-verified \
             --repo-root . \
             --classroom-root _pdc/chrome-classroom-native-bridge \
-            --output dist/Cardinal-AIO-1.2.0-formative-1.1.16-preflight-fix-g118.zip
+            --output dist/Cardinal-AIO-1.2.0-formative-1.1.17-import-durable-g118.zip
 
       - name: Re-extract and verify generated candidate
         shell: bash
@@ -391,7 +391,7 @@ jobs:
           import zipfile
           from pathlib import Path
 
-          archive = Path("dist/Cardinal-AIO-1.2.0-formative-1.1.16-preflight-fix-g118.zip")
+          archive = Path("dist/Cardinal-AIO-1.2.0-formative-1.1.17-import-durable-g118.zip")
           metadata = archive.with_suffix(".json")
           assert archive.is_file()
           assert metadata.is_file()
@@ -412,7 +412,7 @@ jobs:
               popup_js = zf.read("aio-popup.js").decode("utf-8")
               names = set(zf.namelist())
               assert manifest["version"] == "1.2.0"
-              assert manifest["version_name"] == "1.2.0-formative-1.1.16-preflight-fix-g118"
+              assert manifest["version_name"] == "1.2.0-formative-1.1.17-import-durable-g118"
               assert "Gestion 1.1.8" in popup_js
               assert "Pont ChatGPT 1.1.8" in popup_js
               assert "background-v093.js" not in names
@@ -483,10 +483,10 @@ jobs:
       - name: Upload exact AIO candidate
         uses: actions/upload-artifact@v4
         with:
-          name: Cardinal-AIO-1.2.0-formative-1.1.16-preflight-fix-g118
+          name: Cardinal-AIO-1.2.0-formative-1.1.17-import-durable-g118
           path: |
-            dist/Cardinal-AIO-1.2.0-formative-1.1.16-preflight-fix-g118.zip
-            dist/Cardinal-AIO-1.2.0-formative-1.1.16-preflight-fix-g118.json
+            dist/Cardinal-AIO-1.2.0-formative-1.1.17-import-durable-g118.zip
+            dist/Cardinal-AIO-1.2.0-formative-1.1.17-import-durable-g118.json
           if-no-files-found: error
           retention-days: 30
 
