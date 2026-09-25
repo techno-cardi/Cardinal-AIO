@@ -88,8 +88,8 @@ function pkg(items, overrides = {}) {
   assert(result.issues.some(x => x.code === 'TERM_SCORE_CONFLICT'));
 }
 
-// Auto Keyword must contain a genuine full-score match or Formative will
-// collapse the question maximum to the highest answerChoicePoints value.
+// A missing full-score Keyword is a transport concern, not a pedagogical veto.
+// The adapter will add the complete expected answer as a technical anchor.
 {
   const q = baseQuestion({
     grading: {
@@ -106,8 +106,8 @@ function pkg(items, overrides = {}) {
     }
   });
   const result = V2.validatePackageV2(pkg([q]));
-  assert.equal(result.state, 'blocked');
-  assert(result.issues.some(x => x.code === 'KEYWORD_MAX_SCORE_MISMATCH'));
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'KEYWORD_MAX_SCORE_MISMATCH' && x.severity === 'warning'));
 }
 
 {
@@ -143,8 +143,8 @@ function pkg(items, overrides = {}) {
     }
   });
   const result = V2.validatePackageV2(pkg([q]));
-  assert.equal(result.state, 'blocked');
-  assert(result.issues.some(x => x.code === 'ASSISTED_REQUIRED'));
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'ASSISTED_REQUIRED' && x.severity === 'warning'));
 }
 
 // A constructed answer cannot claim useful automatic or assisted keyword
@@ -158,8 +158,8 @@ function pkg(items, overrides = {}) {
     }
   });
   const result = V2.validatePackageV2(pkg([q]));
-  assert.equal(result.state, 'blocked');
-  assert(result.issues.some(x => x.code === 'MISSING_KEYWORD_CONCEPTS'));
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'MISSING_KEYWORD_CONCEPTS' && x.severity === 'warning'));
 }
 
 {
