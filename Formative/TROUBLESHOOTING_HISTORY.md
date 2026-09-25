@@ -68,9 +68,9 @@ Cause: dans ce flux Formative, le maximum visible suit le plus grand `answerChoi
 
 Correctif:
 
-- ne jamais fabriquer une échelle Keyword où tous les matches sont sous le maximum de la question;
-- pour `auto`, bloquer avant toute mutation si aucun match réel ne peut valoir le maximum;
-- pour `assisted`, conserver les indices partiels et ajouter la réponse attendue complète comme match de pleine note si aucun concept ne vaut déjà le maximum;
+- ne jamais fabriquer une échelle Keyword où un mot-clé partiel est artificiellement gonflé au maximum;
+- pour `auto` et `assisted`, conserver les scores fournis par ChatGPT et, si aucun match n'atteint le maximum, ajouter `expectedAnswer` comme ancre technique de pleine note lorsqu'elle est disponible;
+- si ni match exploitable ni `expectedAnswer` ne permet de représenter la correction, bloquer techniquement avant mutation;
 - garder l'ordre `points` puis `answerChoicePoints`, et ne plus réécrire `points` ensuite.
 
 ## 8. Score Keyword absolu vs somme
