@@ -146,6 +146,8 @@ Le mode est prouvé non additif, mais la **priorité entre plusieurs matches sim
 | Blanks de poids différents | moteur peut ne pas représenter | PROBE / assisted si besoin | SHOULD |
 | InlineChoice | choice IDs désalignés | validation structure | MUST |
 | Resequence | ordre partiel | vérifier partial credit réel | SHOULD |
+| Resequence avec deux libellés identiques | faux blocage pédagogique | conserver les deux entrées via clés distinctes + warning | MUST |
+| Matching avec libellés répétés | faux blocage pédagogique | conserver les paires via clés distinctes + warning | MUST |
 | Matching update | IDs régénérés | préserver keys | MUST |
 | Categorize update | structure fragile | preserve/blocked tant que non verrouillé | MUST |
 
