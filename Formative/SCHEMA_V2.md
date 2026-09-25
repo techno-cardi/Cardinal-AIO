@@ -17,7 +17,7 @@ Le schéma décrit l'intention pédagogique. Cardinal demeure responsable de la 
 
 ## Principe
 
-> ChatGPT comprend et propose. Cardinal valide et normalise. Formative exécute et confirme.
+> ChatGPT produit l'intention pédagogique finale. Cardinal valide et normalise techniquement sans refaire ce jugement. Formative exécute et confirme.
 
 Aucune donnée technique de session Formative ne fait partie du paquet.
 
@@ -355,6 +355,8 @@ Priorité pédagogique:
 
 Une provenance `sourceMissing` interdit un mode `auto`.
 
+Cette interdiction est une cohérence explicite du paquet, pas une heuristique pédagogique recalculée par Cardinal. Inversement, Cardinal ne change pas lui-même `auto` en `assisted` ou `manual` parce qu'il interprète différemment la consigne.
+
 ## Concepts
 
 Le v2 raisonne par concepts avant de générer les termes.
@@ -560,6 +562,8 @@ Deux sévérités:
 
 - `warning`;
 - `blocker`.
+
+Les `issues` sont contractuelles: Cardinal valide leur forme puis les conserve. Une issue `blocker` émise par ChatGPT bloque l'import tant qu'elle est présente dans le paquet sélectionné. Cardinal ne doit jamais supprimer silencieusement une issue pour rendre le paquet importable.
 
 L'interface utilisateur traduit ensuite en trois états simples:
 
