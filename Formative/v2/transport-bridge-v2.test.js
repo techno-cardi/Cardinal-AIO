@@ -156,6 +156,26 @@ const ctx = { targetFormativeId: 'F1', targetTabId: 10, targetTitle: 'Tchernobyl
     assert.equal(r.formativeItemId, 'NEW1');
   }
 
+  // An exact ID acknowledged by Formative may be safely finished in place,
+  // even when its first configuration was only partially applied.
+  {
+    const g = gateway({ items: [raw('NEW1', 'Partial?'), raw('NEW2', 'Teacher item?')] });
+    const t = bridge(g);
+    const op = {
+      action: 'CREATE', operationId: 'CREATE:q1', fingerprint: 'q1',
+      preexistingServerItemIds: [], recoveryFormativeItemId: 'NEW1',
+      desired: state('New?'),
+      adaptedItem: { subtype: 'shortAnswer', prompt: 'New?', points: 2 }
+    };
+    const verdict = await t.reconcileOperation({ op, context: ctx });
+    assert.equal(verdict.state, 'repairable');
+    assert.equal(verdict.formativeItemId, 'NEW1');
+    const repaired = await t.repairPartialCreate({ op, formativeItemId: 'NEW1', context: ctx });
+    assert.equal(repaired.formativeItemId, 'NEW1');
+    assert.equal(g.log.filter(x => x === 'create').length, 0);
+    assert.equal(g.log.filter(x => x === 'update:NEW1').length, 1);
+  }
+
   // Incomplete server snapshot never resolves uncertain CREATE/DELETE.
   {
     const g = gateway({ items: [], snapshotComplete: false });
