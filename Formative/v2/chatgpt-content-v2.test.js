@@ -76,6 +76,19 @@ const U = require('./chatgpt-content-v2.js');
   assert.deepEqual(U.actionIntent({ primaryAction: { id: 'none' } }), { command: 'NONE' });
   assert.deepEqual(U.actionIntent({ primaryAction: { id: 'future-action' } }), { command: 'NONE' });
 
+  // Cardinal buttons must not depend on ChatGPT host button colors. The
+  // primary action always owns a dark background and contrasting text.
+  {
+    const primary = U.buttonStyle({ primary: true });
+    assert.equal(primary.background, '#111827');
+    assert.equal(primary.color, '#ffffff');
+    assert.equal(primary.appearance, 'none');
+
+    const secondary = U.buttonStyle();
+    assert.equal(secondary.color, 'inherit');
+    assert.notEqual(secondary.background, '');
+  }
+
   console.log('chatgpt-content-v2: all tests passed');
 })().catch(error => {
   console.error(error);
