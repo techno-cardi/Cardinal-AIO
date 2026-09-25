@@ -323,6 +323,10 @@ Le popup et la barre ChatGPT contiennent l'audit du corrigé réellement destin�
 
 Séparation figée depuis le durcissement du 25 septembre 2026:
 
+- aucune valeur de notation importante n'est désormais inventée par défaut: `required`, crédit partiel et casse Keyword sont vérifiés lorsqu'ils affectent le transport;
+- un paquet malformé doit finir en `blocked` avec une raison, jamais en exception non gérée;
+- un total officiel incohérent bloque; un total proposé/dérivé incohérent avertit sans écraser les points des questions;
+
 - ChatGPT est l'autorité pédagogique du paquet;
 - Cardinal ne rétrograde/reclasse pas un mode de correction à partir de ses propres heuristiques;
 - les heuristiques Cardinal de média, multipartie ou termes génériques sont des warnings;
