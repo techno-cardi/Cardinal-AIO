@@ -54,6 +54,25 @@ Ordre correct:
 2. answerChoicePoints;
 3. ne plus changer le maximum.
 
+## 7.1 Maximum de question écrasé par une pondération Keyword plus faible
+
+Symptôme observé le 2026-09-25:
+
+- question à 2 points;
+- relecture intermédiaire: `points: 2`, `answerChoicePoints: [2, ...]`;
+- écriture des pondérations partielles à 1 point;
+- relecture finale: `points: 1`, `answerChoicePoints: [1, ...]`;
+- Cardinal tombe ensuite en `POSTCONDITION_MISMATCH` et en reprise incertaine.
+
+Cause: dans ce flux Formative, le maximum visible suit le plus grand `answerChoicePoints`.
+
+Correctif:
+
+- ne jamais fabriquer une échelle Keyword où tous les matches sont sous le maximum de la question;
+- pour `auto`, bloquer avant toute mutation si aucun match réel ne peut valoir le maximum;
+- pour `assisted`, conserver les indices partiels et ajouter la réponse attendue complète comme match de pleine note si aucun concept ne vaut déjà le maximum;
+- garder l'ordre `points` puis `answerChoicePoints`, et ne plus réécrire `points` ensuite.
+
 ## 8. Score Keyword absolu vs somme
 
 Mode prouvé:
