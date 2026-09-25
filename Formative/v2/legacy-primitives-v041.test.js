@@ -167,10 +167,10 @@ function mutationCalls(h) {
       'QuestionEditableUpdateFormativeItem',
       'QuestionEditableUpdateFormativeItem'
     ]);
-    assert.equal(m[2].variables.input.points, 4);
-    assert.deepEqual(m[3].variables.input.correctAnswers, ['graphite', 'carbone']);
-    assert.deepEqual(m[3].variables.input.answerChoicePoints, [4, 2]);
-    assert.equal(m[3].variables.input.isKeywordGrading, true);
+    assert.deepEqual(m[2].variables.input.correctAnswers, ['graphite', 'carbone']);
+    assert.deepEqual(m[2].variables.input.answerChoicePoints, [4, 2]);
+    assert.equal(m[2].variables.input.isKeywordGrading, true);
+    assert.equal(m[3].variables.input.points, 4);
   }
 
   {
@@ -192,8 +192,9 @@ function mutationCalls(h) {
     const m = mutationCalls(h);
     assert.equal(m.length, 3);
     assert.equal(m[0].variables.input.showWordCount, true);
-    assert.equal(m[1].variables.input.points, 4);
-    assert.deepEqual(m[2].variables.input.correctAnswers, ['thyroïde', 'irradiation']);
+    assert.deepEqual(m[1].variables.input.correctAnswers, ['thyroïde', 'irradiation']);
+    assert.deepEqual(m[1].variables.input.answerChoicePoints, [3.5, 3]);
+    assert.equal(m[2].variables.input.points, 4);
   }
 
   {
