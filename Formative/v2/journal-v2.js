@@ -205,7 +205,7 @@
 
     return mutate(journal, next => {
       const op = findOperation(next, operationId);
-      if (op.status !== STATUS.UNCERTAIN) throw new Error(`cannot reconcile ${operationId} from ${op.status}`);
+      if (![STATUS.UNCERTAIN, STATUS.IN_PROGRESS].includes(op.status)) throw new Error(`cannot reconcile ${operationId} from ${op.status}`);
 
       if (serverVerdict.state === 'not_committed') {
         op.status = STATUS.FAILED;
