@@ -58,7 +58,7 @@ function longKeywordItem(overrides = {}) {
       partialCredit: true,
       caseSensitive: false,
       matches: [
-        { text: 'thyroïde', score: 3.5, enabled: true },
+        { text: 'thyroïde', score: 4, enabled: true },
         { text: 'irradiation', score: 3, enabled: true }
       ]
     },
@@ -194,6 +194,27 @@ function mutationCalls(h) {
     assert.equal(m[0].variables.input.showWordCount, true);
     assert.equal(m[1].variables.input.points, 4);
     assert.deepEqual(m[2].variables.input.correctAnswers, ['thyroïde', 'irradiation']);
+  }
+
+  {
+    const h = harness();
+    const incompatible = shortKeywordItem({
+      points: 4,
+      grading: {
+        mode: 'keyword-absolute',
+        partialCredit: true,
+        caseSensitive: false,
+        matches: [
+          { text: 'indice-a', score: 2, enabled: true },
+          { text: 'indice-b', score: 3, enabled: true }
+        ]
+      }
+    });
+    await assert.rejects(
+      h.primitives.createItem({ targetFormativeId: 'form-1', item: incompatible }),
+      error => error.code === 'KEYWORD_MAX_SCORE_MISMATCH' && error.mutationMayHaveCommitted === false
+    );
+    assert.equal(mutationCalls(h).length, 0);
   }
 
   {
