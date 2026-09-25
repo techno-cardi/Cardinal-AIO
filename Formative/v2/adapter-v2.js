@@ -33,6 +33,15 @@
       .trim();
   }
 
+  function normalizeVisibleText(value) {
+    return asString(value)
+      .normalize('NFC')
+      .replace(/[’‘`´]/g, "'")
+      .replace(/[‐‑‒–—−]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function normalizeTerm(value, caseSensitive = false) {
     let text = asString(value)
       .normalize('NFD')
@@ -472,8 +481,17 @@
       const sequence = Array.isArray(item?.response?.sequence)
         ? item.response.sequence.map(asString).filter(Boolean)
         : [];
-      if (sequence.length < 2 || new Set(sequence).size !== sequence.length) {
-        issue(issues, 'blocker', 'ADAPTER_RESEQUENCE_INVALID', 'Resequence exige au moins deux éléments uniques non vides.', item.id);
+      if (sequence.length < 2) {
+        issue(issues, 'blocker', 'ADAPTER_RESEQUENCE_INVALID', 'Resequence exige au moins deux éléments non vides.', item.id);
+      }
+      if (new Set(sequence.map(normalizeVisibleText)).size !== sequence.length) {
+        issue(
+          issues,
+          'warning',
+          'ADAPTER_DUPLICATE_VISIBLE_LABEL',
+          'Resequence contient des libellés identiques; les choix restent distingués par leurs clés Formative.',
+          item.id
+        );
       }
       return {
         ...common,
@@ -500,10 +518,16 @@
       if (pairs.length < 2 || pairs.some(pair => !pair.left.trim() || !pair.right.trim())) {
         issue(issues, 'blocker', 'ADAPTER_MATCHING_INVALID', 'Matching exige au moins deux paires complètes.', item.id);
       }
-      const left = pairs.map(pair => normalizeText(pair.left));
-      const right = pairs.map(pair => normalizeText(pair.right));
+      const left = pairs.map(pair => normalizeVisibleText(pair.left));
+      const right = pairs.map(pair => normalizeVisibleText(pair.right));
       if (new Set(left).size !== left.length || new Set(right).size !== right.length) {
-        issue(issues, 'blocker', 'ADAPTER_MATCHING_AMBIGUOUS', 'Matching contient des libellés dupliqués; la correspondance ne serait pas réversible.', item.id);
+        issue(
+          issues,
+          'warning',
+          'ADAPTER_DUPLICATE_VISIBLE_LABEL',
+          'Matching contient des libellés identiques; les paires restent distinguées par leurs clés Formative.',
+          item.id
+        );
       }
       return {
         ...common,
