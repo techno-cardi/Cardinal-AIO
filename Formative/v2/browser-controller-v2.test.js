@@ -19,14 +19,48 @@ function makeHarness(options = {}) {
   const product = {
     async prepare(input) {
       calls.push(['prepare', input]);
+      const prepareNo = calls.filter(x => x[0] === 'prepare').length;
+      if (options.recoveryOnFirstPrepare === true && prepareNo === 1) {
+        return {
+          ok: true,
+          state: 'recovery',
+          mode: 'resume',
+          targetFormativeId: input.targetFormativeId,
+          targetTabId: input.targetTabId,
+          assessmentFingerprint: 'assessment-a',
+          packageFingerprint: 'pkg-recovery',
+          runId: 'run-old',
+          journal: {
+            runId: 'run-old',
+            summary: { verified: 0, remaining: 2, uncertain: 1, failed: 0 },
+            operations: [
+              {
+                operationId: 'update:q1',
+                action: 'UPDATE',
+                formativeItemId: 'existing-q1',
+                status: 'UNCERTAIN',
+                mutationMayHaveCommitted: true
+              },
+              {
+                operationId: 'create:q2',
+                action: 'CREATE',
+                formativeItemId: null,
+                status: 'PENDING',
+                mutationMayHaveCommitted: false
+              }
+            ]
+          },
+          view: { statusLabel: '↻ Reprise requise', primaryAction: { id: 'reimport' } }
+        };
+      }
       return {
         ok: true,
         state: options.preparedState || 'ready',
         mode: options.preparedMode || 'new',
         targetFormativeId: input.targetFormativeId,
         targetTabId: input.targetTabId,
-        packageFingerprint: `pkg-${calls.filter(x => x[0] === 'prepare').length}`,
-        runId: `run-${calls.filter(x => x[0] === 'prepare').length}`,
+        packageFingerprint: `pkg-${prepareNo}`,
+        runId: `run-${prepareNo}`,
         view: { statusLabel: '✓ Prêt', primaryAction: { id: 'import' } }
       };
     },
@@ -43,6 +77,10 @@ function makeHarness(options = {}) {
         mode: 'new',
         view: { statusLabel: '✓ Prêt', primaryAction: { id: 'import' } }
       };
+    },
+    async discardIncompleteRecovery(input) {
+      calls.push(['discard', input]);
+      return true;
     }
   };
 
@@ -166,6 +204,44 @@ function makeHarness(options = {}) {
     assert.notEqual(refreshed.token, first.token);
     assert.equal(h.calls.filter(x => x[0] === 'prepare').length, preparesBefore + 1);
     assert.equal(h.calls.filter(x => x[0] === 'execute').length, executesBefore);
+  }
+
+  // An update-only uncertain recovery can be explicitly abandoned for a fresh
+  // server read without risking duplication. The baseline stays in place.
+  {
+    const h = makeHarness({ recoveryOnFirstPrepare: true });
+    const first = await h.controller.preparePackage({ pkg: { schema: 'x' } });
+    assert.equal(first.state, 'recovery');
+    assert.equal(controllerApi.canFreshReprepareRecovery(first.prepared), true);
+
+    const refreshed = await h.controller.reprepare(first.token);
+    assert.equal(refreshed.ok, true);
+    assert.equal(refreshed.state, 'ready');
+    const discard = h.calls.find(x => x[0] === 'discard');
+    assert(discard);
+    assert.equal(discard[1].targetFormativeId, 'form-a');
+    assert.equal(discard[1].assessmentFingerprint, 'assessment-a');
+    assert.equal(discard[1].expectedRunId, 'run-old');
+    assert.equal(h.calls.filter(x => x[0] === 'prepare').length, 2);
+  }
+
+  // An uncertain CREATE cannot be discarded for a fresh prepare because it
+  // could already exist on the server and would risk duplication.
+  {
+    assert.equal(controllerApi.canFreshReprepareRecovery({
+      ok: true,
+      state: 'recovery',
+      mode: 'resume',
+      journal: {
+        summary: { verified: 0 },
+        operations: [{
+          action: 'CREATE',
+          formativeItemId: 'maybe-created',
+          status: 'UNCERTAIN',
+          mutationMayHaveCommitted: true
+        }]
+      }
+    }), false);
   }
 
   // Dismissing the ChatGPT surface is UI-only. It does not clear current state
