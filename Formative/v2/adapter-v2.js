@@ -459,6 +459,16 @@
     }
 
     if (item.subtype === 'resequence') {
+      if (item?.grading?.mode === 'manual') {
+        issue(
+          issues,
+          'blocker',
+          'ADAPTER_MANUAL_RESEQUENCE_NOT_PROVEN',
+          'Une remise en ordre native contient nécessairement un ordre correct; le mode manual ne peut pas être transporté fidèlement.',
+          item.id
+        );
+        return null;
+      }
       const sequence = Array.isArray(item?.response?.sequence)
         ? item.response.sequence.map(asString).filter(Boolean)
         : [];
@@ -474,6 +484,16 @@
     }
 
     if (item.subtype === 'matching') {
+      if (item?.grading?.mode === 'manual') {
+        issue(
+          issues,
+          'blocker',
+          'ADAPTER_MANUAL_MATCHING_NOT_PROVEN',
+          'Un appariement natif contient nécessairement une clé de correspondance; le mode manual ne peut pas être transporté fidèlement.',
+          item.id
+        );
+        return null;
+      }
       const pairs = Array.isArray(item?.response?.pairs)
         ? item.response.pairs.map(pair => ({ left: asString(pair?.left), right: asString(pair?.right) }))
         : [];
