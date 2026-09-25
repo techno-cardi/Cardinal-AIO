@@ -93,6 +93,25 @@
     }
   }
 
+  function buttonStyle(options = {}) {
+    const primary = options.primary === true;
+    const compact = options.compact === true;
+    return {
+      appearance: 'none',
+      WebkitAppearance: 'none',
+      border: primary ? '1px solid #111827' : '1px solid rgba(128,128,128,.45)',
+      borderRadius: '8px',
+      padding: compact ? '4px 8px' : '7px 10px',
+      background: primary ? '#111827' : 'rgba(127,127,127,.10)',
+      color: primary ? '#ffffff' : 'inherit',
+      font: 'inherit',
+      fontWeight: primary ? '600' : '500',
+      lineHeight: '1.2',
+      cursor: 'pointer',
+      opacity: '1'
+    };
+  }
+
   function createContentBridge(options = {}) {
     const doc = required(options.document || globalThis.document, 'document');
     const runtime = required(options.runtime || globalThis.chrome?.runtime, 'chrome.runtime');
@@ -189,25 +208,6 @@
         fontSize: '14px',
         lineHeight: '1.35'
       });
-    }
-
-    function buttonStyle(options = {}) {
-      const primary = options.primary === true;
-      const compact = options.compact === true;
-      return {
-        appearance: 'none',
-        WebkitAppearance: 'none',
-        border: primary ? '1px solid #111827' : '1px solid rgba(128,128,128,.45)',
-        borderRadius: '8px',
-        padding: compact ? '4px 8px' : '7px 10px',
-        background: primary ? '#111827' : 'rgba(127,127,127,.10)',
-        color: primary ? '#ffffff' : 'inherit',
-        font: 'inherit',
-        fontWeight: primary ? '600' : '500',
-        lineHeight: '1.2',
-        cursor: 'pointer',
-        opacity: '1'
-      };
     }
 
     function styleButton(button, options = {}) {
