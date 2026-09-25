@@ -65,6 +65,19 @@
     return result('conflict', { code: 'UPDATE_STATE_DIVERGED', formativeItemId: op.formativeItemId, serverObservation: row.item, message: 'Le serveur ne correspond ni à la baseline ni à l’état désiré.' });
   }
 
+
+  function isBareCreateState(state, expectedSubtype) {
+    if (!state || state.kind !== 'question' || String(state.subtype || '') !== String(expectedSubtype || '')) return false;
+    if (String(state.prompt || state.template || '').trim()) return false;
+    if (Array.isArray(state.choices) && state.choices.length) return false;
+    if (Array.isArray(state.sequence) && state.sequence.some(Boolean)) return false;
+    if (Array.isArray(state.pairs) && state.pairs.length) return false;
+    if (Array.isArray(state.blanks) && state.blanks.some(blank => (blank?.answers || blank?.choices || []).length)) return false;
+    if (Array.isArray(state?.grading?.matches) && state.grading.matches.length) return false;
+    if (state?.grading?.isKeywordGrading === true) return false;
+    return true;
+  }
+
   function reconcileCreate(op, rows, options = {}) {
     if (options.snapshotComplete !== true) {
       return result('conflict', { code: 'CREATE_SNAPSHOT_INCOMPLETE', message: 'Une création incertaine exige une lecture complète du Formative avant toute décision.' });
@@ -108,6 +121,17 @@
     }
 
     if (!equal(candidate.normalized.managedState, op.desired)) {
+      const createdAt = Number(candidate.item?.updatedAt || 0);
+      const failedAt = Number.isFinite(Date.parse(op.uncertainFinishedAt || '')) ? Date.parse(op.uncertainFinishedAt) : 0;
+      const nearFailure = !createdAt || !failedAt || Math.abs(createdAt - failedAt) <= 5 * 60 * 1000;
+      const exactFailedId = op.recoveryFormativeItemId && String(op.recoveryFormativeItemId) === String(candidate.formativeItemId);
+      if ((exactFailedId || nearFailure) && isBareCreateState(candidate.normalized.managedState, expectedSubtype)) {
+        return result('repairable', {
+          formativeItemId: candidate.formativeItemId,
+          serverObservation: candidate.item,
+          message: 'Cardinal a retrouvé l’item créé juste avant l’échec de configuration. Il peut terminer cet item sans le recréer.'
+        });
+      }
       return result('conflict', {
         code: 'CREATE_CANDIDATE_DIVERGED',
         candidateIds: [candidate.formativeItemId],
@@ -144,7 +168,7 @@
     return reconcileKnownId(op, rows, options);
   }
 
-  const api = { canonicalize, equal, reconcileOperation };
+  const api = { canonicalize, equal, isBareCreateState, reconcileOperation };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   globalThis.CardinalFormativeV2Reconciliation = api;
 })();
