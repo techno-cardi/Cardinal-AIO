@@ -431,7 +431,6 @@
       const names = [
         'assertOperationPrecondition',
         'applyMutation',
-        'repairPartialCreate',
         'readServerForVerification',
         'verifyOperation',
         'reconcileOperation'
