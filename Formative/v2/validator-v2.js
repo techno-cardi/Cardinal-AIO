@@ -224,6 +224,7 @@
       }
     }
 
+    const sourceList = Array.isArray(pkg.sources) ? pkg.sources : [];
     if (!Array.isArray(pkg.sources)) {
       issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'sources doit être un tableau.');
     }
@@ -239,7 +240,7 @@
     ingestDeclaredIssues(pkg, issues);
 
     const sourceMap = new Map();
-    for (const source of pkg.sources || []) {
+    for (const source of sourceList) {
       if (!source?.id) {
         issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'Chaque source doit avoir un id.');
         continue;
@@ -291,6 +292,10 @@
         continue;
       }
 
+      if ((item.kind === 'section' || item.kind === 'instruction') && !asString(item.content).trim()) {
+        issue(issues, 'blocker', 'BLOCKED_STRUCTURE', `${item.kind} exige un contenu non vide.`, itemId);
+      }
+
       if (item.kind === 'passageGroup') {
         if (item.embed !== true) {
           issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'passageGroup exige embed=true.', itemId);
@@ -327,7 +332,15 @@
     if (pkg.packageMode === 'full' && declared && Number.isFinite(declared.value)) {
       const roundedTotal = Math.round(total * 10) / 10;
       if (Math.abs(roundedTotal - declared.value) > 1e-9) {
-        issue(issues, 'blocker', 'TOTAL_POINTS_MISMATCH', `Total déclaré ${declared.value}, total calculé ${roundedTotal}.`);
+        const authoritative = declared.provenance === 'provided';
+        issue(
+          issues,
+          authoritative ? 'blocker' : 'warning',
+          'TOTAL_POINTS_MISMATCH',
+          authoritative
+            ? `Total officiel déclaré ${declared.value}, total calculé ${roundedTotal}.`
+            : `Total ${declared.provenance || 'non officiel'} déclaré ${declared.value}, total calculé ${roundedTotal}; Cardinal conserve les points des questions et signale l'écart.`
+        );
       }
     }
 
@@ -349,6 +362,14 @@
 
     if (!asString(item.prompt).trim()) {
       issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'Prompt vide.', id);
+    }
+
+    if (typeof item.required !== 'boolean') {
+      issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'required doit être un booléen explicite; Cardinal ne choisit pas à la place de ChatGPT.', id);
+    }
+
+    if (!Array.isArray(item.transformations)) {
+      issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'transformations doit être un tableau explicite.', id);
     }
 
     if (/^\s*(?:q(?:uestion)?\s*)?\d+[A-Za-z]?\s*[.)\-:]/i.test(asString(item.prompt))) {
@@ -405,6 +426,43 @@
         'grading.provenance.kind doit être providedAnswerKey, sourceExplicit, sourceInferred, questionIntrinsic, teacherApproved ou sourceMissing.',
         id
       );
+    }
+
+    const partialCreditRelevant = new Set([
+      'fillInTheBlank',
+      'inlineChoice',
+      'multipleSelection',
+      'resequence',
+      'matching'
+    ]);
+    if (partialCreditRelevant.has(item.subtype) && typeof grading.partialCredit !== 'boolean') {
+      issue(
+        issues,
+        'blocker',
+        'GRADING_PARTIAL_CREDIT_REQUIRED',
+        'grading.partialCredit doit être un booléen explicite pour ce subtype; Cardinal ne choisit pas ce comportement de notation.',
+        id
+      );
+    }
+    if (['shortAnswer', 'longAnswer'].includes(item.subtype) && grading.mode !== 'manual') {
+      if (typeof grading.partialCredit !== 'boolean') {
+        issue(
+          issues,
+          'blocker',
+          'GRADING_PARTIAL_CREDIT_REQUIRED',
+          'grading.partialCredit doit être explicite pour une correction Keyword.',
+          id
+        );
+      }
+      if (typeof grading.caseSensitive !== 'boolean') {
+        issue(
+          issues,
+          'blocker',
+          'GRADING_CASE_SENSITIVE_REQUIRED',
+          'grading.caseSensitive doit être explicite pour une correction Keyword.',
+          id
+        );
+      }
     }
 
     for (const transformation of item.transformations || []) {
@@ -601,7 +659,7 @@
         issue(issues, 'blocker', 'MCQ_CORRECT_COUNT', 'Multiple Selection exige au moins 1 réponse correcte.', id);
       }
 
-      if (item.subtype === 'multipleSelection' && item?.grading?.partialCredit !== false) {
+      if (item.subtype === 'multipleSelection' && item?.grading?.partialCredit === true) {
         const correctOptions = options.filter(option => option?.correct === true);
         const missingWeights = correctOptions.filter(option => !Number.isFinite(Number(option?.points)));
         if (missingWeights.length) {
