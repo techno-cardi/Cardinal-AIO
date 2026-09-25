@@ -441,4 +441,35 @@ assert.notEqual(A.targetAssessmentId('FORMATIVE-123'), A.targetAssessmentId('FOR
   });
 }
 
+// Native ordered/matching questions inherently carry a correct structure.
+// A manual grading request cannot be transported faithfully and must fail
+// before any mutation.
+{
+  const q = baseQuestion({
+    subtype: 'resequence',
+    grading: {
+      mode: 'manual', expectedAnswer: 'A, B', provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      partialCredit: false, caseSensitive: false, requirements: [], concepts: []
+    },
+    response: { sequence: ['A', 'B'] }
+  });
+  const result = A.adaptPackageV2ToV1(pkg([q]), { targetFormativeId: 'FORMATIVE-123' });
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'ADAPTER_MANUAL_RESEQUENCE_NOT_PROVEN'));
+}
+
+{
+  const q = baseQuestion({
+    subtype: 'matching',
+    grading: {
+      mode: 'manual', expectedAnswer: 'A-1; B-2', provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      partialCredit: false, caseSensitive: false, requirements: [], concepts: []
+    },
+    response: { pairs: [{ left: 'A', right: '1' }, { left: 'B', right: '2' }] }
+  });
+  const result = A.adaptPackageV2ToV1(pkg([q]), { targetFormativeId: 'FORMATIVE-123' });
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'ADAPTER_MANUAL_MATCHING_NOT_PROVEN'));
+}
+
 console.log('adapter-v2: all tests passed');
