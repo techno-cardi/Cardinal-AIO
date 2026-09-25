@@ -311,48 +311,120 @@ async function syncInsideMozaik(payload, tokenOverride = '') {
     if (missing.length) throw new Error('Association impossible pour : ' + missing.join(', ') + '. Aucune donnée n’a été écrite.');
 
     const competence = await resolveCompetence(a, g, token);
-    let activityId = payload.link?.activityId || null;
-    let existing = null;
-    let activityList = null;
+    const activityPath = `/api/evaluation/apprentissage/${g.establishmentId}/activites/groupe/${g.groupCourseId}`;
+    const planPath = `/api/evaluation/planifications/${g.establishmentId}/groupes/${g.groupCourseId}`;
 
-    if (activityId) {
-      activityList = await request('GET', `/api/evaluation/apprentissage/${g.establishmentId}/activites/groupe/${g.groupCourseId}`, token);
-      const arr = Array.isArray(activityList) ? activityList : (activityList?.activites || []);
-      existing = arr.find(x => x?.id === activityId || x?.idActivite === activityId) || null;
-      if (!existing) {
-        const same = arr.filter(x => norm(x?.titre ?? x?.title ?? '') === norm(a.title));
-        if (same.length === 1) {
-          existing = same[0];
-          activityId = findUuid(existing);
-        } else if (same.length > 1) {
-          throw new Error('Plusieurs activités portent ce titre dans Mozaïk. Renomme le travail ou supprime le doublon avant de synchroniser.');
-        } else {
-          activityId = null;
+    function activityRows(data) {
+      const rows = Array.isArray(data) ? data : data?.activites;
+      if (!Array.isArray(rows)) throw new Error('La liste des activités Mozaïk est illisible. Aucune création n’a été tentée.');
+      return rows;
+    }
+    function activityRowId(row) {
+      if (typeof row === 'string') return row;
+      return row?.id ?? row?.idActivite ?? row?.activityId ?? row?._id ?? null;
+    }
+    function plannedRowId(row) {
+      if (typeof row === 'string') return row;
+      return row?.id ?? row?.idActivite ?? row?.activityId ?? row?._id ?? null;
+    }
+    async function readActivity(id, attempts = 4) {
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        const rows = activityRows(await request('GET', activityPath, token));
+        const hit = rows.find(row => String(activityRowId(row) || '') === String(id || '')) || null;
+        if (hit) return { hit, rows };
+        if (attempt + 1 < attempts) await sleep(250 * (attempt + 1));
+      }
+      return { hit: null, rows: activityRows(await request('GET', activityPath, token)) };
+    }
+    async function ensurePlannedExactlyOnce(id) {
+      const plan = await request('GET', planPath, token);
+      if (!plan || !Array.isArray(plan.activites)) {
+        throw new Error('La planification Mozaïk est illisible. Cardinal refuse de la réécrire.');
+      }
+      const rawIds = plan.activites.map(plannedRowId);
+      if (rawIds.some(value => !value)) {
+        throw new Error('La planification Mozaïk contient une activité sans identifiant lisible. Cardinal refuse de risquer de perdre une activité existante.');
+      }
+      const wanted = String(id);
+      const deduped = [];
+      const seen = new Set();
+      for (const rawId of rawIds) {
+        const value = String(rawId);
+        if (seen.has(value)) continue;
+        seen.add(value);
+        deduped.push(value);
+      }
+      if (!seen.has(wanted)) deduped.push(wanted);
+      const currentCount = rawIds.filter(value => String(value) === wanted).length;
+      const changed = currentCount !== 1 || deduped.length !== rawIds.length;
+      if (changed) {
+        await request('PUT', planPath, token, {
+          idListeCategoriesPonderation: plan?.idListeCategoriesPonderation ?? null,
+          activites: deduped.map(value => ({ id: value }))
+        });
+      }
+
+      let verifiedPlan = null;
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        verifiedPlan = await request('GET', planPath, token);
+        if (!verifiedPlan || !Array.isArray(verifiedPlan.activites)) {
+          throw new Error('La planification Mozaïk est devenue illisible après la synchronisation.');
         }
+        const verifiedIds = verifiedPlan.activites.map(plannedRowId);
+        if (verifiedIds.some(value => !value)) {
+          throw new Error('La planification Mozaïk retournée après écriture contient un identifiant illisible.');
+        }
+        if (verifiedIds.filter(value => String(value) === wanted).length === 1) return;
+        if (attempt < 3) await sleep(250 * (attempt + 1));
+      }
+      throw new Error('L’activité existe, mais Mozaïk ne confirme pas sa présence unique dans la planification. Cardinal n’en créera pas une deuxième.');
+    }
+
+    let activityId = payload.link?.activityId ? String(payload.link.activityId) : null;
+    let activityList = activityRows(await request('GET', activityPath, token));
+    let existing = activityId
+      ? activityList.find(row => String(activityRowId(row) || '') === activityId) || null
+      : null;
+
+    if (!existing) {
+      const sameTitle = activityList.filter(row => norm(row?.titre ?? row?.title ?? '') === norm(a.title));
+      if (sameTitle.length > 1) {
+        throw new Error('Plusieurs activités portent déjà ce titre dans Mozaïk. Cardinal refuse d’en créer une autre tant que le doublon n’est pas réglé.');
+      }
+      if (sameTitle.length === 1) {
+        existing = sameTitle[0];
+        activityId = String(activityRowId(existing) || findUuid(existing) || '');
+        if (!activityId) throw new Error('Une activité du même titre existe dans Mozaïk, mais son identifiant est illisible.');
+      } else {
+        activityId = null;
       }
     }
 
     if (!activityId) {
       const created = await request('POST', `/api/evaluation/apprentissage/${g.establishmentId}/activites/groupe/${g.groupMatterId}`, token, activityPayload(a, competence.code, null));
-      activityId = findUuid(created);
-      if (!activityId) throw new Error('Mozaïk a créé l’activité, mais son identifiant n’a pas pu être lu. Vérifie Mozaïk avant de réessayer.');
-      const plan = await request('GET', `/api/evaluation/planifications/${g.establishmentId}/groupes/${g.groupCourseId}`, token);
-      const planned = Array.isArray(plan?.activites) ? plan.activites : [];
-      const ids = planned.map(x => typeof x === 'string' ? x : x?.id).filter(Boolean);
-      if (!ids.includes(activityId)) ids.push(activityId);
-      await request('PUT', `/api/evaluation/planifications/${g.establishmentId}/groupes/${g.groupCourseId}`, token, {
-        idListeCategoriesPonderation: plan?.idListeCategoriesPonderation ?? null,
-        activites: ids.map(id => ({ id }))
-      });
+      activityId = String(findUuid(created) || '');
+      if (!activityId) throw new Error('Mozaïk a créé l’activité, mais son identifiant n’a pas pu être lu. Cardinal n’effectuera pas de seconde création automatique.');
+      const observed = await readActivity(activityId);
+      if (!observed.hit) {
+        throw new Error('Mozaïk a retourné un identifiant de création, mais l’activité n’est pas encore relisible. Cardinal n’en créera pas une deuxième.');
+      }
+      existing = observed.hit;
     } else {
       if (!existing) {
-        activityList = activityList || await request('GET', `/api/evaluation/apprentissage/${g.establishmentId}/activites/groupe/${g.groupCourseId}`, token);
-        const arr = Array.isArray(activityList) ? activityList : (activityList?.activites || []);
-        existing = arr.find(x => x?.id === activityId || x?.idActivite === activityId);
+        const observed = await readActivity(activityId);
+        existing = observed.hit;
       }
-      if (!existing) throw new Error('Impossible de retrouver l’activité Mozaïk associée.');
+      if (!existing) throw new Error('Impossible de retrouver l’activité Mozaïk associée. Cardinal refuse de la recréer automatiquement.');
       await request('PUT', `/api/evaluation/apprentissage/${g.establishmentId}/activites/groupe/${g.groupMatterId}/${activityId}`, token, activityPayload(a, competence.code, existing));
+      const observed = await readActivity(activityId);
+      if (!observed.hit) throw new Error('Mozaïk ne confirme pas l’activité après sa mise à jour.');
+      existing = observed.hit;
     }
+
+    // La présence dans la planification est une postcondition de chaque sync,
+    // pas seulement de la création initiale. Cette étape répare aussi un lien
+    // manquant et déduplique une référence répétée au même activityId.
+    await ensurePlannedExactlyOnce(activityId);
 
     const resultPath = `/api/evaluation/resultats/${g.establishmentId}/activites/groupe/${g.groupMatterId}/${activityId}`;
     const commaPayload = { eleves: matched.map(x => ({ fiche: x.fiche, resultat: gradeString(x.grade, 'comma') })) };
