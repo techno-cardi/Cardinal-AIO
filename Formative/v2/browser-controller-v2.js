@@ -175,6 +175,7 @@
           },
           targetFormativeId: selected.targetFormativeId,
           targetTabId: selected.tabId,
+          targetTitle: selected.title || null,
           prepared,
           state: prepared?.state || (prepared?.ok ? 'ready' : 'blocked')
         };
@@ -302,16 +303,99 @@
       }
     }
 
-    async function reprepare(token) {
+    async function reprepare(token, pkgOverride = null) {
       let selected;
       try {
         selected = requireCurrent(token);
       } catch (error) {
         return failure(error, { state: 'stale', token });
       }
-      // Reimport/retry always performs a fresh target selection + server read.
-      // It never replays the previous prepared object or runId.
-      return preparePackage({ ...selected.originalInput });
+
+      // The target has already been explicitly bound by the first preparation.
+      // A reprepare (including question-subset selection) must not run the
+      // chooser/enumerator again, because that creates a second, unrelated
+      // target-selection race. We keep the same tab + target id and let the
+      // production runtime perform its fresh URL/server/permission guard.
+      if (mutating) {
+        return failure(makeError(
+          'TARGET_IMPORT_ALREADY_RUNNING',
+          'Un import est déjà en cours; la préparation est bloquée jusqu’à sa fin.'
+        ), { state: 'busy', token });
+      }
+
+      preparing = true;
+      sequence += 1;
+      const localSequence = sequence;
+      const nextToken = tokenFactory(localSequence);
+      const nextPkg = pkgOverride || selected.originalInput?.pkg || selected.pkg;
+
+      try {
+        await reportProgress({ stage: 'CHECKING_TARGET', runId: nextToken });
+        await reportProgress({ stage: 'READING_SERVER', runId: nextToken });
+
+        const prepared = await deps.product.prepare({
+          pkg: nextPkg,
+          targetFormativeId: selected.targetFormativeId,
+          targetTabId: selected.targetTabId,
+          targetTitle: selected.targetTitle || null,
+          assessmentFingerprint: selected.originalInput?.assessmentFingerprint,
+          legacyHints: selected.originalInput?.legacyHints || [],
+          approvedDeleteFingerprints: selected.originalInput?.approvedDeleteFingerprints || [],
+          preflightInjected: selected.originalInput?.preflightInjected,
+          bootstrapInjected: selected.originalInput?.bootstrapInjected
+        });
+
+        if (localSequence !== sequence) {
+          return failure(makeError('STALE_PREPARATION', 'Une préparation plus récente a remplacé celle-ci.'), {
+            state: 'stale',
+            token: nextToken,
+            targetFormativeId: selected.targetFormativeId,
+            targetTabId: selected.targetTabId
+          });
+        }
+
+        current = {
+          token: nextToken,
+          pkg: nextPkg,
+          originalInput: {
+            ...(selected.originalInput || {}),
+            pkg: nextPkg,
+            requestedTabId: selected.targetTabId,
+            requestedTargetId: selected.targetFormativeId
+          },
+          targetFormativeId: selected.targetFormativeId,
+          targetTabId: selected.targetTabId,
+          targetTitle: selected.targetTitle || null,
+          prepared,
+          state: prepared?.state || (prepared?.ok ? 'ready' : 'blocked')
+        };
+
+        await reportProgress({
+          stage: prepared?.ok ? 'READY' : 'BLOCKED',
+          runId: nextToken,
+          label: prepared?.view?.statusLabel || undefined
+        });
+
+        return publish({
+          ok: prepared?.ok === true,
+          state: current.state,
+          token: nextToken,
+          targetFormativeId: current.targetFormativeId,
+          targetTabId: current.targetTabId,
+          prepared,
+          view: prepared?.view || null
+        });
+      } catch (error) {
+        await reportProgress({ stage: 'BLOCKED', runId: nextToken, label: 'Préparation interrompue' });
+        return failure(error, {
+          state: 'blocked',
+          token: nextToken,
+          targetFormativeId: selected.targetFormativeId,
+          targetTabId: selected.targetTabId
+        });
+      } finally {
+        if (localSequence === sequence) preparing = false;
+      }
     }
 
     function dismiss(token) {

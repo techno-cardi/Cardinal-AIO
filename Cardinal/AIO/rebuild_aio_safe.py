@@ -46,9 +46,9 @@ from aio_rebuild_contract import (
 )
 
 AIO_VERSION = "1.2.0"
-AIO_VERSION_NAME = "1.2.0-rc3-repair"
+AIO_VERSION_NAME = "1.2.0-rc14-formative-pedago3"
 CLASSROOM_COMMIT = "6887bfa2e8afd523a38a0e3286aa1f826276b8c5"
-FORMATIVE_TREE_SHA = "1a48922ec281f0aec42bf49d150aec3634f2f79f"
+FORMATIVE_TREE_SHA = "9b1cb1c1d8c1568ea6f93750229bc26e821d66a2"
 FORMATIVE_V2_ZIP = "Cardinal-Formative-Importer-STANDALONE-0.5.0-rc1.zip"
 AIO_POPUP_JS = "aio-popup.js"
 
@@ -399,6 +399,222 @@ def patch_user_verified_118_chatgpt_batch_binding(chatgpt: Path) -> None:
                 f"Correctif liaison ChatGPT multi-question 1.1.8 incomplet: {marker}"
             )
     chatgpt.write_text(text, encoding="utf-8")
+
+def patch_user_verified_118_chatgpt_current_ui(chatgpt: Path) -> None:
+    """Adapt the verified 1.1.8 ChatGPT bridge to explicit current UI markers."""
+    text = chatgpt.read_text(encoding="utf-8")
+
+    text = replace_exactly(
+        text,
+        """    if(turn.matches?.('[data-testid="user-message"]') || turn.querySelector?.('[data-testid="user-message"]')) return 'user';
+    if(turn.matches?.('[data-testid="assistant-message"]') || turn.querySelector?.('[data-testid="assistant-message"]')) return 'assistant';
+
+    const testid=String(turn.getAttribute?.('data-testid')||'').toLowerCase();
+""",
+        """    if(turn.matches?.('[data-testid="user-message"]') || turn.querySelector?.('[data-testid="user-message"]')) return 'user';
+    if(turn.matches?.('[data-testid="assistant-message"]') || turn.querySelector?.('[data-testid="assistant-message"]')) return 'assistant';
+
+    if(/:assistant$/i.test(String(turn.getAttribute?.('data-chatgpt-search-unit-key')||''))) return 'assistant';
+    if(/:assistant$/i.test(String(turn.getAttribute?.('data-content-search-unit-key')||''))) return 'assistant';
+    if(turn.hasAttribute?.('data-user-message-bubble') || turn.querySelector?.('[data-user-message-bubble]')) return 'user';
+
+    const testid=String(turn.getAttribute?.('data-testid')||'').toLowerCase();
+""",
+        label="Gestion 1.1.8 current ChatGPT role markers",
+    )
+
+    text = replace_exactly(
+        text,
+        """      const outer=all.filter(node=>!all.some(other=>other!==node && other.contains(node)));
+      return outer.length ? outer : all;
+    }
+    return [];
+  }
+""",
+        """      const outer=all.filter(node=>!all.some(other=>other!==node && other.contains(node)));
+      return outer.length ? outer : all;
+    }
+
+    const units=[...document.querySelectorAll(
+      '[data-chatgpt-search-unit-key$=":assistant"],[data-content-search-unit-key$=":assistant"],[data-user-message-bubble]'
+    )];
+    if(units.length){
+      const outer=units.filter(node=>!units.some(other=>other!==node && other.contains(node)));
+      return outer.length ? outer : units;
+    }
+    return [];
+  }
+""",
+        label="Gestion 1.1.8 current ChatGPT turn discovery",
+    )
+
+    for marker in (
+        "data-chatgpt-search-unit-key",
+        "data-content-search-unit-key",
+        "data-user-message-bubble",
+    ):
+        if marker not in text:
+            raise BaselineContractError(
+                f"Correctif interface ChatGPT 1.1.8 incomplet: {marker}"
+            )
+    chatgpt.write_text(text, encoding="utf-8")
+
+
+def patch_user_verified_118_chatgpt_no_auto_reload(chatgpt: Path) -> None:
+    """Never navigate/reload ChatGPT automatically from Cardinal."""
+    text = chatgpt.read_text(encoding="utf-8")
+
+    text = replace_exactly(
+        text,
+        """  function queueReloadRecovery(rows,source,error,binding=null){
+    let previousAttempts=0;
+    try {
+      const prev=JSON.parse(sessionStorage.getItem(RELOAD_QUEUE_KEY)||'null');
+      if(prev && Date.now()-Number(prev.createdAt||0)<120000) previousAttempts=Number(prev.attempts||0);
+    } catch {}
+    if(previousAttempts>=1) throw error;
+    try {
+      sessionStorage.setItem(RELOAD_QUEUE_KEY,JSON.stringify({rows,source,binding:binding?{batchId:String(binding.batchId||''),batchConfidence:String(binding.batchConfidence||''),questionNumber:String(binding.questionNumber||''),isInline:!!binding.isInline}:null,createdAt:Date.now(),attempts:previousAttempts+1}));
+    } catch {}
+    $('panel').classList.remove('hidden');
+    $('paste').classList.add('hidden');
+    $('parsePaste').classList.add('hidden');
+    $('msg').className='small';
+    $('msg').textContent='Cardinal vient d’être rechargé. Je recharge ChatGPT une fois et je reprends automatiquement cet envoi…';
+    setTimeout(()=>location.reload(),450);
+  }
+""",
+        """  function queueReloadRecovery(rows,source,error,binding=null){
+    // Never reload ChatGPT automatically. Extension updates can invalidate an
+    // already-running content-script context; navigating the page here can loop
+    // and hammer ChatGPT conversation endpoints. Preserve nothing for auto-replay.
+    try { sessionStorage.removeItem(RELOAD_QUEUE_KEY); } catch {}
+    $('panel').classList.remove('hidden');
+    $('paste').classList.add('hidden');
+    $('parsePaste').classList.add('hidden');
+    $('msg').className='small err';
+    $('msg').textContent='Cardinal a été mis à jour pendant que cette page était ouverte. Recharge ChatGPT manuellement une seule fois, puis relance l’envoi. Aucun résultat n’a été envoyé automatiquement.';
+    return {ok:false,reloading:false,contextInvalidated:true};
+  }
+""",
+        label="Gestion 1.1.8 disable ChatGPT auto reload",
+    )
+
+    text = replace_exactly(
+        text,
+        """  async function resumeReloadQueue(){
+    let pending=null;
+    try { pending=JSON.parse(sessionStorage.getItem(RELOAD_QUEUE_KEY)||'null'); } catch {}
+    if(!pending?.rows?.length) return;
+    if(Date.now()-Number(pending.createdAt||0)>120000){
+      try{sessionStorage.removeItem(RELOAD_QUEUE_KEY);}catch{}
+      return;
+    }
+    try{sessionStorage.removeItem(RELOAD_QUEUE_KEY);}catch{}
+    $('panel').classList.remove('hidden');
+    $('paste').classList.add('hidden');
+    $('parsePaste').classList.add('hidden');
+    $('msg').className='small';
+    $('msg').textContent='Cardinal reconnecté. Je reprends l’envoi vers Formative…';
+    try { await sendRows(pending.rows,`${pending.source||'ChatGPT'} · reprise après mise à jour`,pending.binding||null); }
+    catch(e){
+      $('msg').textContent=e?.message||String(e);$('msg').className='small err';$('paste').classList.remove('hidden');$('parsePaste').classList.remove('hidden');
+    }
+  }
+""",
+        """  async function resumeReloadQueue(){
+    // Legacy pending auto-replay is intentionally discarded. A previous AIO
+    // version may have left this key behind; never turn it into a new send or
+    // page reload.
+    try { sessionStorage.removeItem(RELOAD_QUEUE_KEY); } catch {}
+    return;
+  }
+""",
+        label="Gestion 1.1.8 disable ChatGPT auto replay",
+    )
+
+    if "location.reload()" in text or "setTimeout(()=>location.reload()" in text:
+        raise BaselineContractError("ChatGPT auto-reload interdit: location.reload encore présent.")
+    if "Je reprends l’envoi vers Formative" in text:
+        raise BaselineContractError("ChatGPT auto-replay interdit: ancien message de reprise encore présent.")
+
+    chatgpt.write_text(text, encoding="utf-8")
+
+
+def patch_user_verified_118_chatgpt_live_ping(chatgpt: Path) -> None:
+    """Expose a live bridge ping so the worker avoids redundant reinjection."""
+    text = chatgpt.read_text(encoding="utf-8")
+    text = replace_exactly(
+        text,
+        """  try {
+    chrome.runtime.onMessage.addListener(message=>{
+      if(message?.type==='CARDINAL_SIMPLE_CONTEXT_CLEARED'){
+        cachedContext=null;
+        $('panel').classList.add('hidden');
+        refreshButton();
+      }
+    });
+  } catch {}
+""",
+        """  try {
+    chrome.runtime.onMessage.addListener((message,_sender,sendResponse)=>{
+      if(message?.type==='CARDINAL_CHATGPT_BRIDGE_PING'){
+        sendResponse?.({ok:true,bridgeVersion:BRIDGE_VERSION});
+        return;
+      }
+      if(message?.type==='CARDINAL_SIMPLE_CONTEXT_CLEARED'){
+        cachedContext=null;
+        $('panel').classList.add('hidden');
+        refreshButton();
+      }
+    });
+  } catch {}
+""",
+        label="Gestion 1.1.8 live ChatGPT bridge ping",
+    )
+    if "CARDINAL_CHATGPT_BRIDGE_PING" not in text:
+        raise BaselineContractError("Ping du pont ChatGPT 1.1.8 absent.")
+    chatgpt.write_text(text, encoding="utf-8")
+
+
+def patch_user_verified_118_worker_chatgpt_ping(worker: Path) -> None:
+    """Ping the live bridge before injecting chatgpt.js on focus/activation."""
+    text = worker.read_text(encoding="utf-8")
+    text = replace_exactly(
+        text,
+        """async function cardinalReinjectChatGptBridge1000(tabId) {
+  if (!tabId) return;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const url = String(tab?.url || '');
+    if (!/^https:\/\/(chatgpt\.com|chat\.openai\.com)\//i.test(url)) return;
+    await chrome.scripting.executeScript({ target:{ tabId }, files:['chatgpt.js'] });
+  } catch {}
+}
+""",
+        """async function cardinalReinjectChatGptBridge1000(tabId) {
+  if (!tabId) return;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const url = String(tab?.url || '');
+    if (!/^https:\/\/(chatgpt\.com|chat\.openai\.com)\//i.test(url)) return;
+
+    let live = null;
+    try {
+      live = await chrome.tabs.sendMessage(tabId, { type:'CARDINAL_CHATGPT_BRIDGE_PING' });
+    } catch {}
+    if (live?.ok && live?.bridgeVersion === '1.1.8') return;
+
+    await chrome.scripting.executeScript({ target:{ tabId }, files:['chatgpt.js'] });
+  } catch {}
+}
+""",
+        label="Gestion 1.1.8 ping-before-reinject ChatGPT bridge",
+    )
+    if "CARDINAL_CHATGPT_BRIDGE_PING" not in text:
+        raise BaselineContractError("Worker ChatGPT ping-before-reinject absent.")
+    worker.write_text(text, encoding="utf-8")
+
 
 def replace_exactly(text: str, old: str, new: str, *, label: str, expected: int = 1) -> str:
     count = text.count(old)
@@ -1045,6 +1261,9 @@ def assemble_from_extracted_baseline(
     original_chatgpt_sha256 = sha256(chatgpt_path)
     if gestion_version == "1.1.8":
         patch_user_verified_118_chatgpt_batch_binding(chatgpt_path)
+        patch_user_verified_118_chatgpt_current_ui(chatgpt_path)
+        patch_user_verified_118_chatgpt_no_auto_reload(chatgpt_path)
+        patch_user_verified_118_chatgpt_live_ping(chatgpt_path)
     patched_chatgpt_sha256 = sha256(chatgpt_path)
     validated_core_hashes = snapshot_core_hashes(dist)
 
@@ -1063,6 +1282,7 @@ def assemble_from_extracted_baseline(
     patch_historical_graphql(legacy_worker)
     if gestion_version == "1.1.8":
         patch_user_verified_118_changed_answer_force(legacy_worker)
+        patch_user_verified_118_worker_chatgpt_ping(legacy_worker)
     patched_legacy_worker_sha256 = sha256(legacy_worker)
 
     formative_root, formative_manifest = build_formative_v2(repo_root, scratch)
@@ -1227,7 +1447,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("dist/Cardinal-AIO-1.2.0-rc3-repair.zip"),
+        default=Path("dist/Cardinal-AIO-1.2.0-rc14-formative-pedago3.zip"),
     )
     args = parser.parse_args(argv)
 

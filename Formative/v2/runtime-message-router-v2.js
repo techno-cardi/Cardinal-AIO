@@ -150,7 +150,7 @@
             });
             break;
           case TYPES.REPREPARE:
-            result = await controller.reprepare(payload.token);
+            result = await controller.reprepare(payload.token, payload.pkg || null);
             break;
           case TYPES.RECONCILE:
             result = await controller.confirmReconciliation(payload.token, {

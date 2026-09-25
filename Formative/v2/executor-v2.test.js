@@ -83,6 +83,42 @@ function makeUncertainJournal(ops) {
     assert.deepEqual(E.executableOperations(ops, { approvedDeleteFingerprints: ['q2'] }).operations.map(x => x.action), ['UPDATE', 'DELETE']);
   }
 
+  // Later CREATEs accept only IDs created and server-verified earlier in
+  // this same run. Pending/failed creations and unrelated items remain unsafe.
+  {
+    const op = {
+      operationId: 'CREATE:q2',
+      action: 'CREATE',
+      fingerprint: 'q2',
+      preexistingServerItemIds: ['OLD']
+    };
+    const j = {
+      operations: [
+        {
+          operationId: 'CREATE:q1',
+          action: 'CREATE',
+          status: journal.STATUS.VERIFIED,
+          result: { formativeItemId: 'NEW1' }
+        },
+        {
+          operationId: 'CREATE:q3',
+          action: 'CREATE',
+          status: journal.STATUS.PENDING,
+          result: { formativeItemId: 'NOT-YET' }
+        }
+      ]
+    };
+    assert.deepEqual(
+      E.runVerifiedCreatedIds(j, deps(), 'CREATE:q2'),
+      ['NEW1']
+    );
+    assert.deepEqual(
+      E.withRunCreatedIds(op, j, deps()).preexistingServerItemIds,
+      ['NEW1', 'OLD']
+    );
+    assert.deepEqual(op.preexistingServerItemIds, ['OLD'], 'immutable plan must stay unchanged');
+  }
+
   // Happy path ordering: precondition -> durable IN_PROGRESS -> mutation -> verify -> baseline -> VERIFIED.
   {
     const log = [];

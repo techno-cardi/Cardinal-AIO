@@ -63,17 +63,24 @@
             throw expiredSessionError(tab.id, targetFormativeId);
           }
 
+          const observedTargetFormativeId = observation?.targetFormativeId || null;
+          const urlTargetFormativeId = observation?.urlTargetFormativeId || targetFormativeId;
+
           candidates.push({
             tabId: tab.id,
-            targetFormativeId: observation?.targetFormativeId || targetFormativeId,
+            // The URL identifies what this concrete browser tab is displaying.
+            // Server/page observations are verification signals and must never
+            // silently replace the tab identity used by the chooser.
+            targetFormativeId: String(targetFormativeId),
             title: observation?.title || tab?.title || 'Formative sans titre',
             active: tab?.active === true,
             canEdit: observation?.canEdit === true ? true : observation?.canEdit === false ? false : null,
             authState: observation?.authState || 'unknown',
             pageKind: observation?.pageKind || 'editor',
             observedAt: observation?.observedAt || null,
+            observedTargetFormativeId: observedTargetFormativeId ? String(observedTargetFormativeId) : null,
             serverTargetFormativeId: observation?.serverTargetFormativeId || null,
-            urlTargetFormativeId: observation?.urlTargetFormativeId || targetFormativeId
+            urlTargetFormativeId: String(urlTargetFormativeId)
           });
         } catch (error) {
           probeErrors.push({

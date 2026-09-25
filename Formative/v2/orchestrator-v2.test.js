@@ -223,6 +223,49 @@ function baselineFor(sourcePkg, target = 'F') {
     assert.equal(prepared.reason, 'RECOVERY_PLAN_MISSING');
   }
 
+  // A journal that is already BLOCKED with no uncertain write is safe to
+  // discard. A fresh dry-run must replace the dead recovery loop.
+  {
+    const persistence = makePersistence();
+    const sourcePkg = pkg();
+    const prepared0 = await makeOrchestrator(persistence).prepare({
+      pkg: sourcePkg,
+      targetFormativeId: 'F',
+      assessmentFingerprint: 'A',
+      serverItems: [],
+      preflightInjected: preflightDeps
+    });
+    let stuck = journal.createJournal({
+      runId: 'stuck-blocked',
+      targetFormativeId: 'F',
+      assessmentFingerprint: 'A',
+      packageMode: 'patch',
+      executionContractHash: prepared0.executionContract.hash,
+      executionPlan: prepared0.plannerOperations,
+      operations: executor.makeJournalOperations(prepared0.plannerOperations)
+    });
+    await persistence.saveJournal(stuck);
+    stuck = journal.markBlocked(
+      stuck,
+      stuck.operations[0].operationId,
+      { code: 'CREATE_TARGET_CHANGED_SINCE_PREFLIGHT', message: 'old dead plan' }
+    );
+    await persistence.saveJournal(stuck);
+
+    const O = makeOrchestrator(persistence, { runIdFactory: () => 'fresh-after-stuck' });
+    const prepared = await O.prepare({
+      pkg: sourcePkg,
+      targetFormativeId: 'F',
+      assessmentFingerprint: 'A',
+      serverItems: [],
+      preflightInjected: preflightDeps
+    });
+    assert.equal(prepared.mode, 'new');
+    assert.equal(prepared.runId, 'fresh-after-stuck');
+    assert.equal(prepared.abandonedRecovery.runId, 'stuck-blocked');
+    assert.equal(await persistence.loadJournal('F', 'A'), null);
+  }
+
   // A completed old journal does not hijack a future fresh import.
   {
     const persistence = makePersistence();

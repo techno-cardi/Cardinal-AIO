@@ -39,6 +39,19 @@ function c(tabId, targetFormativeId, title, active = false, overrides = {}) {
   assert.equal(S.choose([c(2, 'F2', 'Grammaire')], { requestedTabId: 2, requestedTargetId: 'F1' }).state, 'blocked');
 }
 
+// URL identity is authoritative even if another observation id is present.
+{
+  const r = S.choose([c(7, 'stale-observed', 'Lecture', true, {
+    urlTargetFormativeId: 'F-url',
+    observedTargetFormativeId: 'stale-observed',
+    serverTargetFormativeId: 'F-url'
+  })]);
+  assert.equal(r.state, 'selected');
+  assert.equal(r.selected.targetFormativeId, 'F-url');
+  assert.equal(r.selected.urlTargetFormativeId, 'F-url');
+  assert.equal(r.selected.observedTargetFormativeId, 'stale-observed');
+}
+
 // Read-only, logged-out, or unrelated pages are never auto-selected.
 {
   const r = S.choose([

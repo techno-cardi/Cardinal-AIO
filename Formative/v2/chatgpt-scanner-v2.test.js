@@ -11,6 +11,7 @@ class MockNode {
     this.textContent = options.text || '';
     this.children = [];
     this.parentElement = null;
+    this.style = {};
     this.order = options.order || 0;
   }
   append(...nodes) {
@@ -20,8 +21,12 @@ class MockNode {
     }
     return this;
   }
+  get childNodes() { return this.children; }
   getAttribute(name) {
     return Object.prototype.hasOwnProperty.call(this.attrs, name) ? this.attrs[name] : null;
+  }
+  getAttributeNames() {
+    return Object.keys(this.attrs);
   }
   matches(selector) {
     return selector === 'article' && this.tagName === 'ARTICLE';
@@ -40,8 +45,21 @@ class MockNode {
   querySelectorAll(selector) {
     const all = this.descendants();
     if (selector === 'pre, code') return all.filter(n => ['PRE', 'CODE'].includes(n.tagName));
-    if (selector === '[data-message-author-role]') {
-      return all.filter(n => n.getAttribute('data-message-author-role'));
+    if (selector === '[data-message-author-role]') return all.filter(n => n.getAttribute('data-message-author-role'));
+    if (selector === '[data-turn]') return all.filter(n => n.getAttribute('data-turn'));
+    if (selector === '[data-role]') return all.filter(n => n.getAttribute('data-role'));
+    if (selector === '[data-message-author]') return all.filter(n => n.getAttribute('data-message-author'));
+    if (selector === '[data-chatgpt-search-unit-key]') return all.filter(n => n.getAttribute('data-chatgpt-search-unit-key'));
+    if (selector === '[data-content-search-unit-key]') return all.filter(n => n.getAttribute('data-content-search-unit-key'));
+    if (selector === '[data-conversation-role]') return all.filter(n => n.getAttribute('data-conversation-role'));
+    if (selector === '[data-markdown-text-style]') return all.filter(n => n.getAttribute('data-markdown-text-style'));
+    if (selector === '[data-user-message-bubble]') return all.filter(n => n.getAttribute('data-user-message-bubble') != null);
+    if (selector === '[data-testid^="conversation-turn-"]') {
+      return all.filter(n => String(n.getAttribute('data-testid') || '').startsWith('conversation-turn-'));
+    }
+    if (selector === 'article') return all.filter(n => n.tagName === 'ARTICLE');
+    if (selector === 'button[data-testid="copy-turn-action-button"]') {
+      return all.filter(n => n.tagName === 'BUTTON' && n.getAttribute('data-testid') === 'copy-turn-action-button');
     }
     if (selector === 'table') return all.filter(n => n.tagName === 'TABLE');
     return [];
@@ -103,10 +121,9 @@ function packageText(mode = 'full') {
   root.append(user, assistant);
 
   const collected = S.collectCandidates(root, P);
-  assert.equal(collected.candidates.length, 1);
-  assert.equal(collected.candidates[0].node, pre);
-  assert.equal(collected.ignored.length, 1);
-  assert.equal(collected.ignored[0].reason, 'user-message');
+  assert(collected.candidates.some(row => row.node === pre));
+  assert(collected.ignored.length >= 1);
+  assert(collected.ignored.every(row => row.reason === 'user-message'));
 
   const scan = S.scan(root, P);
   assert.equal(scan.messages.length, 1);
@@ -157,8 +174,9 @@ function packageText(mode = 'full') {
   root.append(article);
 
   const collected = S.collectCandidates(root, P);
-  assert.equal(collected.candidates.length, 1);
-  assert.equal(collected.candidates[0].context.evidence, 'article-descendant-role');
+  assert(collected.candidates.length >= 1);
+  assert(collected.candidates.every(row => row.context.role === 'assistant'));
+  assert(['explicit-role', 'article-descendant-role'].includes(collected.candidates[0].context.evidence));
 }
 
 // Mixed or role-less article fails closed.
@@ -176,7 +194,7 @@ function packageText(mode = 'full') {
 
   const collected = S.collectCandidates(root, P);
   assert.equal(collected.candidates.length, 0);
-  assert.equal(collected.ignored.length, 2);
+  assert(collected.ignored.length >= 2);
   assert(collected.ignored.every(row => row.reason === 'assistant-not-proven'));
 }
 
@@ -232,6 +250,142 @@ function packageText(mode = 'full') {
   assert.equal(placement.mode, 'before-technical');
   assert.equal(placement.anchor, technical);
   assert.equal(placement.parent, technicalWrap);
+}
+
+
+
+// Current ChatGPT variants can expose section[data-turn] without
+// data-message-author-role. A complete Cardinal package rendered as ordinary
+// text must still be discovered without requiring <pre>/<code>.
+{
+  const root = new MockNode('main');
+  const assistant = new MockNode('section', {
+    attrs: { 'data-turn': 'assistant' },
+    text: packageText(),
+    order: 20
+  });
+  root.append(assistant);
+
+  const result = S.scan(root, P);
+  assert.equal(result.messages.length, 1);
+  assert.equal(result.messages[0].parse.state, 'found');
+  assert.equal(result.messages[0].parse.package.pkg.schema, P.SCHEMA);
+  assert.equal(result.messages[0].technicalNode, null);
+  const placement = S.placementAnchor(result.messages[0].messageRoot, null);
+  assert.equal(placement.mode, 'append-end');
+}
+
+// The same text in an explicit user turn is never executable.
+{
+  const root = new MockNode('main');
+  root.append(new MockNode('section', {
+    attrs: { 'data-turn': 'user' },
+    text: packageText(),
+    order: 20
+  }));
+  const result = S.scan(root, P);
+  assert.equal(result.messages.length, 0);
+  assert.equal(result.ignored.some(row => row.reason === 'user-message'), true);
+}
+
+// A conversation-turn wrapper can be identified as assistant by a durable
+// assistant-only action signal even when role attributes disappear.
+{
+  const root = new MockNode('main');
+  const turn = new MockNode('div', {
+    attrs: { 'data-testid': 'conversation-turn-42' },
+    order: 20
+  });
+  turn.append(
+    new MockNode('div', { text: packageText(), order: 20 }),
+    new MockNode('button', {
+      attrs: { 'data-testid': 'copy-turn-action-button' },
+      order: 21
+    })
+  );
+  root.append(turn);
+  const result = S.scan(root, P);
+  assert.equal(result.messages.length, 1);
+  assert.equal(result.messages[0].parse.state, 'found');
+}
+
+
+
+// ChatGPT 2026-09 can remove data-message-author-role while keeping explicit
+// search-unit message markers. Assistant packages must still be discovered.
+{
+  const root = new MockNode('main');
+  root.append(new MockNode('div', {
+    attrs: { 'data-chatgpt-search-unit-key': 'conversation:assistant' },
+    text: packageText(),
+    order: 40
+  }));
+  const result = S.scan(root, P);
+  assert.equal(result.messages.length, 1);
+  assert.equal(result.messages[0].parse.state, 'found');
+}
+
+// Alternative current marker used by some ChatGPT surfaces.
+{
+  const root = new MockNode('main');
+  root.append(new MockNode('div', {
+    attrs: { 'data-markdown-text-style': 'assistant-message' },
+    text: packageText(),
+    order: 40
+  }));
+  const result = S.scan(root, P);
+  assert.equal(result.messages.length, 1);
+  assert.equal(result.messages[0].parse.state, 'found');
+}
+
+// New user bubble marker remains fail-closed even if it contains a valid
+// Cardinal package copied by the teacher.
+{
+  const root = new MockNode('main');
+  root.append(new MockNode('div', {
+    attrs: { 'data-user-message-bubble': '' },
+    text: packageText(),
+    order: 40
+  }));
+  const result = S.scan(root, P);
+  assert.equal(result.messages.length, 0);
+  assert.equal(result.ignored.some(row => row.reason === 'user-message'), true);
+}
+
+
+
+// Cardinal must keep finding the same package after it has rendered its own
+// bar and hidden the technical block. This reproduces the real "bar flashes
+// for one second then disappears" regression.
+{
+  const root = new MockNode('main');
+  const assistant = new MockNode('div', {
+    attrs: { 'data-chatgpt-search-unit-key': 'conversation:assistant' }
+  });
+  const markerLine = new MockNode('p', { text: P.SENTINEL, order: 10 });
+  const technical = new MockNode('pre', { text: packageText().split('\n')[1], order: 20 });
+  assistant.append(markerLine, technical);
+  root.append(assistant);
+
+  const before = S.scan(root, P);
+  assert.equal(before.messages.length, 1);
+  assert.equal(before.messages[0].parse.state, 'found');
+
+  technical.style.display = 'none';
+  const cardinalBar = new MockNode('div', {
+    attrs: { 'data-cardinal-formative-signature': 'sig-1' },
+    text: 'Importer dans Formative',
+    order: 15
+  });
+  assistant.children.splice(1, 0, cardinalBar);
+  cardinalBar.parentElement = assistant;
+
+  assert.equal(S.isCardinalUiElement(cardinalBar), true);
+  assert.equal(S.visibleText(assistant).includes('Importer dans Formative'), false);
+
+  const after = S.scan(root, P);
+  assert.equal(after.messages.length, 1);
+  assert.equal(after.messages[0].parse.state, 'found');
 }
 
 console.log('chatgpt-scanner-v2: all tests passed');

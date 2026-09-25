@@ -168,7 +168,7 @@
 
     function suggestedLinkApprovals(prepared) {
       return (prepared?.reconciliation?.proposals || [])
-        .filter(proposal => proposal.safeToAdoptDesiredAsBaseline === true)
+        .filter(proposal => proposal.safeToAdoptServerAsBaseline === true || proposal.safeToAdoptDesiredAsBaseline === true)
         .map(proposal => ({
           fingerprint: proposal.fingerprint,
           approvalToken: proposal.approvalToken
