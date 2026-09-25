@@ -53,6 +53,21 @@ function make() {
   assert.throws(() => J.startOperation(j, 'op1'));
 }
 
+// A successful server mutation acknowledgement is durable before post-verification.
+{
+  let j = make();
+  j = J.startOperation(j, 'op3');
+  j = J.recordMutationResult(j, 'op3', {
+    formativeItemId: 'NEW1',
+    authorization: 'SECRET'
+  });
+  assert.equal(j.operations[2].mutationResult.formativeItemId, 'NEW1');
+  assert.equal(j.operations[2].mutationResult.authorization, undefined);
+  j = J.markFailed(j, 'op3', { code: 'POSTCONDITION_MISMATCH' }, { mutationMayHaveCommitted: true });
+  assert.equal(j.operations[2].mutationResult.formativeItemId, 'NEW1');
+  assert.equal(J.resumePlan(j)[2].decision, 'RECONCILE');
+}
+
 // Server reread may confirm uncertain mutation committed.
 {
   let j = make();
@@ -67,6 +82,15 @@ function make() {
   let j = make();
   j = J.startOperation(j, 'op1');
   j = J.markFailed(j, 'op1', 'timeout', { mutationMayHaveCommitted: true });
+  j = J.reconcileUncertain(j, 'op1', { state: 'not_committed' });
+  assert.equal(j.operations[0].status, J.STATUS.FAILED);
+  assert.equal(J.resumePlan(j)[0].decision, 'RETRY');
+}
+
+// Persisted IN_PROGRESS can be reconciled directly after a crash.
+{
+  let j = make();
+  j = J.startOperation(j, 'op1');
   j = J.reconcileUncertain(j, 'op1', { state: 'not_committed' });
   assert.equal(j.operations[0].status, J.STATUS.FAILED);
   assert.equal(J.resumePlan(j)[0].decision, 'RETRY');
