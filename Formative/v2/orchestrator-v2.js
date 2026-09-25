@@ -431,6 +431,7 @@
       const names = [
         'assertOperationPrecondition',
         'applyMutation',
+        'repairPartialCreate',
         'readServerForVerification',
         'verifyOperation',
         'reconcileOperation'
@@ -530,6 +531,7 @@
         },
         assertOperationPrecondition: transport.assertOperationPrecondition,
         applyMutation: transport.applyMutation,
+        repairPartialCreate: transport.repairPartialCreate,
         readServerForVerification: transport.readServerForVerification,
         verifyOperation: transport.verifyOperation,
         reconcileOperation: transport.reconcileOperation,
