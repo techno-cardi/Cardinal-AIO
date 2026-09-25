@@ -10,6 +10,7 @@ function deps(gate = gateApi.createGate()) {
 
 function callbacks(log, options = {}) {
   let saveCount = 0;
+  let verificationReadCount = 0;
   return {
     saveJournal: async j => {
       saveCount += 1;
@@ -30,7 +31,12 @@ function callbacks(log, options = {}) {
     },
     readServerForVerification: async ({ op }) => {
       log.push(`read:${op.operationId}`);
-      return { id: op.formativeItemId || 'CREATED', matchesDesired: options.matchesDesired !== false };
+      const sequence = Array.isArray(options.matchesDesiredSequence) ? options.matchesDesiredSequence : null;
+      const matchesDesired = sequence
+        ? sequence[Math.min(verificationReadCount, sequence.length - 1)] !== false
+        : options.matchesDesired !== false;
+      verificationReadCount += 1;
+      return { id: op.formativeItemId || 'CREATED', matchesDesired };
     },
     verifyOperation: async ({ op, serverObservation }) => {
       log.push(`verify:${op.operationId}`);
@@ -213,7 +219,22 @@ function makeUncertainJournal(ops) {
     assert.equal(log.filter(x => x.startsWith('mutate:')).length, 1);
   }
 
-  // Persisted journal is bound to exact desired plan and delete approvals.
+  // A successful mutation response is durably identified before post-verification.
+  // Eventual server consistency is retried without replaying the mutation.
+  {
+    const log = [];
+    const r = await E.run({
+      runId: 'eventual-create', targetFormativeId: 'F', assessmentFingerprint: 'A', packageMode: 'patch',
+      plannerOperations: [{ action: 'CREATE', fingerprint: 'q1' }],
+      callbacks: callbacks(log, { matchesDesiredSequence: [false, true] })
+    }, deps());
+    assert.equal(r.state, 'completed');
+    assert.equal(log.filter(x => x.startsWith('mutate:')).length, 1);
+    assert.equal(log.filter(x => x.startsWith('read:')).length, 2);
+    assert.equal(r.journal.operations[0].result.formativeItemId, 'CREATED');
+  }
+
+    // Persisted journal is bound to exact desired plan and delete approvals.
   {
     const original = [{ operationId: 'UPDATE:q1', action: 'UPDATE', fingerprint: 'q1', formativeItemId: 'I1', desired: { prompt: 'A' } }];
     const changed = [{ operationId: 'UPDATE:q1', action: 'UPDATE', fingerprint: 'q1', formativeItemId: 'I1', desired: { prompt: 'B' } }];
@@ -230,6 +251,7 @@ function makeUncertainJournal(ops) {
       callbacks: callbacks([], { matchesDesired: false })
     }, deps());
     assert.equal(r1.state, 'uncertain');
+    assert.equal(r1.journal.operations[0].mutationResult.formativeItemId, 'I1');
 
     const r2 = await E.run({
       runId: 'baseline-fail', targetFormativeId: 'F', assessmentFingerprint: 'A', packageMode: 'patch',
