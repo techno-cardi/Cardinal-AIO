@@ -77,6 +77,20 @@ const U = require('./chatgpt-content-v2.js');
   assert.deepEqual(U.actionIntent({ primaryAction: { id: 'none' } }), { command: 'NONE' });
   assert.deepEqual(U.actionIntent({ primaryAction: { id: 'future-action' } }), { command: 'NONE' });
 
+  // Cardinal buttons must not inherit ChatGPT's current theme variables for the
+  // primary surface. The import button keeps explicit contrast in every theme.
+  {
+    const primary = U.buttonStyle('primary');
+    assert.equal(primary.background, '#111827');
+    assert.equal(primary.color, '#ffffff');
+    assert.equal(primary.appearance, 'none');
+    assert.equal(primary.WebkitAppearance, 'none');
+
+    const secondary = U.buttonStyle('secondary');
+    assert.equal(secondary.background, 'rgba(127,127,127,.10)');
+    assert.equal(secondary.color, 'inherit');
+  }
+
 
 
   // Partial question selection must become a PATCH so unselected questions are
