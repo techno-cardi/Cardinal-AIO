@@ -10,8 +10,8 @@ assert.deepEqual(
   Popup.MODULES.map(module => module.label),
   [
     'Gestion 1.1.9',
-    'Correction Formative 1.1.3',
-    'Importateur Formative 0.5 RC1',
+    'Correction Formative 1.1.13',
+    'Importateur Formative 0.5 RC2',
     'Mozaïk v14',
     'Pont Classroom 1.2.3',
     'Pont ChatGPT 1.1.9'
