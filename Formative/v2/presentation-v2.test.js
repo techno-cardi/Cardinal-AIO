@@ -184,4 +184,17 @@ function pkg() {
   assert.equal(view.primaryAction.label, 'Reprendre en sécurité');
 }
 
+// The same declared issue may exist in the package and in preflight output.
+// It must remain visible once, not be counted/rendered twice.
+{
+  const issue = { severity: 'warning', code: 'W', itemId: 'q1', message: 'Même avertissement' };
+  const duplicatePkg = pkg();
+  duplicatePkg.items[1].issues = [issue];
+  const rows = P.buildValidationRows(duplicatePkg, [issue]);
+  assert.equal(rows[0].issues.filter(x => x.code === 'W').length, 1);
+
+  const deduped = P.dedupeIssues([issue, { ...issue }]);
+  assert.equal(deduped.length, 1);
+}
+
 console.log('presentation-v2: all tests passed');
