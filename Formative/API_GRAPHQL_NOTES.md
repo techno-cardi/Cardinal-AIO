@@ -122,6 +122,8 @@ Pour une question avec `answerChoicePoints`:
 
 Les tests v16.8 ont montré que Formative peut redimensionner les `answerChoicePoints` si le maximum est modifié après les pondérations.
 
+Nouvelle preuve live du 2026-09-25 sur un `longAnswer`: une question relue à `points: 2` avec quinze `answerChoicePoints: 2` est passée à `points: 1` immédiatement après l'écriture des mêmes réponses avec quinze `answerChoicePoints: 1`. Le maximum serveur suit donc aussi le plus grand score Keyword dans ce flux. Contrat d'import: le plus grand score Keyword doit égaler le maximum pédagogique final.
+
 ## 6. Questions à choix
 
 Endpoint:
