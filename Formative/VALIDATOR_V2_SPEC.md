@@ -364,12 +364,13 @@ En plus:
 
 - >= 2 éléments;
 - ordre non vide;
-- doublons identiques permis seulement si l'adaptateur sait les distinguer; sinon warning/blocker.
+- des libellés visibles identiques ne sont pas un motif de blocage si les clés Formative distinctes permettent de les transporter; Cardinal émet un warning et conserve l'ordre fourni par ChatGPT.
 
 ## Matching
 
 - >= 2 paires;
 - aucune paire vide;
+- les libellés répétés sont transportables tant que les clés Formative distinctes permettent de préserver chaque entrée; Cardinal avertit sans réécrire la tâche;
 - update d'un item existant préserve les choice keys réelles lues sur le serveur.
 
 ## Unsupported
