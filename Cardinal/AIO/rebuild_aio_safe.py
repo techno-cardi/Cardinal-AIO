@@ -46,7 +46,7 @@ from aio_rebuild_contract import (
 )
 
 AIO_VERSION = "1.2.0"
-AIO_VERSION_NAME = "1.2.0-formative-1.1.13-flow-fix"
+AIO_VERSION_NAME = "1.2.0-formative-1.1.14-recovery-idempotence"
 CLASSROOM_COMMIT = "6887bfa2e8afd523a38a0e3286aa1f826276b8c5"
 FORMATIVE_TREE_SHA = "231eac66a482f4e30cb65b80db82bf48136205ec"
 FORMATIVE_V2_ZIP = "Cardinal-Formative-Importer-STANDALONE-0.5.0-rc1.zip"
@@ -1042,7 +1042,7 @@ def validate_output(
     popup_js_text = popup_js.read_text(encoding="utf-8", errors="replace")
     for label in (
         f"Gestion {gestion_version}",
-        "Correction Formative 1.1.13",
+        "Correction Formative 1.1.14",
         "Importateur Formative 0.5 RC2",
         "Mozaïk v14",
         "Pont Classroom 1.2.3",
