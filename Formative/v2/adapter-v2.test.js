@@ -86,9 +86,9 @@ assert.notEqual(A.targetAssessmentId('FORMATIVE-123'), A.targetAssessmentId('FOR
   assert.equal(A.itemFingerprint(p1, p1.items[0]), A.itemFingerprint(p2, p2.items[0]));
 }
 
-// Assisted Free Response keeps its real question maximum in Formative and
-// leaves the native Formative grade manual. The rich correction remains in the
-// v2 package for Cardinal's assisted correction workflow.
+// Assisted Free Response preserves partial concept scores while adding the
+// source-backed complete expected answer as a full-score anchor. Formative can
+// then keep the real question maximum without giving full credit to one clue.
 {
   const result = A.adaptPackageV2ToV1(pkg([
     { id: 'section', kind: 'section', order: 1, content: 'SANTÉ', issues: [] },
@@ -101,8 +101,10 @@ assert.notEqual(A.targetAssessmentId('FORMATIVE-123'), A.targetAssessmentId('FOR
   const q = result.packageV1.items[1];
   assert.equal(q.subtype, 'longAnswer');
   assert.equal(q.points, 4);
-  assert.equal(q.grading.mode, 'manual');
-  assert.deepEqual(q.grading.matches, []);
+  assert.equal(q.grading.mode, 'keyword-absolute');
+  assert(q.grading.matches.some(x => x.text === 'Deux conséquences sont expliquées.' && x.score === 4));
+  assert(q.grading.matches.some(x => x.text === 'thyroïde' && x.score === 3));
+  assert(q.grading.matches.some(x => x.text === 'thyroide' && x.score === 3));
 }
 
 // Auto Free Response still uses native Keyword grading when at least one valid
