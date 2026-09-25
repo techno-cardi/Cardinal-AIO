@@ -137,6 +137,18 @@ Codes:
 - `PATCH_DELETE_FORBIDDEN`;
 - `DELETE_PROPOSED`.
 
+# 4.1 Aucun défaut implicite de notation
+
+Le validateur doit refuser les champs manquants lorsque leur valeur changerait réellement le comportement Formative:
+
+- `required` absent/non booléen;
+- `partialCredit` absent sur un subtype structuré qui l'utilise;
+- `partialCredit` ou `caseSensitive` absent sur une Short/Long Answer en correction Keyword.
+
+Raison: choisir silencieusement `true` ou `false` serait une décision pédagogique/notation qui n'appartient pas à Cardinal.
+
+Le validateur doit aussi être total sur les entrées malformées: un `sources` non-tableau, un objet incomplet ou une issue invalide retourne un résultat `blocked`; aucune forme invalide ne doit provoquer une exception non gérée.
+
 # 5. Points
 
 Vérifier pour chaque question:
@@ -160,7 +172,7 @@ Codes:
 - `TOTAL_POINTS_MISMATCH`;
 - `UNEXPECTED_ZERO_POINTS`.
 
-Une incohérence de total `provided` bloque l'import tant qu'elle n'est pas résolue explicitement.
+Une incohérence de total `provided` bloque l'import tant qu'elle n'est pas résolue explicitement. Une incohérence de total `proposed` ou `derived` reste un warning: Cardinal conserve les points des questions et signale l'écart.
 
 # 6. Choix du mode de correction
 
