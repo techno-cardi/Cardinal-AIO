@@ -136,18 +136,38 @@
 
   async function verifyAndCommit({ op, mutationResult, journal, callbacks, deps, context }) {
     const readServerForVerification = requiredFn(callbacks, 'readServerForVerification');
+    const verifyOperation = requiredFn(callbacks, 'verifyOperation');
     const commitBaselineVerified = requiredFn(callbacks, 'commitBaselineVerified');
+    const retryDelays = Array.isArray(context?.verificationRetryDelays)
+      ? context.verificationRetryDelays
+      : [0, 250, 750];
 
-    const serverObservation = await readServerForVerification({ op, mutationResult, context });
-    const verdict = await requiredFn(callbacks, 'verifyOperation')({
-      op,
-      mutationResult,
-      serverObservation,
-      context
-    });
+    let serverObservation = null;
+    let verdict = null;
+    let lastError = null;
+
+    for (let attempt = 0; attempt < retryDelays.length; attempt += 1) {
+      const delay = Number(retryDelays[attempt] || 0);
+      if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
+      try {
+        serverObservation = await readServerForVerification({ op, mutationResult, context: { ...context, verificationAttempt: attempt + 1 } });
+        verdict = await verifyOperation({
+          op,
+          mutationResult,
+          serverObservation,
+          context: { ...context, verificationAttempt: attempt + 1 }
+        });
+        if (verdict?.state === 'verified') break;
+        lastError = errorFromVerdict(verdict, 'SERVER_VERIFICATION_FAILED', 'Server verification failed', 'verify');
+      } catch (error) {
+        lastError = error;
+        // Target binding/permission failures are not eventual-consistency cases.
+        if (String(error?.code || '').startsWith('TARGET_') || String(error?.code || '').includes('PERMISSION')) throw error;
+      }
+    }
 
     if (!verdict || verdict.state !== 'verified') {
-      throw errorFromVerdict(verdict, 'SERVER_VERIFICATION_FAILED', 'Server verification failed', 'verify');
+      throw lastError || errorFromVerdict(verdict, 'SERVER_VERIFICATION_FAILED', 'Server verification failed', 'verify');
     }
 
     // Ordering invariant:
@@ -221,6 +241,22 @@
       return { journal, stopped: true, reason: mayHaveCommitted ? 'UNCERTAIN' : 'FAILED', error };
     }
 
+    // The server returned from the mutation. Persist its concrete item ID before
+    // any postcondition read so a crash or a stale Formative read can resume by
+    // exact identity instead of guessing among newly-created items.
+    journal = deps.journal.recordMutationResult(journal, op.operationId, mutationResult || {});
+    try {
+      await persistJournal(callbacks, journal);
+    } catch (persistError) {
+      persistError.phase = persistError.phase || 'journal-after-mutation-ack';
+      return {
+        journal,
+        stopped: true,
+        reason: 'UNCERTAIN_UNPERSISTED',
+        error: persistError
+      };
+    }
+
     try {
       journal = await verifyAndCommit({ op, mutationResult, journal, callbacks, deps, context });
       return { journal, stopped: false };
@@ -253,7 +289,7 @@
     const journalOp = findJournalOp(journal, op.operationId);
     const recoveryOp = {
       ...withRunCreatedIds(op, journal, deps),
-      recoveryFormativeItemId: journalOp?.lastError?.formativeItemId || null,
+      recoveryFormativeItemId: journalOp?.mutationResult?.formativeItemId || journalOp?.lastError?.formativeItemId || null,
       uncertainFinishedAt: journalOp?.finishedAt || null
     };
     const verdict = await requiredFn(callbacks, 'reconcileOperation')({ op: recoveryOp, context });
