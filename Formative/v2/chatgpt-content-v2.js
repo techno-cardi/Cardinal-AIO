@@ -298,6 +298,25 @@
       const message = element('div', presentation.message || 'Cardinal a bloqué cette opération.');
       message.style.marginTop = '3px';
       body.append(title, message);
+      if (presentation.technicalDetails) {
+        const details = element('details');
+        details.style.marginTop = '7px';
+        const summary = element('summary', 'Détails techniques');
+        summary.style.cursor = 'pointer';
+        summary.style.fontSize = '11px';
+        summary.style.opacity = '.72';
+        const technical = element('div', presentation.technicalDetails);
+        Object.assign(technical.style, {
+          marginTop: '5px',
+          fontSize: '11px',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'anywhere',
+          opacity: '.82'
+        });
+        details.append(summary, technical);
+        body.appendChild(details);
+      }
       const close = element('button', '×');
       close.type = 'button';
       close.title = 'Masquer cette version';
@@ -339,114 +358,164 @@
       const previousResponse = record.response;
       record.shell.replaceChildren();
 
+      const panel = element('div');
+      Object.assign(panel.style, {
+        border: '1px solid rgba(127,127,127,.22)',
+        borderRadius: '12px',
+        overflow: 'hidden',
+        background: 'rgba(127,127,127,.035)'
+      });
+
+      const header = element('div');
+      Object.assign(header.style, {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '10px 12px',
+        borderBottom: '1px solid rgba(127,127,127,.18)'
+      });
+
+      const headingWrap = element('div');
+      headingWrap.style.flex = '1';
       const title = element('div', 'Questions à importer');
       title.style.fontWeight = '650';
-      const note = element(
-        'div',
-        'Toutes sont cochées par défaut. Les questions décochées restent intactes dans Formative.'
-      );
-      note.style.marginTop = '3px';
-      note.style.opacity = '.78';
-      note.style.fontSize = '12px';
-      record.shell.append(title, note);
+      const note = element('div', 'Décoche seulement ce que tu veux laisser intact dans Formative.');
+      Object.assign(note.style, { marginTop: '2px', opacity: '.68', fontSize: '11px' });
+      headingWrap.append(title, note);
 
-      const controls = element('div');
-      controls.style.display = 'flex';
-      controls.style.gap = '7px';
-      controls.style.marginTop = '9px';
-
+      const compactControls = element('div');
+      Object.assign(compactControls.style, { display: 'flex', gap: '5px', alignItems: 'center' });
       const selectAll = element('button', 'Toutes');
-      selectAll.type = 'button';
       const selectNone = element('button', 'Aucune');
-      selectNone.type = 'button';
-      controls.append(selectAll, selectNone);
-      record.shell.appendChild(controls);
+      for (const button of [selectAll, selectNone]) {
+        button.type = 'button';
+        Object.assign(button.style, {
+          padding: '4px 8px',
+          minHeight: '28px',
+          borderRadius: '8px',
+          fontSize: '11px'
+        });
+      }
+      compactControls.append(selectAll, selectNone);
+      header.append(headingWrap, compactControls);
+      panel.appendChild(header);
 
       const list = element('div');
-      list.style.display = 'grid';
-      list.style.gap = '7px';
-      list.style.marginTop = '9px';
+      Object.assign(list.style, {
+        display: 'grid',
+        maxHeight: '255px',
+        overflowY: 'auto',
+        padding: '4px 0'
+      });
+
       const inputs = [];
+      const previousSelection = Array.isArray(record.selectedQuestionIds) && record.selectedQuestionIds.length
+        ? new Set(record.selectedQuestionIds.map(String))
+        : null;
 
       for (const row of rows) {
         const label = element('label');
-        label.style.display = 'grid';
-        label.style.gridTemplateColumns = 'auto 1fr';
-        label.style.gap = '8px';
-        label.style.alignItems = 'start';
-        label.style.padding = '6px 8px';
-        label.style.borderRadius = '8px';
-        label.style.background = 'rgba(127,127,127,.07)';
+        Object.assign(label.style, {
+          display: 'grid',
+          gridTemplateColumns: '22px minmax(0,1fr) auto',
+          gap: '8px',
+          alignItems: 'center',
+          padding: '7px 11px',
+          cursor: 'pointer',
+          borderBottom: '1px solid rgba(127,127,127,.10)'
+        });
 
         const input = element('input');
         input.type = 'checkbox';
-        const previousSelection = Array.isArray(record.selectedQuestionIds) && record.selectedQuestionIds.length
-          ? new Set(record.selectedQuestionIds.map(String))
-          : null;
         input.checked = previousSelection ? previousSelection.has(row.id) : true;
         input.value = row.id;
+        input.style.margin = '0';
         inputs.push(input);
 
-        const body = element('div');
-        const heading = element(
-          'div',
-          `Q${row.number} · ${row.points} pt${row.points === 1 ? '' : 's'}`
-        );
-        heading.style.fontWeight = '600';
+        const textWrap = element('div');
+        textWrap.style.minWidth = '0';
+        const line1 = element('div', `Q${row.number} · ${row.subtype || 'question'}`);
+        Object.assign(line1.style, {
+          fontWeight: '600',
+          fontSize: '12px',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        });
+
         const promptText = row.prompt || row.id;
-        const prompt = element('div', promptText.length > 150 ? `${promptText.slice(0, 147)}…` : promptText);
-        prompt.title = promptText;
-        prompt.style.fontSize = '12px';
-        prompt.style.opacity = '.82';
-        body.append(heading, prompt);
-        label.append(input, body);
+        const line2 = element('div', promptText);
+        line2.title = promptText;
+        Object.assign(line2.style, {
+          marginTop: '1px',
+          fontSize: '11px',
+          opacity: '.68',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        });
+        textWrap.append(line1, line2);
+
+        const points = element('div', `${row.points} pt${row.points === 1 ? '' : 's'}`);
+        Object.assign(points.style, {
+          fontSize: '11px',
+          opacity: '.72',
+          whiteSpace: 'nowrap'
+        });
+
+        label.append(input, textWrap, points);
         list.appendChild(label);
       }
-      record.shell.appendChild(list);
+      panel.appendChild(list);
+
+      const footer = element('div');
+      Object.assign(footer.style, {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '9px 11px',
+        borderTop: '1px solid rgba(127,127,127,.18)'
+      });
 
       const status = element('div');
-      status.style.marginTop = '8px';
-      status.style.fontSize = '12px';
-      status.style.opacity = '.78';
+      Object.assign(status.style, { flex: '1', fontSize: '11px', opacity: '.72' });
+
+      const cancel = element('button', 'Annuler');
+      cancel.type = 'button';
+      Object.assign(cancel.style, { padding: '6px 10px', borderRadius: '8px' });
+      cancel.addEventListener('click', () => renderResponse(record, previousResponse));
+
+      const confirm = element('button', 'Préparer l’import');
+      confirm.type = 'button';
+      Object.assign(confirm.style, {
+        padding: '6px 11px',
+        borderRadius: '8px',
+        fontWeight: '600'
+      });
 
       function selectedIds() {
         return inputs.filter(input => input.checked).map(input => String(input.value));
       }
-      let confirm = null;
+
       function updateStatus() {
         const count = selectedIds().length;
-        status.textContent = `${count}/${rows.length} question${count === 1 ? '' : 's'}`;
-        if (confirm) {
-          confirm.disabled = count === 0;
-          confirm.textContent = count === rows.length
-            ? 'Préparer l’import'
-            : `Préparer ${count} question${count === 1 ? '' : 's'}`;
-        }
+        status.textContent = `${count} sur ${rows.length} sélectionnée${count === 1 ? '' : 's'}`;
+        confirm.disabled = count === 0;
+        confirm.textContent = count === rows.length
+          ? 'Préparer l’import'
+          : `Préparer ${count}`;
       }
+
       for (const input of inputs) input.addEventListener('change', updateStatus);
       selectAll.addEventListener('click', () => {
-        inputs.forEach(input => { input.checked = true; });
+        for (const input of inputs) input.checked = true;
         updateStatus();
       });
       selectNone.addEventListener('click', () => {
-        inputs.forEach(input => { input.checked = false; });
+        for (const input of inputs) input.checked = false;
         updateStatus();
       });
-      updateStatus();
-      record.shell.appendChild(status);
 
-      const actions = element('div');
-      actions.style.display = 'flex';
-      actions.style.gap = '8px';
-      actions.style.marginTop = '10px';
-
-      const cancel = element('button', 'Annuler');
-      cancel.type = 'button';
-      cancel.addEventListener('click', () => renderResponse(record, previousResponse));
-
-      confirm = element('button', 'Préparer l’import');
-      confirm.type = 'button';
-      updateStatus();
       confirm.addEventListener('click', async () => {
         try {
           const selection = buildSelectedQuestionPackage(record.pkg, selectedIds());
@@ -465,8 +534,10 @@
         }
       });
 
-      actions.append(cancel, confirm);
-      record.shell.appendChild(actions);
+      updateStatus();
+      footer.append(status, cancel, confirm);
+      panel.appendChild(footer);
+      record.shell.appendChild(panel);
       return true;
     }
 
