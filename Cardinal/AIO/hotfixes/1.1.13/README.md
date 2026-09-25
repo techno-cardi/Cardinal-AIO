@@ -81,9 +81,8 @@ Le journal conserve maintenant, quand disponible:
 ## Build
 
 - Version name: `1.2.0-formative-1.1.13-flow-fix-g118`
-- ZIP: `Cardinal-AIO-1.2.0-Formative-1.1.13-flow-fix.zip`
-- SHA-256: `12c9ead0b3019c5ebe720c28e1a873b16a41748f8a3cdee2908739ecdeb31b90`
-- Patch local 1.1.12 -> 1.1.13 SHA-256: `0553d2dd7356977d59f230b883cdda048dc945bff5e2795e642ed4d75017afd6`
+- ZIP CI autoritaire: `Cardinal-AIO-1.2.0-formative-1.1.13-flow-fix-g118.zip`
+- SHA-256: `dbbb41dbd7dc204fd9b0ca41db4fa33d18b12f45a1043427474e2326f7542991`
 
 ## Tests exécutés
 
@@ -100,3 +99,26 @@ Le journal conserve maintenant, quand disponible:
 - transport de réparation modifie l'ID existant et n'appelle pas CREATE: PASS.
 
 Ce build reste candidat jusqu'au smoke test réel du groupe 32 et du paquet questionnaire.
+
+
+## Source de vérité exécutable
+
+Le hotfix historique n'existe plus seulement dans un ZIP de travail. Les fichiers exacts nécessaires au build 1.1.13 sont versionnés dans:
+
+`Cardinal/AIO/hotfixes/1.1.13/overlay/`
+
+Le builder déterministe `Cardinal/AIO/rebuild_aio_safe.py` applique cet overlay uniquement au profil utilisateur vérifié Gestion 1.1.8, puis intègre le moteur Formative v2 épinglé et le pont Classroom épinglé.
+
+Build CI de référence:
+
+- commit exécutable: `0f0c87138f9823017f97ad5e72e4b60a9dc81d97`;
+- workflow: `Cardinal AIO repair contract`;
+- run: `36177530518`;
+- contrat: PASS;
+- reconstruction baseline Gestion 1.1.8: PASS;
+- build exact AIO: PASS;
+- réextraction et vérification du candidat: PASS;
+- upload artefact CI: PASS;
+- suite Formative v2 sur la branche: PASS.
+
+Le ZIP ci-dessus est l'artefact construit par GitHub Actions à partir de cette source, pas un ZIP modifié à la main après coup.
