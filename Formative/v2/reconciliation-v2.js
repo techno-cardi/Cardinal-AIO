@@ -92,6 +92,45 @@
       return result('conflict', { code: 'CREATE_SUBTYPE_MISSING', message: 'Subtype attendu absent du plan immuable.' });
     }
 
+    const recoveryId = op.recoveryFormativeItemId ? String(op.recoveryFormativeItemId) : null;
+    if (recoveryId) {
+      const candidate = rows.find(row => String(row.formativeItemId || '') === recoveryId) || null;
+      if (!candidate) {
+        return result('conflict', {
+          code: 'CREATE_ACKNOWLEDGED_ITEM_MISSING',
+          candidateIds: [recoveryId],
+          message: 'Formative avait retourné un ID de création, mais cet item n’existe plus dans la relecture complète. Aucun nouvel item ne sera créé automatiquement.'
+        });
+      }
+      if (String(candidate.subtype || '') !== String(expectedSubtype)) {
+        return result('conflict', {
+          code: 'CREATE_ACKNOWLEDGED_SUBTYPE_CHANGED',
+          candidateIds: [recoveryId],
+          message: 'L’item créé par Cardinal existe encore, mais son subtype a changé. Cardinal le préserve.'
+        });
+      }
+      if (!candidate.normalized?.managedState || candidate.normalized.state === 'blocked') {
+        return result('conflict', {
+          code: 'CREATE_ACKNOWLEDGED_ITEM_UNREADABLE',
+          candidateIds: [recoveryId],
+          message: 'L’item créé par Cardinal ne peut pas être normalisé de façon sûre.'
+        });
+      }
+      if (equal(candidate.normalized.managedState, op.desired)) {
+        return result('committed', {
+          formativeItemId: recoveryId,
+          serverObservation: candidate.item,
+          message: 'L’ID retourné par Formative correspond exactement à l’état désiré.'
+        });
+      }
+      return result('repairable', {
+        formativeItemId: recoveryId,
+        serverObservation: candidate.item,
+        exactAcknowledgedId: true,
+        message: 'Cardinal reprend exactement l’item dont Formative a confirmé la création et termine sa configuration sans le recréer.'
+      });
+    }
+
     const newSameSubtype = rows.filter(row =>
       row.formativeItemId && !preexisting.has(row.formativeItemId) && row.subtype === expectedSubtype
     );
