@@ -493,10 +493,47 @@
       };
     }
 
-    const matches = flattenConceptMatches(item, issues);
+    let matches = flattenConceptMatches(item, issues);
     if (item?.grading?.mode !== 'manual' && !matches.length) {
       issue(issues, 'blocker', 'ADAPTER_EMPTY_GRADING', 'Une question auto/assisted doit produire au moins un match actif avant conversion.', item.id);
       return null;
+    }
+
+    if (item?.grading?.mode === 'assisted' && matches.length) {
+      const maximum = Number(item?.points?.value);
+      const hasMaximumMatch = Number.isFinite(maximum) &&
+        matches.some(match => Number(match?.score) === maximum);
+
+      if (Number.isFinite(maximum) && !hasMaximumMatch) {
+        const expectedAnswer = asString(item?.grading?.expectedAnswer).replace(/\s+/g, ' ').trim();
+        if (!expectedAnswer) {
+          issue(
+            issues,
+            'blocker',
+            'ADAPTER_ASSISTED_MAX_ANCHOR_REQUIRED',
+            'Une correction assisted sans match de pleine note exige une réponse attendue complète pour préserver le maximum Formative.',
+            item.id
+          );
+        } else {
+          const caseSensitive = item?.grading?.caseSensitive === true;
+          const expectedKey = normalizeTerm(expectedAnswer, caseSensitive);
+          const existing = matches.find(match => normalizeTerm(match?.text, caseSensitive) === expectedKey);
+          if (existing && Number(existing.score) !== maximum) {
+            issue(
+              issues,
+              'blocker',
+              'ADAPTER_ASSISTED_MAX_ANCHOR_CONFLICT',
+              'La réponse attendue complète correspond déjà à un match ayant un score partiel différent.',
+              item.id
+            );
+          } else if (!existing) {
+            matches = [
+              { text: expectedAnswer, score: maximum, enabled: true },
+              ...matches
+            ];
+          }
+        }
+      }
     }
 
     const out = {
@@ -507,7 +544,7 @@
       }
     };
 
-    if (item?.grading?.mode === 'auto' && matches.length) {
+    if (item?.grading?.mode !== 'manual' && matches.length) {
       out.grading = {
         mode: 'keyword-absolute',
         partialCredit: item?.grading?.partialCredit !== false,
@@ -515,11 +552,6 @@
         matches
       };
     } else {
-      // Une correction v2 "assisted" reste une correction Cardinal. Formative
-      // ne sait pas représenter fidèlement une question à 2 points dont les
-      // indices Keyword absolus valent chacun 1 point: son maximum retombe au
-      // plus grand answerChoicePoints. On conserve donc le vrai maximum et on
-      // laisse la note native Formative en manuel pour ces réponses construites.
       out.grading = {
         mode: 'manual',
         partialCredit: false,
