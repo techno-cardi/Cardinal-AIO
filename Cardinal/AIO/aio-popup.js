@@ -19,7 +19,7 @@
 
   const MODULES = Object.freeze([
     Object.freeze({ id: 'gestion', label: 'Gestion 1.1.9' }),
-    Object.freeze({ id: 'formativeCorrection', label: 'Correction Formative 1.1.13' }),
+    Object.freeze({ id: 'formativeCorrection', label: 'Correction Formative 1.1.14' }),
     Object.freeze({ id: 'formativeImporter', label: 'Importateur Formative 0.5 RC2' }),
     Object.freeze({ id: 'mozaik', label: 'Mozaïk v14' }),
     Object.freeze({ id: 'classroom', label: 'Pont Classroom 1.2.3' }),
