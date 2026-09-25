@@ -53,14 +53,16 @@ function pkg() {
   assert.equal(view.showCorrectionButton, true);
 }
 
-// Review -> one clear “verify then import” action rather than a wall of controls.
+// Review-only pedagogical warnings do not add a second confirmation screen.
 {
   const prepared = {
     ok: true, state: 'review', pkg: pkg(),
     preflight: { data: { ui: { status: '⚠ À vérifier', questions: 2, warnings: 1, blockers: 0 } } }
   };
   const view = P.buildPreparedView(prepared);
-  assert.equal(view.primaryAction.id, 'import-review');
+  assert.equal(view.primaryAction.id, 'import');
+  assert.equal(view.primaryAction.label, 'Importer dans Formative');
+  assert.equal(view.statusLabel, '✓ Prêt');
 }
 
 // Recovery is explicit and resumable.
@@ -88,7 +90,7 @@ function pkg() {
   }, { targetTitle: 'T' });
   assert.equal(view.statusLabel, '↻ Vérification requise');
   assert.equal(view.primaryAction.id, 'resume');
-  assert.equal(view.primaryAction.label, 'Vérifier et reprendre');
+  assert.equal(view.primaryAction.label, 'Reprendre l’import');
   assert.equal(view.primaryAction.emphasis, 'warning');
 }
 
