@@ -299,8 +299,8 @@ function pkg(items, overrides = {}) {
     response: { sequence: ['A', 'A'] }
   });
   const result = V2.validatePackageV2(pkg([q]));
-  assert.equal(result.state, 'blocked');
-  assert(result.issues.some(x => x.code === 'BLOCKED_STRUCTURE' || x.code === 'UNSUPPORTED_SUBTYPE'));
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'DUPLICATE_VISIBLE_LABEL' && x.severity === 'warning'));
 }
 
 {
@@ -316,8 +316,23 @@ function pkg(items, overrides = {}) {
     ] }
   });
   const result = V2.validatePackageV2(pkg([q]));
-  assert.equal(result.state, 'blocked');
-  assert(result.issues.some(x => x.code === 'BLOCKED_STRUCTURE'));
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'DUPLICATE_VISIBLE_LABEL' && x.severity === 'warning'));
+}
+
+// Fidelity comparison must preserve meaningful French accents. Cardinal may
+// normalize typography, but it must not treat a -> à as the same prompt.
+{
+  const q = baseQuestion({
+    source: {
+      ...baseQuestion().source,
+      promptExact: '1) Il a terminé.'
+    },
+    prompt: 'Il à terminé.'
+  });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'SOURCE_PROMPT_DRIFT'));
 }
 
 {
