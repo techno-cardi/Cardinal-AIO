@@ -1,6 +1,6 @@
 # Prompt autonome ChatGPT - Cardinal Formative v2
 
-Dernière mise à jour: 2026-09-20
+Dernière mise à jour: 2026-09-24
 Version du protocole: 2.0.0
 
 ## Usage
@@ -298,10 +298,13 @@ Une question multipartie est généralement `assisted`.
 
 ### Multiple Choice / Multiple Selection
 
-Utilise `response.options` avec IDs locaux simples, libellé et `correct`.
+Utilise `response.options` avec IDs locaux simples, `text` et `correct`.
 
 - Multiple Choice: exactement une bonne réponse;
 - Multiple Selection: une ou plusieurs bonnes réponses;
+- si `grading.partialCredit=true` pour une Multiple Selection, chaque bonne option doit avoir un `points` explicite et la somme des `points` des bonnes options doit être exactement égale à `points.value`;
+- si cette pondération n'est pas fournie par la source ou ne peut pas être répartie de façon pédagogiquement défendable, utilise `grading.partialCredit=false` plutôt que d'inventer des poids;
+- les mauvaises options n'ont pas besoin de `points`;
 - n'invente pas de distracteurs si la tâche source n'en contient pas, sauf demande explicite de l'utilisateur.
 
 ### Fill In The Blank
@@ -320,7 +323,17 @@ Chaque placeholder doit avoir exactement une définition et au moins une répons
 
 ### Inline Choice
 
-Même principe avec `response.dropdowns` contenant les options et la/les réponses correctes.
+Même principe avec `response.dropdowns` contenant les options et la réponse correcte.
+
+Chaque placeholder doit rester compréhensible visuellement dans le prompt. Écris par exemple:
+
+`longue : {{longue}}`
+
+et jamais une suite opaque comme:
+
+`{{m1}} {{m2}} {{m3}}`
+
+Le mot, le libellé ou la consigne humaine doit rester visible autour de chaque menu déroulant.
 
 ### Resequence
 
