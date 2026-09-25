@@ -67,6 +67,7 @@
       if (value > 0) parts.push(`${value} ${value === 1 ? singular : plural}`);
     }
     if (Number(view.blockers || 0) > 0) parts.push(`${Number(view.blockers)} blocage${Number(view.blockers) > 1 ? 's' : ''}`);
+    if (Number(view.warnings || 0) > 0) parts.push(`${Number(view.warnings)} avertissement${Number(view.warnings) > 1 ? 's' : ''}`);
     return parts.join(' · ') || oneLine(view.statusLabel) || 'Prêt';
   }
 
@@ -726,12 +727,15 @@
 
       const visibleIssues = issueMessages(view);
       const firstBlocker = visibleIssues.find(current => current.severity === 'blocker');
-      if (firstBlocker) {
-        const reason = element('div', `Blocage: ${firstBlocker.message}`);
+      const firstWarning = visibleIssues.find(current => current.severity === 'warning');
+      const firstVisibleIssue = firstBlocker || firstWarning;
+      if (firstVisibleIssue) {
+        const prefix = firstBlocker ? 'Blocage' : 'À vérifier';
+        const reason = element('div', `${prefix}: ${firstVisibleIssue.message}`);
         Object.assign(reason.style, {
           marginTop: '5px',
           fontSize: '12px',
-          fontWeight: '600'
+          fontWeight: firstBlocker ? '600' : '500'
         });
         body.appendChild(reason);
       }
