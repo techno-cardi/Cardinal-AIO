@@ -36,6 +36,21 @@ const E = require('./error-presenter-v2.js');
   assert.equal(p.action.id, 'retry');
 }
 
+// Target mismatch errors must expose the actual identity evidence so the UI
+// is diagnosable without opening extension internals.
+{
+  const p = E.present({
+    code: 'REQUESTED_TARGET_TAB_MISMATCH',
+    message: 'mismatch',
+    tabId: 44,
+    expectedTargetFormativeId: 'expected-id',
+    urlTargetFormativeId: 'url-id'
+  });
+  assert(p.technicalDetails.includes('tabId: 44'));
+  assert(p.technicalDetails.includes('expectedTargetFormativeId: expected-id'));
+  assert(p.technicalDetails.includes('urlTargetFormativeId: url-id'));
+}
+
 // Partial lower-level capability must be explained as not end-to-end safe.
 {
   const p = E.present({ code: 'CAPABILITY_PARTIAL' });
