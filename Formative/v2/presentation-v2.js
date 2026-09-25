@@ -127,7 +127,7 @@
     if (state === 'uncertain') {
       return {
         id: 'resume',
-        label: 'Vérifier et reprendre',
+        label: 'Reprendre l’import',
         enabled: true,
         emphasis: 'warning'
       };
@@ -156,7 +156,7 @@
     if (state === 'importing') return { id: 'none', label: 'Import en cours…', enabled: false, emphasis: 'primary' };
     if (state === 'completed') return { id: 'reimport', label: 'Réimporter dans Formative', enabled: true, emphasis: 'secondary' };
     if (state === 'blocked' || model.blockers > 0) return { id: 'none', label: 'Import bloqué', enabled: false, emphasis: 'danger' };
-    if (state === 'review' || model.warnings > 0) return { id: 'import-review', label: 'Vérifier puis importer', enabled: true, emphasis: 'warning' };
+    if (state === 'review' || model.warnings > 0) return { id: 'import', label: 'Importer dans Formative', enabled: true, emphasis: 'primary' };
     return { id: 'import', label: 'Importer dans Formative', enabled: true, emphasis: 'primary' };
   }
 
