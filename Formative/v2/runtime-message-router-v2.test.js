@@ -287,10 +287,10 @@ const popupSender = { id: 'ext-1', url: 'chrome-extension://ext-1/popup.html' };
   };
   const router = R.createRouter({ controller });
   const pkg = { schema: 'cardinal.formative/2', packageMode: 'patch' };
-  const result = await router.handle({
+  const result = await router.route({
     type: 'CARDINAL_FORMATIVE_IMPORT_REPREPARE',
     payload: { token: 'old', pkg }
-  });
+  }, { url: 'https://chatgpt.com/c/test' });
   assert.equal(result.ok, true);
   assert.deepEqual(calls, [{ token: 'old', pkg }]);
 })().catch(error => {
