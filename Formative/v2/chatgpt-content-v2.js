@@ -70,6 +70,23 @@
     return parts.join(' · ') || oneLine(view.statusLabel) || 'Prêt';
   }
 
+  function issueMessages(view = {}) {
+    const rows = Array.isArray(view.issues) ? view.issues : [];
+    const seen = new Set();
+    const out = [];
+    for (const current of rows) {
+      const message = oneLine(current?.message || current?.code);
+      if (!message || seen.has(message)) continue;
+      seen.add(message);
+      out.push({
+        severity: current?.severity === 'blocker' ? 'blocker' : 'warning',
+        code: oneLine(current?.code),
+        message
+      });
+    }
+    return out;
+  }
+
   function actionIntent(view = {}, reviewAcknowledged = false) {
     const action = view?.primaryAction || {};
     switch (action.id) {
@@ -579,9 +596,22 @@
       panel.style.paddingTop = '10px';
       panel.style.borderTop = '1px solid rgba(128,128,128,.28)';
 
+      const globalIssues = Array.isArray(view?.globalIssues) ? view.globalIssues : [];
+      if (globalIssues.length) {
+        const global = element('div');
+        global.style.marginBottom = '9px';
+        for (const current of globalIssues) {
+          const prefix = current?.severity === 'blocker' ? 'Blocage' : 'À vérifier';
+          const line = element('div', `${prefix}: ${oneLine(current?.message || current?.code)}`);
+          line.style.marginTop = '3px';
+          global.appendChild(line);
+        }
+        panel.appendChild(global);
+      }
+
       const rows = view?.validationRows || [];
       if (!rows.length) {
-        panel.appendChild(element('div', 'Aucun détail de correction supplémentaire à afficher.'));
+        if (!globalIssues.length) panel.appendChild(element('div', 'Aucun détail de correction supplémentaire à afficher.'));
         return panel;
       }
 
@@ -693,6 +723,18 @@
       summary.style.marginTop = summaryText ? '4px' : '0';
       summary.style.opacity = '.76';
       body.append(heading, summary);
+
+      const visibleIssues = issueMessages(view);
+      const firstBlocker = visibleIssues.find(current => current.severity === 'blocker');
+      if (firstBlocker) {
+        const reason = element('div', `Blocage: ${firstBlocker.message}`);
+        Object.assign(reason.style, {
+          marginTop: '5px',
+          fontSize: '12px',
+          fontWeight: '600'
+        });
+        body.appendChild(reason);
+      }
 
       const close = element('button', '×');
       close.type = 'button';
@@ -1038,6 +1080,7 @@
     signature,
     invalidContextMessage,
     summarizeView,
+    issueMessages,
     actionIntent,
     questionSelectionRows,
     buildSelectedQuestionPackage,
