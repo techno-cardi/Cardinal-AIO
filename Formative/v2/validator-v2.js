@@ -30,6 +30,26 @@
     'relation'
   ]);
 
+  const SOURCE_ROLES = new Set(['questionnaire', 'text', 'answerKey', 'rubric', 'appendix', 'unknown']);
+  const SOURCE_STATUSES = new Set(['provided', 'missing', 'external']);
+  const POINT_PROVENANCE = new Set(['provided', 'proposed', 'derived']);
+  const GRADING_PROVENANCE = new Set([
+    'providedAnswerKey',
+    'sourceExplicit',
+    'sourceInferred',
+    'questionIntrinsic',
+    'teacherApproved',
+    'sourceMissing'
+  ]);
+  const TRANSFORMATION_CODES = new Set([
+    'removeSourceNumber',
+    'normalizeTypography',
+    'splitQuestion',
+    'mergeQuestion',
+    'changeResponseType',
+    'other'
+  ]);
+
   function asString(value) {
     return value == null ? '' : String(value);
   }
@@ -130,6 +150,29 @@
 
     if (!pkg.assessment || typeof pkg.assessment !== 'object') {
       issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'assessment est obligatoire.');
+    } else {
+      if (!asString(pkg.assessment.title).trim()) {
+        issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'assessment.title est obligatoire.');
+      }
+      if (!asString(pkg.assessment.language).trim()) {
+        issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'assessment.language est obligatoire.');
+      }
+      if (!['external-reference-only', 'embedded'].includes(pkg.assessment.sourceMode)) {
+        issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'assessment.sourceMode doit être external-reference-only ou embedded.');
+      }
+      if (pkg.assessment.declaredTotalPoints != null) {
+        const declared = pkg.assessment.declaredTotalPoints;
+        if (!declared || typeof declared !== 'object' || Array.isArray(declared) ||
+            !Number.isFinite(declared.value) || declared.value < 0 || !oneDecimal(declared.value) ||
+            !POINT_PROVENANCE.has(declared.provenance)) {
+          issue(
+            issues,
+            'blocker',
+            'DECLARED_TOTAL_INVALID',
+            'assessment.declaredTotalPoints doit être {value, provenance} avec une valeur >= 0 et une provenance provided/proposed/derived.'
+          );
+        }
+      }
     }
 
     if (!Array.isArray(pkg.sources)) {
@@ -146,6 +189,15 @@
       if (!source?.id) {
         issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'Chaque source doit avoir un id.');
         continue;
+      }
+      if (!SOURCE_ROLES.has(source.role)) {
+        issue(issues, 'blocker', 'BLOCKED_STRUCTURE', `Source ${source.id}: role invalide.`, null, source.id);
+      }
+      if (!SOURCE_STATUSES.has(source.status)) {
+        issue(issues, 'blocker', 'BLOCKED_STRUCTURE', `Source ${source.id}: status invalide.`, null, source.id);
+      }
+      if (!asString(source.label).trim()) {
+        issue(issues, 'blocker', 'BLOCKED_STRUCTURE', `Source ${source.id}: label obligatoire.`, null, source.id);
       }
       if (sourceMap.has(source.id)) {
         issue(issues, 'blocker', 'DUPLICATE_SOURCE_ID', `Source dupliquée: ${source.id}.`, null, source.id);
@@ -272,6 +324,12 @@
     if (!points || !Number.isFinite(points.value) || points.value < 0 || !oneDecimal(points.value)) {
       issue(issues, 'blocker', 'INVALID_POINTS', 'Les points doivent être >= 0 avec au plus une décimale.', id);
     } else {
+      if (!POINT_PROVENANCE.has(points.provenance)) {
+        issue(issues, 'blocker', 'INVALID_POINTS', 'points.provenance doit être provided, proposed ou derived.', id);
+      }
+      if (typeof points.graded !== 'boolean' || typeof points.bonus !== 'boolean') {
+        issue(issues, 'blocker', 'INVALID_POINTS', 'points.graded et points.bonus doivent être des booléens explicites.', id);
+      }
       if (points.provenance === 'proposed') {
         issue(issues, 'warning', 'PROPOSED_POINTS', `Pointage proposé: ${points.value}.`, id);
       }
@@ -284,6 +342,29 @@
     if (!grading || !['auto', 'assisted', 'manual'].includes(grading.mode)) {
       issue(issues, 'blocker', 'BLOCKED_STRUCTURE', 'grading.mode doit être auto, assisted ou manual.', id);
       return;
+    }
+    if (!grading.provenance || !GRADING_PROVENANCE.has(grading.provenance.kind)) {
+      issue(
+        issues,
+        'blocker',
+        'GRADING_PROVENANCE_INVALID',
+        'grading.provenance.kind doit être providedAnswerKey, sourceExplicit, sourceInferred, questionIntrinsic, teacherApproved ou sourceMissing.',
+        id
+      );
+    }
+
+    for (const transformation of item.transformations || []) {
+      if (!TRANSFORMATION_CODES.has(transformation?.code) ||
+          !asString(transformation?.description).trim() ||
+          typeof transformation?.requiresReview !== 'boolean') {
+        issue(
+          issues,
+          'blocker',
+          'TRANSFORMATION_INVALID',
+          'Chaque transformation doit utiliser {code, description, requiresReview}; le champ type n’est pas accepté à la place de code.',
+          id
+        );
+      }
     }
 
     const sourceMissing = grading?.provenance?.kind === 'sourceMissing' || refsFromQuestion(item).some(ref => sourceMap.get(ref)?.status === 'missing');
@@ -410,6 +491,34 @@
       }
       if (item.subtype === 'multipleSelection' && correctCount < 1) {
         issue(issues, 'blocker', 'MCQ_CORRECT_COUNT', 'Multiple Selection exige au moins 1 réponse correcte.', id);
+      }
+
+      if (item.subtype === 'multipleSelection' && item?.grading?.partialCredit !== false) {
+        const correctOptions = options.filter(option => option?.correct === true);
+        const missingWeights = correctOptions.filter(option => !Number.isFinite(Number(option?.points)));
+        if (missingWeights.length) {
+          issue(
+            issues,
+            'blocker',
+            'MULTISELECT_WEIGHTS_REQUIRED',
+            'Le crédit partiel en sélection multiple exige une pondération explicite pour chaque bonne réponse.',
+            id
+          );
+        } else if (Number.isFinite(item?.points?.value)) {
+          const weightTotal = Math.round(
+            correctOptions.reduce((sum, option) => sum + Number(option.points), 0) * 10
+          ) / 10;
+          const itemTotal = Math.round(Number(item.points.value) * 10) / 10;
+          if (weightTotal !== itemTotal) {
+            issue(
+              issues,
+              'blocker',
+              'MULTISELECT_WEIGHT_TOTAL',
+              `La somme des pondérations de sélection multiple (${weightTotal}) doit égaler le total de la question (${itemTotal}).`,
+              id
+            );
+          }
+        }
       }
     }
 
