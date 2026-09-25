@@ -88,6 +88,28 @@ function pkg(items, overrides = {}) {
   assert(result.issues.some(x => x.code === 'TERM_SCORE_CONFLICT'));
 }
 
+// Native Formative Keyword grading cannot faithfully keep a 2-point maximum
+// when every absolute keyword match is worth less than 2.
+{
+  const q = baseQuestion({
+    grading: {
+      mode: 'auto',
+      expectedAnswer: 'Deux indices partiels.',
+      provenance: { kind: 'sourceExplicit', sourceRefs: ['texte'] },
+      partialCredit: true,
+      caseSensitive: false,
+      requirements: [],
+      concepts: [
+        { id: 'a', label: 'A', score: 1, provenance: 'sourceExplicit', terms: ['indice-a'], riskyTerms: [] },
+        { id: 'b', label: 'B', score: 1, provenance: 'sourceExplicit', terms: ['indice-b'], riskyTerms: [] }
+      ]
+    }
+  });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'KEYWORD_MAX_SCORE_MISMATCH'));
+}
+
 {
   const q = baseQuestion({
     subtype: 'fillInTheBlank',
