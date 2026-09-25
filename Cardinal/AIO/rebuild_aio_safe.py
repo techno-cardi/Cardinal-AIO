@@ -1042,8 +1042,8 @@ def validate_output(
     popup_js_text = popup_js.read_text(encoding="utf-8", errors="replace")
     for label in (
         f"Gestion {gestion_version}",
-        "Correction Formative 1.1.3",
-        "Importateur Formative 0.5 RC1",
+        "Correction Formative 1.1.13",
+        "Importateur Formative 0.5 RC2",
         "Mozaïk v14",
         "Pont Classroom 1.2.3",
         f"Pont ChatGPT {chatgpt_version}",
