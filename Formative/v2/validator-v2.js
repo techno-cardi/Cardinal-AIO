@@ -369,10 +369,9 @@
 
     const sourceMissing = grading?.provenance?.kind === 'sourceMissing' || refsFromQuestion(item).some(ref => sourceMap.get(ref)?.status === 'missing');
     if (sourceMissing) {
-      issue(issues, 'warning', 'SOURCE_REQUIRED', 'Une source nécessaire à la correction est manquante.', id);
-      if (grading.mode === 'auto') {
-        issue(issues, 'blocker', 'SOURCE_REQUIRED', 'Une question avec source manquante ne peut pas être auto.', id);
-      }
+      // ChatGPT owns the pedagogical judgment. Cardinal reports the source gap
+      // but does not silently override or reject the grading mode chosen upstream.
+      issue(issues, 'warning', 'SOURCE_REQUIRED', 'Une source nécessaire à la correction est indiquée comme manquante dans le paquet.', id);
     }
 
     const requirements = grading.requirements || [];
@@ -381,13 +380,16 @@
       (requirement?.count == null || requirement.count >= 2 || ['compareSources', 'argumentAndEvidence', 'chooseNofM', 'relation'].includes(requirement?.type))
     );
     if (grading.mode === 'auto' && hasMultipart) {
-      const constructed = ['shortAnswer', 'longAnswer'].includes(item.subtype);
-      issue(issues, constructed ? 'blocker' : 'warning', 'ASSISTED_REQUIRED', 'La tâche exige plusieurs composantes ou une relation que le matching Keyword ne vérifie pas complètement.', id);
+      // This is a pedagogical signal only. The package already contains the
+      // teacher/ChatGPT grading decision; Cardinal must not replace it.
+      issue(issues, 'warning', 'ASSISTED_REQUIRED', 'La tâche comporte plusieurs composantes. Cardinal conserve néanmoins le mode de correction fourni par ChatGPT.', id);
     }
 
     if (['shortAnswer', 'longAnswer'].includes(item.subtype) && grading.mode !== 'manual' &&
         (!Array.isArray(grading.concepts) || grading.concepts.length === 0)) {
-      issue(issues, 'blocker', 'MISSING_KEYWORD_CONCEPTS', 'Une réponse libre auto/assistée exige des concepts et des mots clés actifs.', id);
+      // The adapter can still use expectedAnswer as a technical full-score
+      // anchor. Missing concepts therefore cannot be a global pedagogical veto.
+      issue(issues, 'warning', 'MISSING_KEYWORD_CONCEPTS', 'Aucun concept Keyword n’est fourni; Cardinal utilisera la réponse attendue comme ancre technique si elle est disponible.', id);
     }
 
     validateConcepts(item, issues);
@@ -411,9 +413,9 @@
     if (Math.abs(highest - maximum) > 1e-9) {
       issue(
         issues,
-        'blocker',
+        'warning',
         'KEYWORD_MAX_SCORE_MISMATCH',
-        `Correction automatique non représentable fidèlement dans Formative: le score Keyword maximal est ${highest}, mais la question vaut ${maximum} point(s). Utiliser assisted/manual ou prévoir un match pouvant réellement valoir le maximum.`,
+        `Le score Keyword maximal déclaré est ${highest}, alors que la question vaut ${maximum} point(s). L’adaptateur ajoutera la réponse attendue comme ancre technique de pleine note sans modifier les scores pédagogiques fournis.`,
         item.id || '(sans id)'
       );
     }
