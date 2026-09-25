@@ -46,7 +46,7 @@ from aio_rebuild_contract import (
 )
 
 AIO_VERSION = "1.2.0"
-AIO_VERSION_NAME = "1.2.0-rc12"
+AIO_VERSION_NAME = "1.2.0-rc13"
 CLASSROOM_COMMIT = "6887bfa2e8afd523a38a0e3286aa1f826276b8c5"
 FORMATIVE_TREE_SHA = "ec87aa23f279d0762b3f7478d2db6afa4dccbb6d"
 FORMATIVE_V2_ZIP = "Cardinal-Formative-Importer-STANDALONE-0.5.0-rc1.zip"
@@ -457,6 +457,87 @@ def patch_user_verified_118_chatgpt_current_ui(chatgpt: Path) -> None:
             raise BaselineContractError(
                 f"Correctif interface ChatGPT 1.1.8 incomplet: {marker}"
             )
+    chatgpt.write_text(text, encoding="utf-8")
+
+
+def patch_user_verified_118_chatgpt_no_auto_reload(chatgpt: Path) -> None:
+    """Never navigate/reload ChatGPT automatically from Cardinal."""
+    text = chatgpt.read_text(encoding="utf-8")
+
+    text = replace_exactly(
+        text,
+        """  function queueReloadRecovery(rows,source,error,binding=null){
+    let previousAttempts=0;
+    try {
+      const prev=JSON.parse(sessionStorage.getItem(RELOAD_QUEUE_KEY)||'null');
+      if(prev && Date.now()-Number(prev.createdAt||0)<120000) previousAttempts=Number(prev.attempts||0);
+    } catch {}
+    if(previousAttempts>=1) throw error;
+    try {
+      sessionStorage.setItem(RELOAD_QUEUE_KEY,JSON.stringify({rows,source,binding:binding?{batchId:String(binding.batchId||''),batchConfidence:String(binding.batchConfidence||''),questionNumber:String(binding.questionNumber||''),isInline:!!binding.isInline}:null,createdAt:Date.now(),attempts:previousAttempts+1}));
+    } catch {}
+    $('panel').classList.remove('hidden');
+    $('paste').classList.add('hidden');
+    $('parsePaste').classList.add('hidden');
+    $('msg').className='small';
+    $('msg').textContent='Cardinal vient d’être rechargé. Je recharge ChatGPT une fois et je reprends automatiquement cet envoi…';
+    setTimeout(()=>location.reload(),450);
+  }
+""",
+        """  function queueReloadRecovery(rows,source,error,binding=null){
+    // Never reload ChatGPT automatically. Extension updates can invalidate an
+    // already-running content-script context; navigating the page here can loop
+    // and hammer ChatGPT conversation endpoints. Preserve nothing for auto-replay.
+    try { sessionStorage.removeItem(RELOAD_QUEUE_KEY); } catch {}
+    $('panel').classList.remove('hidden');
+    $('paste').classList.add('hidden');
+    $('parsePaste').classList.add('hidden');
+    $('msg').className='small err';
+    $('msg').textContent='Cardinal a été mis à jour pendant que cette page était ouverte. Recharge ChatGPT manuellement une seule fois, puis relance l’envoi. Aucun résultat n’a été envoyé automatiquement.';
+    return {ok:false,reloading:false,contextInvalidated:true};
+  }
+""",
+        label="Gestion 1.1.8 disable ChatGPT auto reload",
+    )
+
+    text = replace_exactly(
+        text,
+        """  async function resumeReloadQueue(){
+    let pending=null;
+    try { pending=JSON.parse(sessionStorage.getItem(RELOAD_QUEUE_KEY)||'null'); } catch {}
+    if(!pending?.rows?.length) return;
+    if(Date.now()-Number(pending.createdAt||0)>120000){
+      try{sessionStorage.removeItem(RELOAD_QUEUE_KEY);}catch{}
+      return;
+    }
+    try{sessionStorage.removeItem(RELOAD_QUEUE_KEY);}catch{}
+    $('panel').classList.remove('hidden');
+    $('paste').classList.add('hidden');
+    $('parsePaste').classList.add('hidden');
+    $('msg').className='small';
+    $('msg').textContent='Cardinal reconnecté. Je reprends l’envoi vers Formative…';
+    try { await sendRows(pending.rows,`${pending.source||'ChatGPT'} · reprise après mise à jour`,pending.binding||null); }
+    catch(e){
+      $('msg').textContent=e?.message||String(e);$('msg').className='small err';$('paste').classList.remove('hidden');$('parsePaste').classList.remove('hidden');
+    }
+  }
+""",
+        """  async function resumeReloadQueue(){
+    // Legacy pending auto-replay is intentionally discarded. A previous AIO
+    // version may have left this key behind; never turn it into a new send or
+    // page reload.
+    try { sessionStorage.removeItem(RELOAD_QUEUE_KEY); } catch {}
+    return;
+  }
+""",
+        label="Gestion 1.1.8 disable ChatGPT auto replay",
+    )
+
+    if "location.reload()" in text or "setTimeout(()=>location.reload()" in text:
+        raise BaselineContractError("ChatGPT auto-reload interdit: location.reload encore présent.")
+    if "Je reprends l’envoi vers Formative" in text:
+        raise BaselineContractError("ChatGPT auto-replay interdit: ancien message de reprise encore présent.")
+
     chatgpt.write_text(text, encoding="utf-8")
 
 
@@ -1106,6 +1187,7 @@ def assemble_from_extracted_baseline(
     if gestion_version == "1.1.8":
         patch_user_verified_118_chatgpt_batch_binding(chatgpt_path)
         patch_user_verified_118_chatgpt_current_ui(chatgpt_path)
+        patch_user_verified_118_chatgpt_no_auto_reload(chatgpt_path)
     patched_chatgpt_sha256 = sha256(chatgpt_path)
     validated_core_hashes = snapshot_core_hashes(dist)
 
@@ -1288,7 +1370,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("dist/Cardinal-AIO-1.2.0-rc12.zip"),
+        default=Path("dist/Cardinal-AIO-1.2.0-rc13.zip"),
     )
     args = parser.parse_args(argv)
 
