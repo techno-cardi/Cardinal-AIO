@@ -234,6 +234,12 @@ Chaque concept/réponse peut porter une provenance:
 
 Cette provenance aide la prévisualisation et l'audit sans alourdir l'interface normale.
 
+## Transport explicite
+
+Cardinal ne choisit jamais une valeur implicite qui modifierait la notation. Les questions doivent porter explicitement `required`; les types structurés doivent expliciter `partialCredit`; les Short/Long Answer Keyword doivent expliciter `partialCredit` et `caseSensitive`.
+
+Une entrée malformée doit être refusée proprement avec un diagnostic visible, jamais faire planter le validateur.
+
 ## Points
 
 Règles:
@@ -246,7 +252,7 @@ Règles:
 - pour `answerChoicePoints`, points maximum d'abord, pondérations ensuite;
 - ne jamais additionner les matches côté Cardinal.
 
-Une incohérence de total doit bloquer l'import jusqu'à correction ou confirmation explicite.
+Une incohérence de total officiel (`provided`) bloque l'import jusqu'à correction ou confirmation explicite. Pour un total seulement `proposed` ou `derived`, Cardinal avertit et conserve les points explicites des questions.
 
 ## Texte source et blocs Formative
 
