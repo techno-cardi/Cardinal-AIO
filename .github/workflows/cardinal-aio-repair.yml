@@ -429,6 +429,28 @@ jobs:
                   "feedbackHistoryAvailable",
               ):
                   assert marker in legacy_worker, f"Correction feedback contract missing in worker: {marker}"
+
+              for marker in (
+                  "MOZAIK_SYNC_INFLIGHT",
+                  "runMozaikSyncOnce",
+                  "sameTitle.length > 1",
+                  "ensurePlannedExactlyOnce(activityId)",
+                  "Cardinal n’en créera pas une deuxième",
+              ):
+                  assert marker in legacy_worker, f"Mozaik idempotence contract missing in worker: {marker}"
+
+              executor_v2 = zf.read("executor-v2.js").decode("utf-8")
+              journal_v2 = zf.read("journal-v2.js").decode("utf-8")
+              reconciliation_v2 = zf.read("reconciliation-v2.js").decode("utf-8")
+              for marker in (
+                  "recordMutationResult",
+                  "journal-after-mutation-ack",
+                  "verificationRetryDelays",
+                  "mutationResult?.formativeItemId",
+              ):
+                  assert marker in executor_v2, f"Formative recovery contract missing in executor: {marker}"
+              assert "recordMutationResult" in journal_v2, "Durable mutation acknowledgement missing from journal"
+              assert "CREATE_ACKNOWLEDGED_ITEM_MISSING" in reconciliation_v2, "Exact-id CREATE reconciliation missing"
               for marker in (
                   "Échanges précédents dans Formative :",
                   "Si des échanges précédents de Formative sont fournis",
