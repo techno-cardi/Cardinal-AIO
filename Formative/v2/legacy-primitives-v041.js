@@ -303,9 +303,6 @@
         isCaseSensitive: item.grading?.caseSensitive === true
       });
 
-      // Proven invariant for Keyword grading: maximum first, weighted matches last.
-      await setPoints(id, item.points);
-
       if (gradingMode === 'keyword-absolute') {
         const matches = enabledMatches(item);
         if (!matches.length) {
@@ -314,6 +311,10 @@
             formativeItemId: String(id)
           });
         }
+
+        // Formative peut recalculer details.points à partir de
+        // answerChoicePoints lorsqu'on écrit le corrigé Keyword. Le maximum
+        // pédagogique doit donc être réaffirmé APRÈS les pondérations.
         await updateQuestion(id, {
           correctAnswers: matches.map(match => match.text),
           answerChoicePoints: matches.map(match => match.score),
@@ -321,7 +322,11 @@
           isPartialCredit: item.grading?.partialCredit !== false,
           isCaseSensitive: item.grading?.caseSensitive === true
         });
+        await setPoints(id, item.points);
+        return;
       }
+
+      await setPoints(id, item.points);
     }
 
     function buildFitb(item, blankKeys) {
