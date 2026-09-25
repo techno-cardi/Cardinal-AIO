@@ -191,6 +191,30 @@
       });
     }
 
+    function buttonStyle(options = {}) {
+      const primary = options.primary === true;
+      const compact = options.compact === true;
+      return {
+        appearance: 'none',
+        WebkitAppearance: 'none',
+        border: primary ? '1px solid #111827' : '1px solid rgba(128,128,128,.45)',
+        borderRadius: '8px',
+        padding: compact ? '4px 8px' : '7px 10px',
+        background: primary ? '#111827' : 'rgba(127,127,127,.10)',
+        color: primary ? '#ffffff' : 'inherit',
+        font: 'inherit',
+        fontWeight: primary ? '600' : '500',
+        lineHeight: '1.2',
+        cursor: 'pointer',
+        opacity: '1'
+      };
+    }
+
+    function styleButton(button, options = {}) {
+      Object.assign(button.style, buttonStyle(options));
+      return button;
+    }
+
     function hideTechnical(node) {
       if (!node?.style) return;
       node.dataset && (node.dataset.cardinalFormativeHidden = 'v2');
@@ -233,6 +257,7 @@
       const close = element('button', '×');
       close.type = 'button';
       close.title = 'Masquer cette version';
+      styleButton(close, { compact: true });
       close.addEventListener('click', () => dismiss(record));
       row.append(body, close);
       record.shell.appendChild(row);
@@ -250,6 +275,7 @@
       for (const row of response.chooserRows || []) {
         const button = element('button', `${row.title || 'Formative'}${row.active ? ' · onglet actif' : ''}`);
         button.type = 'button';
+        styleButton(button);
         button.style.textAlign = 'left';
         button.addEventListener('click', async () => {
           button.disabled = true;
@@ -372,6 +398,7 @@
       const close = element('button', '×');
       close.type = 'button';
       close.title = 'Masquer cette version';
+      styleButton(close, { compact: true });
       close.addEventListener('click', () => dismiss(record));
       top.append(body, close);
       record.shell.appendChild(top);
@@ -380,6 +407,7 @@
       if (view.showCorrectionButton || (view.validationRows || []).length) {
         const correction = element('button', 'Voir le corrigé préparé');
         correction.type = 'button';
+        styleButton(correction);
         correction.style.marginTop = '9px';
         correction.addEventListener('click', () => {
           const existing = record.shell.querySelector?.('[data-cardinal-formative-review="1"]');
@@ -394,6 +422,7 @@
         const button = element('button', action.label || 'Importer dans Formative');
         button.type = 'button';
         button.disabled = action.enabled === false;
+        styleButton(button, { primary: true });
         button.style.marginTop = '9px';
         button.addEventListener('click', () => act(record, button));
         record.actionButton = button;
@@ -617,6 +646,7 @@
     invalidContextMessage,
     summarizeView,
     actionIntent,
+    buttonStyle,
     createContentBridge
   };
 
