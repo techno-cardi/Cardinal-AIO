@@ -223,7 +223,9 @@
     const ui = prepared?.preflight?.data?.ui || {};
     const model = {
       state: prepared.state || (prepared.ok ? 'ready' : 'blocked'),
-      statusLabel: ui.status || (prepared.ok ? '✓ Prêt' : '✕ Bloqué'),
+      statusLabel: Number(ui.blockers || (prepared.ok ? 0 : 1)) > 0
+        ? (ui.status || '✕ Bloqué')
+        : '✓ Prêt',
       targetTitle: prepared.targetTitle || ui.targetTitle || null,
       questions: Number(ui.questions || 0),
       auto: Number(ui.auto || 0),
