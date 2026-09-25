@@ -275,7 +275,23 @@ const U = require('./chatgpt-content-v2.js');
     bridge.stop();
   }
 
-  console.log('chatgpt-content-v2: all tests passed');
+  // Exact blocker messages must be available to the visible ChatGPT bar instead
+// of collapsing to an opaque "1 blocage".
+{
+  const messages = Content.issueMessages({
+    issues: [
+      { severity: 'blocker', code: 'X', message: 'Raison exacte' },
+      { severity: 'blocker', code: 'X2', message: 'Raison exacte' },
+      { severity: 'warning', code: 'W', message: 'À vérifier' }
+    ]
+  });
+  assert.deepEqual(messages, [
+    { severity: 'blocker', code: 'X', message: 'Raison exacte' },
+    { severity: 'warning', code: 'W', message: 'À vérifier' }
+  ]);
+}
+
+console.log('chatgpt-content-v2: all tests passed');
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;
