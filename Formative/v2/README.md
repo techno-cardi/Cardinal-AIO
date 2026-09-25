@@ -25,6 +25,12 @@ Elle est maintenant réellement construite par GitHub Actions à partir du code 
 
 Important: **RC construite et testée en CI ne signifie pas encore remplacement de production de 0.4.1**. Les smoke tests réels dans Formative restent la prochaine gate.
 
+## Invariant d'autorité pédagogique
+
+Le paquet ChatGPT est l'intention pédagogique à transporter. Cardinal ne recalcule pas le sens de la consigne et ne choisit pas à la place de ChatGPT entre `auto`, `assisted` et `manual`.
+
+Le preflight peut bloquer seulement pour une incohérence explicite du contrat, une représentation Formative impossible, une cible/identité ambiguë, un conflit serveur ou une sécurité de mutation. Les heuristiques de contenu restent des warnings. Les blockers déclarés dans le paquet sont conservés et affichés.
+
 ## Chaîne exécutable actuelle
 
 La chaîne de sûreté est matérialisée jusqu'au navigateur et aux primitives GraphQL prouvées:
