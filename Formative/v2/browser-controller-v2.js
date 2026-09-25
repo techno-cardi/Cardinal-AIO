@@ -18,6 +18,26 @@
     return error;
   }
 
+  function canFreshReprepareRecovery(prepared = {}) {
+    if (prepared?.mode !== 'resume' || prepared?.state !== 'recovery') return false;
+    const journal = prepared?.journal;
+    if (!journal || !Array.isArray(journal.operations)) return false;
+    if (Number(journal?.summary?.verified || 0) !== 0) return false;
+
+    for (const op of journal.operations) {
+      if (op?.status === 'VERIFIED') return false;
+      const mayHaveCommitted =
+        op?.status === 'UNCERTAIN' ||
+        op?.status === 'IN_PROGRESS' ||
+        (op?.status === 'FAILED' && op?.mutationMayHaveCommitted === true);
+
+      if (mayHaveCommitted && (op?.action !== 'UPDATE' || !op?.formativeItemId)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   function defaultToken(sequence) {
     if (globalThis.crypto?.randomUUID) return `cfi-ui-${globalThis.crypto.randomUUID()}`;
     return `cfi-ui-${Date.now().toString(36)}-${sequence.toString(36)}`;
@@ -330,6 +350,20 @@
       const nextPkg = pkgOverride || selected.originalInput?.pkg || selected.pkg;
 
       try {
+        if (canFreshReprepareRecovery(selected.prepared)) {
+          if (typeof deps.product.discardIncompleteRecovery !== 'function') {
+            throw makeError(
+              'RECOVERY_FRESH_PREPARE_UNAVAILABLE',
+              'La reprise peut être revérifiée sans doublon, mais le moteur courant ne peut pas libérer l’ancien journal.'
+            );
+          }
+          await deps.product.discardIncompleteRecovery({
+            targetFormativeId: selected.prepared.targetFormativeId || selected.targetFormativeId,
+            assessmentFingerprint: selected.prepared.assessmentFingerprint,
+            expectedRunId: selected.prepared.journal?.runId
+          });
+        }
+
         await reportProgress({ stage: 'CHECKING_TARGET', runId: nextToken });
         await reportProgress({ stage: 'READING_SERVER', runId: nextToken });
 
@@ -415,7 +449,7 @@
     });
   }
 
-  const api = { createController };
+  const api = { canFreshReprepareRecovery, createController };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   globalThis.CardinalFormativeV2BrowserController = api;
 })();

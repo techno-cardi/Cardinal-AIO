@@ -391,8 +391,32 @@
     }
 
     validateConcepts(item, issues);
+    validateAutoKeywordMaximum(item, issues);
     validateSubtypeStructure(item, issues);
     detectMediaDependency(item, sourceMap, issues);
+  }
+
+  function validateAutoKeywordMaximum(item, issues) {
+    if (!['shortAnswer', 'longAnswer'].includes(item?.subtype)) return;
+    if (item?.grading?.mode !== 'auto') return;
+
+    const maximum = Number(item?.points?.value);
+    const scores = (item?.grading?.concepts || [])
+      .filter(concept => Array.isArray(concept?.terms) && concept.terms.length > 0)
+      .map(concept => Number(concept?.score))
+      .filter(Number.isFinite);
+
+    if (!Number.isFinite(maximum) || scores.length === 0) return;
+    const highest = Math.max(...scores);
+    if (Math.abs(highest - maximum) > 1e-9) {
+      issue(
+        issues,
+        'blocker',
+        'KEYWORD_MAX_SCORE_MISMATCH',
+        `Correction automatique non représentable fidèlement dans Formative: le score Keyword maximal est ${highest}, mais la question vaut ${maximum} point(s). Utiliser assisted/manual ou prévoir un match pouvant réellement valoir le maximum.`,
+        item.id || '(sans id)'
+      );
+    }
   }
 
   function validateConcepts(item, issues) {

@@ -306,6 +306,9 @@ Donc:
 
 - score d'un mot = score direct de cette correspondance;
 - plusieurs mots ne s'additionnent pas;
+- le maximum Formative suit le plus grand `answerChoicePoints` dans le flux Keyword observé le 2026-09-25;
+- `auto` exige donc au moins un match légitime pouvant valoir le maximum;
+- `assisted` conserve les scores partiels et utilise au besoin la réponse attendue complète comme ancre de pleine note;
 - auto seulement pour les tâches déterministes;
 - assisted pour explication, multipartie ou réponse nécessitant jugement;
 - manuel seulement lorsque nécessaire;

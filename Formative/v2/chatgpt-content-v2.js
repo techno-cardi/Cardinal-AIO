@@ -156,6 +156,26 @@
     return false;
   }
 
+  function buttonStyle(kind = 'secondary') {
+    const primary = kind === 'primary';
+    return {
+      appearance: 'none',
+      WebkitAppearance: 'none',
+      borderRadius: '9px',
+      padding: '7px 11px',
+      marginTop: '10px',
+      marginRight: '7px',
+      cursor: 'pointer',
+      fontSize: '13px',
+      fontWeight: primary ? '700' : '600',
+      lineHeight: '1.2',
+      border: primary ? '1px solid #111827' : '1px solid rgba(128,128,128,.38)',
+      background: primary ? '#111827' : 'rgba(127,127,127,.10)',
+      color: primary ? '#ffffff' : 'inherit',
+      opacity: '1'
+    };
+  }
+
   function createContentBridge(options = {}) {
     const doc = required(options.document || globalThis.document, 'document');
     const runtime = required(options.runtime || globalThis.chrome?.runtime, 'chrome.runtime');
@@ -256,19 +276,7 @@
     }
 
     function styleButton(button, kind = 'secondary') {
-      Object.assign(button.style, {
-        appearance: 'none',
-        borderRadius: '9px',
-        padding: '7px 11px',
-        marginTop: '10px',
-        marginRight: '7px',
-        cursor: 'pointer',
-        fontSize: '13px',
-        fontWeight: kind === 'primary' ? '700' : '600',
-        border: kind === 'primary' ? '1px solid transparent' : '1px solid rgba(128,128,128,.28)',
-        background: kind === 'primary' ? 'var(--text-primary, #111)' : 'transparent',
-        color: kind === 'primary' ? 'var(--main-surface-primary, #fff)' : 'inherit'
-      });
+      Object.assign(button.style, buttonStyle(kind));
     }
 
     function hideTechnical(node) {
@@ -353,7 +361,10 @@
       for (const row of response.chooserRows || []) {
         const button = element('button', `${row.title || 'Formative'}${row.active ? ' · onglet actif' : ''}`);
         button.type = 'button';
+        styleButton(button, 'secondary');
         button.style.textAlign = 'left';
+        button.style.marginTop = '0';
+        button.style.marginRight = '0';
         button.addEventListener('click', async () => {
           button.disabled = true;
           await prepare(record, { requestedTabId: row.tabId, requestedTargetId: row.targetFormativeId });
@@ -402,11 +413,14 @@
       const selectNone = element('button', 'Aucune');
       for (const button of [selectAll, selectNone]) {
         button.type = 'button';
+        styleButton(button, 'secondary');
         Object.assign(button.style, {
           padding: '4px 8px',
           minHeight: '28px',
           borderRadius: '8px',
-          fontSize: '11px'
+          fontSize: '11px',
+          marginTop: '0',
+          marginRight: '0'
         });
       }
       compactControls.append(selectAll, selectNone);
@@ -495,15 +509,19 @@
 
       const cancel = element('button', 'Annuler');
       cancel.type = 'button';
-      Object.assign(cancel.style, { padding: '6px 10px', borderRadius: '8px' });
+      styleButton(cancel, 'secondary');
+      Object.assign(cancel.style, { padding: '6px 10px', borderRadius: '8px', marginTop: '0', marginRight: '0' });
       cancel.addEventListener('click', () => renderResponse(record, previousResponse));
 
       const confirm = element('button', 'Appliquer la sélection');
       confirm.type = 'button';
+      styleButton(confirm, 'primary');
       Object.assign(confirm.style, {
         padding: '6px 11px',
         borderRadius: '8px',
-        fontWeight: '600'
+        fontWeight: '600',
+        marginTop: '0',
+        marginRight: '0'
       });
 
       function selectedIds() {
@@ -679,6 +697,18 @@
       const close = element('button', '×');
       close.type = 'button';
       close.title = 'Masquer cette version';
+      Object.assign(close.style, {
+        appearance: 'none',
+        WebkitAppearance: 'none',
+        border: '0',
+        background: 'transparent',
+        color: 'inherit',
+        cursor: 'pointer',
+        fontSize: '18px',
+        lineHeight: '1',
+        opacity: '.62',
+        padding: '2px 4px'
+      });
       close.addEventListener('click', () => dismiss(record));
       top.append(body, close);
       record.shell.appendChild(top);
@@ -1012,6 +1042,7 @@
     questionSelectionRows,
     buildSelectedQuestionPackage,
     shouldOfferQuestionSelection,
+    buttonStyle,
     createContentBridge
   };
 

@@ -121,9 +121,32 @@
     });
   }
 
+  function recoveryFreshPrepareSafe(journal = {}) {
+    if (!Array.isArray(journal?.operations)) return false;
+    if (Number(journal?.summary?.verified || 0) !== 0) return false;
+
+    for (const op of journal.operations) {
+      if (op?.status === 'VERIFIED') return false;
+      const mayHaveCommitted =
+        op?.status === 'UNCERTAIN' ||
+        op?.status === 'IN_PROGRESS' ||
+        (op?.status === 'FAILED' && op?.mutationMayHaveCommitted === true);
+
+      if (mayHaveCommitted && (op?.action !== 'UPDATE' || !op?.formativeItemId)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   function primaryAction(model = {}) {
     const state = model.state;
-    if (state === 'recovery') return { id: 'resume', label: 'Reprendre l’import', enabled: true, emphasis: 'primary' };
+    if (state === 'recovery') {
+      if (model.freshReprepareSafe === true) {
+        return { id: 'reimport', label: 'Revérifier et reprendre', enabled: true, emphasis: 'primary' };
+      }
+      return { id: 'resume', label: 'Reprendre l’import', enabled: true, emphasis: 'primary' };
+    }
     if (state === 'uncertain') {
       return {
         id: 'resume',
@@ -175,7 +198,8 @@
           remaining: Number(summary.remaining || 0),
           uncertain: Number(summary.uncertain || 0),
           failed: Number(summary.failed || 0)
-        }
+        },
+        freshReprepareSafe: recoveryFreshPrepareSafe(prepared?.journal || {})
       };
       model.primaryAction = primaryAction(model);
       return model;
@@ -284,6 +308,7 @@
     buildReconciliationRows,
     buildPreparedView,
     buildExecutionView,
+    recoveryFreshPrepareSafe,
     primaryAction
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

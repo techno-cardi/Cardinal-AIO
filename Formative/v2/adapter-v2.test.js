@@ -86,7 +86,9 @@ assert.notEqual(A.targetAssessmentId('FORMATIVE-123'), A.targetAssessmentId('FOR
   assert.equal(A.itemFingerprint(p1, p1.items[0]), A.itemFingerprint(p2, p2.items[0]));
 }
 
-// Assisted Free Response becomes keyword grading and keeps accent variants.
+// Assisted Free Response preserves partial concept scores while adding the
+// complete expected answer as a full-score anchor so Formative keeps the real
+// question maximum.
 {
   const result = A.adaptPackageV2ToV1(pkg([
     { id: 'section', kind: 'section', order: 1, content: 'SANTÉ', issues: [] },
@@ -98,8 +100,35 @@ assert.notEqual(A.targetAssessmentId('FORMATIVE-123'), A.targetAssessmentId('FOR
   assert.equal(result.packageV1.items[0].kind, 'text');
   const q = result.packageV1.items[1];
   assert.equal(q.subtype, 'longAnswer');
+  assert.equal(q.points, 4);
+  assert.equal(q.grading.mode, 'keyword-absolute');
+  assert(q.grading.matches.some(x => x.text === 'Deux conséquences sont expliquées.' && x.score === 4));
   assert(q.grading.matches.some(x => x.text === 'thyroïde' && x.score === 3));
   assert(q.grading.matches.some(x => x.text === 'thyroide' && x.score === 3));
+}
+
+// Auto Free Response remains native Keyword grading when one source-backed
+// match can genuinely award the full question maximum.
+{
+  const auto = baseQuestion({
+    grading: {
+      mode: 'auto',
+      expectedAnswer: 'RBMK au graphite',
+      provenance: { kind: 'sourceExplicit', sourceRefs: ['text'] },
+      partialCredit: true,
+      caseSensitive: false,
+      requirements: [],
+      concepts: [
+        { id: 'rbmk', label: 'RBMK', score: 4, provenance: 'sourceExplicit', terms: ['RBMK'], riskyTerms: [] },
+        { id: 'graphite', label: 'Graphite', score: 2, provenance: 'sourceExplicit', terms: ['graphite'], riskyTerms: [] }
+      ]
+    }
+  });
+  const result = A.adaptPackageV2ToV1(pkg([auto]), { targetFormativeId: 'FORMATIVE-123' });
+  assert.equal(result.state, 'ready');
+  const q = result.packageV1.items[0];
+  assert.equal(q.grading.mode, 'keyword-absolute');
+  assert(q.grading.matches.some(x => x.text.toLowerCase() === 'rbmk' && x.score === 4));
 }
 
 // Manual mode never invents active grading matches.
