@@ -2,10 +2,36 @@
 // ===== background.js =====
 const MOZAIK_URL = 'https://mozaikportail.ca/*';
 const MOZAIK_HOME = 'https://mozaikportail.ca/';
+const MOZAIK_SYNC_INFLIGHT = new Map();
+
+function mozaikSyncKey(payload) {
+  const g = payload?.group || {};
+  const a = payload?.assignment || {};
+  return [
+    String(g.establishmentId || ''),
+    String(g.groupCourseId || ''),
+    String(g.groupMatterId || ''),
+    String(a.id || a.assignmentId || a.title || ''),
+    String(a.activityDate || ''),
+  ].join('|');
+}
+
+function runMozaikSyncOnce(payload) {
+  const key = mozaikSyncKey(payload);
+  const active = MOZAIK_SYNC_INFLIGHT.get(key);
+  if (active) return active;
+  const promise = Promise.resolve()
+    .then(() => handleSync(payload))
+    .finally(() => {
+      if (MOZAIK_SYNC_INFLIGHT.get(key) === promise) MOZAIK_SYNC_INFLIGHT.delete(key);
+    });
+  MOZAIK_SYNC_INFLIGHT.set(key, promise);
+  return promise;
+}
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type !== 'START_MOZAIK_SYNC') return;
-  handleSync(message.payload)
+  runMozaikSyncOnce(message.payload)
     .then(sendResponse)
     .catch(error => sendResponse({ success: false, message: error?.message || String(error) }));
   return true;
