@@ -42,7 +42,7 @@ const U = require('./chatgpt-content-v2.js');
       unchanged: 3,
       deleteProposed: 2,
       warnings: 1
-    }), '2 à créer · 1 à mettre à jour · 3 inchangés · 2 retraits à vérifier');
+    }), '2 à créer · 1 à mettre à jour · 3 inchangés · 2 retraits à vérifier · 1 avertissement');
 
     assert.equal(U.summarizeView({
       create: 1,
