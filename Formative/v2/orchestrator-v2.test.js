@@ -100,6 +100,10 @@ function transport(log, options = {}) {
     reconcileOperation: async ({ op }) => {
       log.push(`reconcile:${op.action}:${op.fingerprint}`);
       return options.reconcileVerdict || { state: 'committed', formativeItemId: op.formativeItemId || 'I-created', serverRevision: 'rev-recovered' };
+    },
+    repairPartialCreate: async ({ op, formativeItemId }) => {
+      log.push(`repair:${op.action}:${op.fingerprint}:${formativeItemId}`);
+      return { formativeItemId };
     }
   };
 }
@@ -201,6 +205,46 @@ function baselineFor(sourcePkg, target = 'F') {
     assert.equal(result.state, 'completed');
     assert.equal(log.filter(x => x.startsWith('reconcile:')).length, 1);
     assert.equal(log.filter(x => x.startsWith('mutate:')).length, 0);
+  }
+
+  // A repairable partial CREATE reuses the exact server item and never issues a second CREATE.
+  {
+    const persistence = makePersistence();
+    const sourcePkg = pkg();
+    const O = makeOrchestrator(persistence);
+    const prepared0 = await O.prepare({
+      pkg: sourcePkg, targetFormativeId: 'F', assessmentFingerprint: 'A',
+      serverItems: [], preflightInjected: preflightDeps
+    });
+    let j = journal.createJournal({
+      runId: 'partial-create', targetFormativeId: 'F', assessmentFingerprint: 'A', packageMode: 'patch',
+      executionContractHash: prepared0.executionContract.hash,
+      executionPlan: prepared0.plannerOperations,
+      operations: executor.makeJournalOperations(prepared0.plannerOperations)
+    });
+    await persistence.saveJournal(j);
+    const opId = j.operations[0].operationId;
+    j = journal.startOperation(j, opId);
+    const createError = new Error('configuration failed after create');
+    createError.formativeItemId = 'I-partial';
+    j = journal.markUncertain(j, opId, createError);
+    await persistence.saveJournal(j);
+
+    const prepared = await O.prepare({
+      pkg: sourcePkg, targetFormativeId: 'F', assessmentFingerprint: 'A',
+      serverItems: [], preflightInjected: preflightDeps
+    });
+    assert.equal(prepared.state, 'recovery');
+
+    const log = [];
+    const result = await O.execute(prepared, {
+      transport: transport(log, {
+        reconcileVerdict: { state: 'repairable', formativeItemId: 'I-partial' }
+      })
+    });
+    assert.equal(result.state, 'completed');
+    assert.equal(log.filter(x => x.startsWith('repair:')).length, 1);
+    assert.equal(log.filter(x => x.startsWith('mutate:CREATE')).length, 0);
   }
 
   // Incomplete journal without immutable plan fails closed rather than recomputing a potentially unsafe plan.
