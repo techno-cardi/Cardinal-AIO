@@ -494,24 +494,40 @@
     }
 
     let matches = flattenConceptMatches(item, issues);
-    if (item?.grading?.mode !== 'manual' && !matches.length) {
-      issue(issues, 'blocker', 'ADAPTER_EMPTY_GRADING', 'Une question auto/assisted doit produire au moins un match actif avant conversion.', item.id);
-      return null;
+    const gradingMode = item?.grading?.mode;
+    const maximum = Number(item?.points?.value);
+    const expectedAnswer = asString(item?.grading?.expectedAnswer).replace(/\s+/g, ' ').trim();
+
+    if (gradingMode !== 'manual' && !matches.length) {
+      // Cardinal is transport, not a second pedagogical corrector. If ChatGPT
+      // supplied a complete expected answer but no keyword concepts, preserve
+      // that answer as the native Formative full-score key instead of blocking
+      // the entire package.
+      if (expectedAnswer && Number.isFinite(maximum)) {
+        matches = [{ text: expectedAnswer, score: maximum, enabled: true }];
+      } else {
+        issue(
+          issues,
+          'blocker',
+          'ADAPTER_EMPTY_GRADING',
+          'La correction auto/assisted ne contient ni match actif ni réponse attendue exploitable techniquement.',
+          item.id
+        );
+        return null;
+      }
     }
 
-    if (item?.grading?.mode === 'assisted' && matches.length) {
-      const maximum = Number(item?.points?.value);
+    if (gradingMode !== 'manual' && matches.length) {
       const hasMaximumMatch = Number.isFinite(maximum) &&
         matches.some(match => Number(match?.score) === maximum);
 
       if (Number.isFinite(maximum) && !hasMaximumMatch) {
-        const expectedAnswer = asString(item?.grading?.expectedAnswer).replace(/\s+/g, ' ').trim();
         if (!expectedAnswer) {
           issue(
             issues,
             'blocker',
-            'ADAPTER_ASSISTED_MAX_ANCHOR_REQUIRED',
-            'Une correction assisted sans match de pleine note exige une réponse attendue complète pour préserver le maximum Formative.',
+            'ADAPTER_KEYWORD_MAX_ANCHOR_REQUIRED',
+            'Une correction Keyword sans match de pleine note exige une réponse attendue complète pour préserver le maximum Formative.',
             item.id
           );
         } else {
@@ -522,7 +538,7 @@
             issue(
               issues,
               'blocker',
-              'ADAPTER_ASSISTED_MAX_ANCHOR_CONFLICT',
+              'ADAPTER_KEYWORD_MAX_ANCHOR_CONFLICT',
               'La réponse attendue complète correspond déjà à un match ayant un score partiel différent.',
               item.id
             );
