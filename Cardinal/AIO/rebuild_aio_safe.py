@@ -46,11 +46,11 @@ from aio_rebuild_contract import (
 )
 
 AIO_VERSION = "1.2.0"
-AIO_VERSION_NAME = "1.2.0-rc14-formative-pedago3"
+AIO_VERSION_NAME = "1.2.0-formative-1.1.13-flow-fix"
 CLASSROOM_COMMIT = "6887bfa2e8afd523a38a0e3286aa1f826276b8c5"
 FORMATIVE_TREE_SHA = "231eac66a482f4e30cb65b80db82bf48136205ec"
 FORMATIVE_V2_ZIP = "Cardinal-Formative-Importer-STANDALONE-0.5.0-rc1.zip"
-AIO_POPUP_JS = "aio-popup.js"
+AIO_POPUP_JS = "aio-popup.js"\nHOTFIX_113_OVERLAY = Path("Cardinal/AIO/hotfixes/1.1.13/overlay")
 
 CLASSROOM_HOSTS = [
     "https://techno-cardi.github.io/Plan-de-cours/*",
@@ -224,6 +224,27 @@ def patch_historical_graphql(worker: Path) -> None:
     if "graphql(?:[/?]|$)" not in text:
         raise BaselineContractError("Le garde /graphql corrigé n'est pas présent après patch.")
     worker.write_text(text, encoding="utf-8")
+
+
+def apply_hotfix_113_overlay(repo_root: Path, dist: Path, *, gestion_version: str) -> bool:
+    """Apply the exact audited 1.1.13 historical overlay for the user-verified 1.1.8 base."""
+    if gestion_version != "1.1.8":
+        return False
+    overlay = repo_root / HOTFIX_113_OVERLAY
+    required = (
+        "formative.js",
+        "chatgpt.js",
+        "legacy-service-worker.js",
+        "diagnostics.js",
+        "popup-diagnostics.js",
+        "popup.html",
+    )
+    missing = [name for name in required if not (overlay / name).is_file()]
+    if missing:
+        raise BaselineContractError("Overlay 1.1.13 incomplet: " + ", ".join(missing))
+    for name in ("formative.js", "chatgpt.js", "diagnostics.js", "popup-diagnostics.js"):
+        shutil.copy2(overlay / name, dist / name)
+    return True
 
 
 def patch_user_verified_118_changed_answer_force(worker: Path) -> None:
@@ -1259,7 +1280,8 @@ def assemble_from_extracted_baseline(
 
     chatgpt_path = dist / "chatgpt.js"
     original_chatgpt_sha256 = sha256(chatgpt_path)
-    if gestion_version == "1.1.8":
+    hotfix_113 = apply_hotfix_113_overlay(repo_root, dist, gestion_version=gestion_version)
+    if gestion_version == "1.1.8" and not hotfix_113:
         patch_user_verified_118_chatgpt_batch_binding(chatgpt_path)
         patch_user_verified_118_chatgpt_current_ui(chatgpt_path)
         patch_user_verified_118_chatgpt_no_auto_reload(chatgpt_path)
@@ -1278,11 +1300,14 @@ def assemble_from_extracted_baseline(
     original_worker = dist / "service-worker.js"
     original_worker_sha256 = sha256(original_worker)
     legacy_worker = dist / "legacy-service-worker.js"
-    shutil.copy2(original_worker, legacy_worker)
-    patch_historical_graphql(legacy_worker)
-    if gestion_version == "1.1.8":
-        patch_user_verified_118_changed_answer_force(legacy_worker)
-        patch_user_verified_118_worker_chatgpt_ping(legacy_worker)
+    if hotfix_113:
+        shutil.copy2(repo_root / HOTFIX_113_OVERLAY / "legacy-service-worker.js", legacy_worker)
+    else:
+        shutil.copy2(original_worker, legacy_worker)
+        patch_historical_graphql(legacy_worker)
+        if gestion_version == "1.1.8":
+            patch_user_verified_118_changed_answer_force(legacy_worker)
+            patch_user_verified_118_worker_chatgpt_ping(legacy_worker)
     patched_legacy_worker_sha256 = sha256(legacy_worker)
 
     formative_root, formative_manifest = build_formative_v2(repo_root, scratch)
@@ -1296,13 +1321,22 @@ def assemble_from_extracted_baseline(
     copy_formative_v2_files(formative_root, dist)
 
     classroom_scripts = adapt_classroom(classroom_root, dist)
-    popup_name, original_popup_sha256, adapted_popup_sha256 = augment_historical_popup(
-        repo_root,
-        dist,
-        baseline_manifest,
-        gestion_version=gestion_version,
-        chatgpt_version=chatgpt_version,
-    )
+    if hotfix_113:
+        popup_name = str((baseline_manifest.get("action") or {}).get("default_popup") or "").strip()
+        popup_path = dist / popup_name
+        original_popup_sha256 = sha256(popup_path)
+        shutil.copy2(repo_root / HOTFIX_113_OVERLAY / "popup.html", popup_path)
+        adapted_popup_sha256 = sha256(popup_path)
+        dashboard = (repo_root / "Cardinal" / "AIO" / AIO_POPUP_JS).read_text(encoding="utf-8")
+        (dist / AIO_POPUP_JS).write_text(dashboard, encoding="utf-8")
+    else:
+        popup_name, original_popup_sha256, adapted_popup_sha256 = augment_historical_popup(
+            repo_root,
+            dist,
+            baseline_manifest,
+            gestion_version=gestion_version,
+            chatgpt_version=chatgpt_version,
+        )
 
     manifest = merge_manifest(
         baseline_manifest,
@@ -1330,6 +1364,20 @@ def assemble_from_extracted_baseline(
         raise BaselineContractError(str(exc)) from exc
 
     worker = (
+        "'use strict';\n"
+        "importScripts('diagnostics.js');\n\n"
+        "for (const modulePath of ['legacy-service-worker.js','classroom-background-aio.js','background-v2.js']) {\n"
+        "  try {\n"
+        "    importScripts(modulePath);\n"
+        "    globalThis.CardinalDiagnostics?.record?.('service-worker','module.loaded',{modulePath});\n"
+        "  } catch (error) {\n"
+        "    globalThis.CardinalDiagnostics?.record?.('service-worker','module.load.error',{\n"
+        "      modulePath, name:error?.name||null, message:error?.message||String(error),\n"
+        "      stack:String(error?.stack||'').slice(0,3000)\n"
+        "    },'error');\n"
+        "  }\n"
+        "}\n"
+    ) if hotfix_113 else (
         "'use strict';\n"
         "importScripts('legacy-service-worker.js');\n"
         "importScripts('classroom-background-aio.js');\n"
