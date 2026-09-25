@@ -23,7 +23,7 @@ from aio_rebuild_contract import (
     verify_core_hashes,
     verify_tree_hashes,
 )
-from rebuild_aio_safe import augment_historical_popup, make_zip, patch_historical_graphql, patch_user_verified_118_changed_answer_force, patch_user_verified_118_chatgpt_batch_binding, patch_user_verified_118_chatgpt_current_ui, patch_user_verified_118_chatgpt_no_auto_reload, validate_content_script_parse_compatibility, validate_output, validate_popup_script_compatibility
+from rebuild_aio_safe import augment_historical_popup, make_zip, patch_historical_graphql, patch_user_verified_118_changed_answer_force, patch_user_verified_118_chatgpt_batch_binding, patch_user_verified_118_chatgpt_current_ui, patch_user_verified_118_chatgpt_no_auto_reload, patch_user_verified_118_chatgpt_live_ping, patch_user_verified_118_worker_chatgpt_ping, validate_content_script_parse_compatibility, validate_output, validate_popup_script_compatibility
 from audit_recovered_baseline import audit_baseline
 
 
@@ -366,6 +366,47 @@ class AioRebuildContractTests(unittest.TestCase):
             bad.write_text("'use strict';", encoding="utf-8")
             with self.assertRaisesRegex(BaselineContractError, "disable ChatGPT auto reload|Adaptation"):
                 patch_user_verified_118_chatgpt_no_auto_reload(bad)
+
+    def test_chatgpt_bridge_ping_prevents_redundant_focus_reinjection(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            chatgpt = root / "chatgpt.js"
+            chatgpt.write_text(
+                """  try {
+    chrome.runtime.onMessage.addListener(message=>{
+      if(message?.type==='CARDINAL_SIMPLE_CONTEXT_CLEARED'){
+        cachedContext=null;
+        $('panel').classList.add('hidden');
+        refreshButton();
+      }
+    });
+  } catch {}
+""",
+                encoding="utf-8",
+            )
+            patch_user_verified_118_chatgpt_live_ping(chatgpt)
+            text = chatgpt.read_text(encoding="utf-8")
+            self.assertIn("CARDINAL_CHATGPT_BRIDGE_PING", text)
+            self.assertIn("bridgeVersion:BRIDGE_VERSION", text)
+
+            worker = root / "legacy-service-worker.js"
+            worker.write_text(
+                """async function cardinalReinjectChatGptBridge1000(tabId) {
+  if (!tabId) return;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const url = String(tab?.url || '');
+    if (!/^https:\/\/(chatgpt\.com|chat\.openai\.com)\//i.test(url)) return;
+    await chrome.scripting.executeScript({ target:{ tabId }, files:['chatgpt.js'] });
+  } catch {}
+}
+""",
+                encoding="utf-8",
+            )
+            patch_user_verified_118_worker_chatgpt_ping(worker)
+            worker_text = worker.read_text(encoding="utf-8")
+            self.assertIn("CARDINAL_CHATGPT_BRIDGE_PING", worker_text)
+            self.assertIn("if (live?.ok && live?.bridgeVersion === '1.1.8') return;", worker_text)
 
     def test_chatgpt_current_ui_patch_adds_explicit_role_markers(self):
         with tempfile.TemporaryDirectory() as td:
