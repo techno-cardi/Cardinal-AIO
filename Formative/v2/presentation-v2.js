@@ -269,7 +269,11 @@
     const warnings = count(ui.warnings, issueWarnings);
     const model = {
       state: prepared.state || (prepared.ok ? 'ready' : 'blocked'),
-      statusLabel: blockers > 0 ? (ui.status || '✕ Bloqué') : '✓ Prêt',
+      statusLabel: blockers > 0
+        ? (ui.status || '✕ Bloqué')
+        : warnings > 0
+          ? (ui.status || '⚠ À vérifier')
+          : '✓ Prêt',
       targetTitle: prepared.targetTitle || ui.targetTitle || null,
       questions: count(ui.questions, validation?.stats?.questions ?? validationRows.length),
       auto: count(ui.auto, validation?.stats?.auto),
