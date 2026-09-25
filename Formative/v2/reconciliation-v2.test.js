@@ -92,6 +92,39 @@ const deps = { managed };
   assert.equal(r.formativeItemId, 'NEW1');
 }
 
+// CREATE: a durable mutation acknowledgement wins over same-subtype ambiguity.
+{
+  const op = {
+    action: 'CREATE', fingerprint: 'q1', desired: desired('New?'),
+    adaptedItem: { subtype: 'shortAnswer' }, preexistingServerItemIds: [],
+    recoveryFormativeItemId: 'NEW1'
+  };
+  const r = R.reconcileOperation({
+    op,
+    serverItems: [serverItem('NEW1', 'Partially configured?'), serverItem('NEW2', 'Teacher item?')],
+    snapshotComplete: true
+  }, deps);
+  assert.equal(r.state, 'repairable');
+  assert.equal(r.formativeItemId, 'NEW1');
+  assert.equal(r.exactAcknowledgedId, true);
+}
+
+// CREATE: an acknowledged ID already at the desired state is committed directly.
+{
+  const op = {
+    action: 'CREATE', fingerprint: 'q1', desired: desired('New?'),
+    adaptedItem: { subtype: 'shortAnswer' }, preexistingServerItemIds: [],
+    recoveryFormativeItemId: 'NEW1'
+  };
+  const r = R.reconcileOperation({
+    op,
+    serverItems: [serverItem('NEW1', 'New?'), serverItem('NEW2', 'Teacher item?')],
+    snapshotComplete: true
+  }, deps);
+  assert.equal(r.state, 'committed');
+  assert.equal(r.formativeItemId, 'NEW1');
+}
+
 // CREATE: one new same-subtype item with different content could be Cardinal's item edited after commit -> conflict.
 {
   const op = {
