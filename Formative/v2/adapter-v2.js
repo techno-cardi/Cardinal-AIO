@@ -507,7 +507,7 @@
       }
     };
 
-    if (item?.grading?.mode !== 'manual' && matches.length) {
+    if (item?.grading?.mode === 'auto' && matches.length) {
       out.grading = {
         mode: 'keyword-absolute',
         partialCredit: item?.grading?.partialCredit !== false,
@@ -515,6 +515,11 @@
         matches
       };
     } else {
+      // Une correction v2 "assisted" reste une correction Cardinal. Formative
+      // ne sait pas représenter fidèlement une question à 2 points dont les
+      // indices Keyword absolus valent chacun 1 point: son maximum retombe au
+      // plus grand answerChoicePoints. On conserve donc le vrai maximum et on
+      // laisse la note native Formative en manuel pour ces réponses construites.
       out.grading = {
         mode: 'manual',
         partialCredit: false,
