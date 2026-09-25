@@ -288,7 +288,7 @@ const popupSender = { id: 'ext-1', url: 'chrome-extension://ext-1/popup.html' };
   const router = R.createRouter({ controller });
   const pkg = { schema: 'cardinal.formative/2', packageMode: 'patch' };
   const result = await router.handle({
-    type: R.MESSAGE_TYPES.REPREPARE,
+    type: 'CARDINAL_FORMATIVE_IMPORT_REPREPARE',
     payload: { token: 'old', pkg }
   });
   assert.equal(result.ok, true);
