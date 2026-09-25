@@ -79,7 +79,30 @@
       }
     }
 
-    return [...byOutput.values()];
+    let matches = [...byOutput.values()];
+
+    if (['shortAnswer', 'longAnswer'].includes(item?.subtype) && grading.mode !== 'manual') {
+      const maximum = Number(item?.points?.value);
+      const expectedAnswer = oneLine(grading.expectedAnswer);
+      const hasMaximumMatch = Number.isFinite(maximum) &&
+        matches.some(match => Number(match?.score) === maximum);
+
+      if (Number.isFinite(maximum) && !hasMaximumMatch && expectedAnswer) {
+        const expectedCanonical = normalizeTerm(expectedAnswer, caseSensitive);
+        const previous = canonicalScores.get(expectedCanonical);
+        if (previous != null && previous !== maximum) {
+          const error = new Error(`La réponse attendue complète possède déjà un pointage partiel (${previous}) différent du maximum (${maximum}).`);
+          error.code = 'AUDIT_MAX_ANCHOR_CONFLICT';
+          throw error;
+        }
+        if (previous == null) {
+          canonicalScores.set(expectedCanonical, maximum);
+          matches = [{ text: expectedAnswer, score: maximum }, ...matches];
+        }
+      }
+    }
+
+    return matches;
   }
 
   function exactBlankAnswers(item = {}) {
