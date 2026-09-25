@@ -222,8 +222,7 @@
     async function updateQuestion(id, input) {
       const raw = await invoke('updateQuestion', {
         formativeItemId: String(id),
-        input,
-        withHasItemTags: false
+        input
       });
       await settle();
       return raw;
