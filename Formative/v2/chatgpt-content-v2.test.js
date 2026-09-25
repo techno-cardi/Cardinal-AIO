@@ -129,11 +129,31 @@ const U = require('./chatgpt-content-v2.js');
     const partial = U.buildSelectedQuestionPackage(original, ['q2']);
     assert.equal(partial.partial, true);
     assert.equal(partial.pkg.packageMode, 'patch');
-    assert.deepEqual(partial.pkg.items.map(item => item.id), ['q2']);
+    assert.deepEqual(partial.pkg.items.map(item => item.id), ['s1', 'q2', 'i1']);
     assert.equal('declaredTotalPoints' in partial.pkg.assessment, false);
     assert.deepEqual(partial.pkg.issues.map(issue => issue.code), ['Q2_ONLY', 'GLOBAL_SOURCE_NOTE']);
     assert.equal(original.packageMode, 'full', 'selection must not mutate the source package');
     assert.deepEqual(original.items.map(item => item.id), ['s1', 'q1', 'q2', 'i1']);
+
+    const withPassage = JSON.parse(JSON.stringify(original));
+    withPassage.items.splice(1, 0, {
+      id: 'p1',
+      kind: 'passageGroup',
+      order: 2,
+      embed: true,
+      sourceRefs: ['src'],
+      content: 'Texte commun',
+      questionIds: ['q1', 'q2']
+    });
+    withPassage.items.find(item => item.id === 'q1').order = 3;
+    withPassage.items.find(item => item.id === 'q2').order = 4;
+    withPassage.items.find(item => item.id === 'i1').order = 5;
+    withPassage.issues.push({ severity: 'blocker', code: 'PASSAGE_CONTEXT', itemId: 'p1', message: 'Passage requis' });
+    const passageSubset = U.buildSelectedQuestionPackage(withPassage, ['q2']);
+    const keptPassage = passageSubset.pkg.items.find(item => item.id === 'p1');
+    assert(keptPassage, 'relevant passageGroup must survive question selection');
+    assert.deepEqual(keptPassage.questionIds, ['q2']);
+    assert(passageSubset.pkg.issues.some(issue => issue.code === 'PASSAGE_CONTEXT'), 'context blocker must not be stripped');
 
     const all = U.buildSelectedQuestionPackage(original, ['q2', 'q1']);
     assert.equal(all.partial, false);
