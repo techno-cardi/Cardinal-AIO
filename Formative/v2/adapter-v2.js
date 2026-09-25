@@ -342,7 +342,7 @@
     const options = Array.isArray(item?.response?.options) ? item.response.options : [];
     const correctCount = options.filter(option => option?.correct === true).length;
     const multi = item.subtype === 'multipleSelection';
-    const partial = multi && item?.grading?.partialCredit !== false;
+    const partial = multi && item?.grading?.partialCredit === true;
 
     const defs = options.map(option => {
       const correct = option?.correct === true;
@@ -427,7 +427,7 @@
       return {
         ...common,
         grading: {
-          partialCredit: item?.grading?.partialCredit !== false
+          partialCredit: item?.grading?.partialCredit === true
         },
         segments: fitbSegments(item, issues)
       };
@@ -440,7 +440,7 @@
       }
       return {
         ...common,
-        grading: { partialCredit: item?.grading?.partialCredit !== false },
+        grading: { partialCredit: item?.grading?.partialCredit === true },
         segments: inlineChoiceSegments(item, issues)
       };
     }
@@ -453,7 +453,7 @@
       return {
         ...common,
         prompt: asString(item.prompt),
-        grading: { partialCredit: item?.grading?.partialCredit !== false },
+        grading: { partialCredit: item.subtype === 'multipleSelection' && item?.grading?.partialCredit === true },
         choices: choiceDefinitions(item, issues)
       };
     }
@@ -478,7 +478,7 @@
       return {
         ...common,
         prompt: asString(item.prompt),
-        grading: { partialCredit: item?.grading?.partialCredit !== false },
+        grading: { partialCredit: item?.grading?.partialCredit === true },
         choices: sequence
       };
     }
@@ -508,7 +508,7 @@
       return {
         ...common,
         prompt: asString(item.prompt),
-        grading: { partialCredit: item?.grading?.partialCredit !== false },
+        grading: { partialCredit: item?.grading?.partialCredit === true },
         pairs
       };
     }
@@ -583,7 +583,7 @@
     if (item?.grading?.mode !== 'manual' && matches.length) {
       out.grading = {
         mode: 'keyword-absolute',
-        partialCredit: item?.grading?.partialCredit !== false,
+        partialCredit: item?.grading?.partialCredit === true,
         caseSensitive: item?.grading?.caseSensitive === true,
         matches
       };
