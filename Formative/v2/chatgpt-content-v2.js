@@ -313,8 +313,11 @@
       record.shell.appendChild(title);
       const list = element('div');
       list.style.display = 'grid';
-      list.style.gap = '7px';
+      list.style.gap = '6px';
       list.style.marginTop = '9px';
+      list.style.maxHeight = '260px';
+      list.style.overflowY = 'auto';
+      list.style.padding = '4px 2px';
       for (const row of response.chooserRows || []) {
         const button = element('button', `${row.title || 'Formative'}${row.active ? ' · onglet actif' : ''}`);
         button.type = 'button';
@@ -336,11 +339,11 @@
       const previousResponse = record.response;
       record.shell.replaceChildren();
 
-      const title = element('div', 'Choisir les questions à importer');
+      const title = element('div', 'Questions à importer');
       title.style.fontWeight = '650';
       const note = element(
         'div',
-        'Les questions non cochées ne seront ni créées, ni modifiées, ni supprimées. Un import partiel est traité comme une mise à jour ciblée.'
+        'Toutes sont cochées par défaut. Les questions décochées restent intactes dans Formative.'
       );
       note.style.marginTop = '3px';
       note.style.opacity = '.78';
@@ -352,9 +355,9 @@
       controls.style.gap = '7px';
       controls.style.marginTop = '9px';
 
-      const selectAll = element('button', 'Tout sélectionner');
+      const selectAll = element('button', 'Toutes');
       selectAll.type = 'button';
-      const selectNone = element('button', 'Tout enlever');
+      const selectNone = element('button', 'Aucune');
       selectNone.type = 'button';
       controls.append(selectAll, selectNone);
       record.shell.appendChild(controls);
@@ -371,6 +374,9 @@
         label.style.gridTemplateColumns = 'auto 1fr';
         label.style.gap = '8px';
         label.style.alignItems = 'start';
+        label.style.padding = '6px 8px';
+        label.style.borderRadius = '8px';
+        label.style.background = 'rgba(127,127,127,.07)';
 
         const input = element('input');
         input.type = 'checkbox';
@@ -387,7 +393,9 @@
           `Q${row.number} · ${row.points} pt${row.points === 1 ? '' : 's'}`
         );
         heading.style.fontWeight = '600';
-        const prompt = element('div', row.prompt || row.id);
+        const promptText = row.prompt || row.id;
+        const prompt = element('div', promptText.length > 150 ? `${promptText.slice(0, 147)}…` : promptText);
+        prompt.title = promptText;
         prompt.style.fontSize = '12px';
         prompt.style.opacity = '.82';
         body.append(heading, prompt);
@@ -404,9 +412,16 @@
       function selectedIds() {
         return inputs.filter(input => input.checked).map(input => String(input.value));
       }
+      let confirm = null;
       function updateStatus() {
         const count = selectedIds().length;
-        status.textContent = `${count} question${count === 1 ? '' : 's'} sélectionnée${count === 1 ? '' : 's'} sur ${rows.length}`;
+        status.textContent = `${count}/${rows.length} question${count === 1 ? '' : 's'}`;
+        if (confirm) {
+          confirm.disabled = count === 0;
+          confirm.textContent = count === rows.length
+            ? 'Préparer l’import'
+            : `Préparer ${count} question${count === 1 ? '' : 's'}`;
+        }
       }
       for (const input of inputs) input.addEventListener('change', updateStatus);
       selectAll.addEventListener('click', () => {
@@ -429,19 +444,21 @@
       cancel.type = 'button';
       cancel.addEventListener('click', () => renderResponse(record, previousResponse));
 
-      const confirm = element('button', 'Continuer');
+      confirm = element('button', 'Préparer l’import');
       confirm.type = 'button';
+      updateStatus();
       confirm.addEventListener('click', async () => {
         try {
           const selection = buildSelectedQuestionPackage(record.pkg, selectedIds());
           record.selectionConfirmed = true;
           record.selectedQuestionIds = selection.selectedQuestionIds;
           record.activePkg = selection.pkg;
-          const target = {
-            requestedTabId: previousResponse?.targetTabId,
-            requestedTargetId: previousResponse?.targetFormativeId
-          };
-          await prepare(record, target, selection.pkg);
+          record.shell.replaceChildren(element('div', 'Cardinal relit le Formative déjà lié…'));
+          const response = await send('CARDINAL_FORMATIVE_IMPORT_REPREPARE', {
+            token: record.token || previousResponse?.token,
+            pkg: selection.pkg
+          });
+          renderResponse(record, response);
         } catch (error) {
           status.textContent = error?.message || String(error);
           status.style.opacity = '1';
