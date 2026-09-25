@@ -343,4 +343,79 @@ function pkg(items, overrides = {}) {
   assert(result.issues.filter(x => x.code === 'TRANSFORMATION_REVIEW_REQUIRED').length >= 2);
 }
 
+// Explicit ChatGPT blockers are part of the package contract and must stop
+// transport. Cardinal must not discard the pedagogical decision upstream.
+{
+  const q = baseQuestion({
+    issues: [{
+      severity: 'blocker',
+      code: 'SOURCE_REQUIRED',
+      message: 'La source nécessaire est absente.'
+    }]
+  });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'SOURCE_REQUIRED' && x.itemId === 'q1'));
+}
+
+// A media heuristic discovered by Cardinal is advisory only. It must not turn
+// a valid package into a global veto by redoing ChatGPT's pedagogical judgment.
+{
+  const q = baseQuestion({
+    prompt: 'Observe l’image et réponds.',
+    sourceRefs: ['image-source'],
+    grading: {
+      ...baseQuestion().grading,
+      mode: 'manual',
+      provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      concepts: []
+    }
+  });
+  const input = pkg([q], {
+    sources: [
+      { id: 'questions', role: 'questionnaire', label: 'Questions', status: 'provided' },
+      { id: 'image-source', role: 'appendix', label: 'Image', status: 'missing' }
+    ]
+  });
+  const result = V2.validatePackageV2(input);
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'MEDIA_DEPENDENCY_MISSING' && x.severity === 'warning'));
+}
+
+// An explicit contradiction inside the package is technical contract
+// inconsistency, not a Cardinal pedagogical opinion.
+{
+  const q = baseQuestion({
+    grading: {
+      ...baseQuestion().grading,
+      mode: 'auto',
+      provenance: { kind: 'sourceMissing', sourceRefs: ['texte'] }
+    }
+  });
+  const input = pkg([q], {
+    sources: [
+      { id: 'questions', role: 'questionnaire', label: 'Questions', status: 'provided' },
+      { id: 'texte', role: 'text', label: 'Texte', status: 'missing' }
+    ]
+  });
+  const result = V2.validatePackageV2(input);
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'SOURCE_MODE_CONFLICT'));
+}
+
+// Empty pedagogical metadata is a warning when it does not create an invalid
+// Formative payload. expectedAnswer remains available to the adapter.
+{
+  const q = baseQuestion({
+    grading: {
+      ...baseQuestion().grading,
+      concepts: [{ id: 'vide', label: 'Indice', score: 99, provenance: 'sourceExplicit', terms: [] }]
+    }
+  });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'EMPTY_CONCEPT_TERMS' && x.severity === 'warning'));
+  assert(!result.issues.some(x => x.code === 'SCORE_GT_MAX'));
+}
+
 console.log('validator-v2: all tests passed');
