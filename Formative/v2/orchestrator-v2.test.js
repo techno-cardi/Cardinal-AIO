@@ -100,6 +100,10 @@ function transport(log, options = {}) {
     reconcileOperation: async ({ op }) => {
       log.push(`reconcile:${op.action}:${op.fingerprint}`);
       return options.reconcileVerdict || { state: 'committed', formativeItemId: op.formativeItemId || 'I-created', serverRevision: 'rev-recovered' };
+    },
+    repairPartialCreate: async ({ op, formativeItemId }) => {
+      log.push(`repair:${op.action}:${op.fingerprint}:${formativeItemId}`);
+      return { formativeItemId };
     }
   };
 }
@@ -203,6 +207,47 @@ function baselineFor(sourcePkg, target = 'F') {
     assert.equal(log.filter(x => x.startsWith('mutate:')).length, 0);
   }
 
+  // A repairable partial CREATE reuses the exact server item and never issues a second CREATE.
+  {
+    const persistence = makePersistence();
+    const sourcePkg = pkg();
+    const O = makeOrchestrator(persistence);
+    const prepared0 = await O.prepare({
+      pkg: sourcePkg, targetFormativeId: 'F', assessmentFingerprint: 'A',
+      serverItems: [], preflightInjected: preflightDeps
+    });
+    let j = journal.createJournal({
+      runId: 'partial-create', targetFormativeId: 'F', assessmentFingerprint: 'A', packageMode: 'patch',
+      executionContractHash: prepared0.executionContract.hash,
+      executionPlan: prepared0.plannerOperations,
+      operations: executor.makeJournalOperations(prepared0.plannerOperations)
+    });
+    await persistence.saveJournal(j);
+    const opId = j.operations[0].operationId;
+    j = journal.startOperation(j, opId);
+    await persistence.saveJournal(j);
+    const createError = new Error('configuration failed after create');
+    createError.formativeItemId = 'I-partial';
+    j = journal.markFailed(j, opId, createError, { mutationMayHaveCommitted: true });
+    await persistence.saveJournal(j);
+
+    const prepared = await O.prepare({
+      pkg: sourcePkg, targetFormativeId: 'F', assessmentFingerprint: 'A',
+      serverItems: [], preflightInjected: preflightDeps
+    });
+    assert.equal(prepared.state, 'recovery');
+
+    const log = [];
+    const result = await O.execute(prepared, {
+      transport: transport(log, {
+        reconcileVerdict: { state: 'repairable', formativeItemId: 'I-partial' }
+      })
+    });
+    assert.equal(result.state, 'completed');
+    assert.equal(log.filter(x => x.startsWith('repair:')).length, 1);
+    assert.equal(log.filter(x => x.startsWith('mutate:CREATE')).length, 0);
+  }
+
   // Incomplete journal without immutable plan fails closed rather than recomputing a potentially unsafe plan.
   {
     const persistence = makePersistence();
@@ -221,6 +266,49 @@ function baselineFor(sourcePkg, target = 'F') {
     const prepared = await O.prepare({ pkg: pkg(), targetFormativeId: 'F', assessmentFingerprint: 'A', serverItems: [], preflightInjected: preflightDeps });
     assert.equal(prepared.state, 'recovery_blocked');
     assert.equal(prepared.reason, 'RECOVERY_PLAN_MISSING');
+  }
+
+  // A journal that is already BLOCKED with no uncertain write is safe to
+  // discard. A fresh dry-run must replace the dead recovery loop.
+  {
+    const persistence = makePersistence();
+    const sourcePkg = pkg();
+    const prepared0 = await makeOrchestrator(persistence).prepare({
+      pkg: sourcePkg,
+      targetFormativeId: 'F',
+      assessmentFingerprint: 'A',
+      serverItems: [],
+      preflightInjected: preflightDeps
+    });
+    let stuck = journal.createJournal({
+      runId: 'stuck-blocked',
+      targetFormativeId: 'F',
+      assessmentFingerprint: 'A',
+      packageMode: 'patch',
+      executionContractHash: prepared0.executionContract.hash,
+      executionPlan: prepared0.plannerOperations,
+      operations: executor.makeJournalOperations(prepared0.plannerOperations)
+    });
+    await persistence.saveJournal(stuck);
+    stuck = journal.markBlocked(
+      stuck,
+      stuck.operations[0].operationId,
+      { code: 'CREATE_TARGET_CHANGED_SINCE_PREFLIGHT', message: 'old dead plan' }
+    );
+    await persistence.saveJournal(stuck);
+
+    const O = makeOrchestrator(persistence, { runIdFactory: () => 'fresh-after-stuck' });
+    const prepared = await O.prepare({
+      pkg: sourcePkg,
+      targetFormativeId: 'F',
+      assessmentFingerprint: 'A',
+      serverItems: [],
+      preflightInjected: preflightDeps
+    });
+    assert.equal(prepared.mode, 'new');
+    assert.equal(prepared.runId, 'fresh-after-stuck');
+    assert.equal(prepared.abandonedRecovery.runId, 'stuck-blocked');
+    assert.equal(await persistence.loadJournal('F', 'A'), null);
   }
 
   // A completed old journal does not hijack a future fresh import.

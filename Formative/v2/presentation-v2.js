@@ -22,7 +22,8 @@
   const RECONCILIATION_LABELS = Object.freeze({
     'legacy-exact': 'Correspondance retrouvée',
     'exact-state': 'Correspondance identique',
-    'legacy-changed': 'Modifiée dans Formative'
+    'legacy-changed': 'Modifiée dans Formative',
+    'prompt-changed': 'Même énoncé, réglages différents'
   });
 
   function oneLine(value) {
@@ -110,7 +111,8 @@
         typeLabel: TYPE_LABELS[proposal.subtype] || proposal.subtype || 'Question',
         match: proposal.match,
         matchLabel: RECONCILIATION_LABELS[proposal.match] || 'À vérifier',
-        safeSuggestedLink: proposal.safeToAdoptDesiredAsBaseline === true,
+        safeSuggestedLink: proposal.safeToAdoptServerAsBaseline === true || proposal.safeToAdoptDesiredAsBaseline === true,
+        willUpdateAfterLink: proposal.safeToAdoptDesiredAsBaseline !== true && proposal.safeToAdoptServerAsBaseline === true,
         note: oneLine(proposal.note),
         // Hidden state-binding value used by the click handler. It is not a
         // credential and must never be treated as a user-visible secret.
@@ -125,7 +127,7 @@
     if (state === 'uncertain') {
       return {
         id: 'resume',
-        label: 'Vérifier et reprendre',
+        label: 'Reprendre l’import',
         enabled: true,
         emphasis: 'warning'
       };
@@ -140,7 +142,10 @@
     }
     if (state === 'reconciliation_required') {
       if (model.reconciliationConflicts > 0) {
-        return { id: 'review-reconciliation', label: 'Vérifier les questions modifiées', enabled: true, emphasis: 'warning' };
+        return { id: 'review-reconciliation', label: 'Vérifier les correspondances', enabled: true, emphasis: 'warning' };
+      }
+      if (model.reconciliationUpdates > 0) {
+        return { id: 'confirm-reconciliation', label: 'Relier puis préparer les mises à jour', enabled: true, emphasis: 'warning' };
       }
       if (model.reconciliationProposals > 0) {
         return { id: 'confirm-reconciliation', label: 'Relier et continuer', enabled: true, emphasis: 'primary' };
@@ -151,7 +156,7 @@
     if (state === 'importing') return { id: 'none', label: 'Import en cours…', enabled: false, emphasis: 'primary' };
     if (state === 'completed') return { id: 'reimport', label: 'Réimporter dans Formative', enabled: true, emphasis: 'secondary' };
     if (state === 'blocked' || model.blockers > 0) return { id: 'none', label: 'Import bloqué', enabled: false, emphasis: 'danger' };
-    if (state === 'review' || model.warnings > 0) return { id: 'import-review', label: 'Vérifier puis importer', enabled: true, emphasis: 'warning' };
+    if (state === 'review' || model.warnings > 0) return { id: 'import', label: 'Importer dans Formative', enabled: true, emphasis: 'primary' };
     return { id: 'import', label: 'Importer dans Formative', enabled: true, emphasis: 'primary' };
   }
 
@@ -189,6 +194,7 @@
         blockers: 0,
         reconciliationProposals: Number(summary.proposed || 0),
         reconciliationConflicts: conflicts,
+        reconciliationUpdates: rows.filter(row => row.willUpdateAfterLink).length,
         exactLegacyMatches: Number(summary.legacyExact || 0),
         exactStateMatches: Number(summary.exactState || 0),
         unmatchedDesired: Number(summary.unmatchedDesired || 0),
@@ -199,10 +205,12 @@
           .filter(row => row.safeSuggestedLink)
           .map(row => ({ fingerprint: row.fingerprint, approvalToken: row.approvalToken })),
         explanation: conflicts
-          ? 'Certaines questions semblent venir d’un ancien import, mais elles ont changé. Cardinal les préserve et demande une décision avant toute écriture.'
-          : rows.length
-            ? 'Cardinal a retrouvé des questions déjà présentes. Confirme les correspondances pour éviter les doublons.'
-            : 'Aucune question existante ne correspond exactement au nouveau questionnaire. Les questions déjà présentes seront conservées.'
+          ? 'Certaines correspondances sont ambiguës. Cardinal ne choisira pas à ta place.'
+          : rows.some(row => row.willUpdateAfterLink)
+            ? 'Cardinal a retrouvé des questions existantes avec le même énoncé ou un ancien lien. Les relier ne modifie rien: Cardinal reprendra ensuite un dry-run et proposera les vraies mises à jour séparément.'
+            : rows.length
+              ? 'Cardinal a retrouvé des questions déjà présentes. Confirme les correspondances pour éviter les doublons.'
+              : 'Aucune question existante ne correspond au nouveau questionnaire. Les questions déjà présentes seront conservées.'
       };
       model.primaryAction = primaryAction(model);
       model.validationRows = buildValidationRows(prepared.pkg || {});
@@ -215,7 +223,9 @@
     const ui = prepared?.preflight?.data?.ui || {};
     const model = {
       state: prepared.state || (prepared.ok ? 'ready' : 'blocked'),
-      statusLabel: ui.status || (prepared.ok ? '✓ Prêt' : '✕ Bloqué'),
+      statusLabel: Number(ui.blockers || (prepared.ok ? 0 : 1)) > 0
+        ? (ui.status || '✕ Bloqué')
+        : '✓ Prêt',
       targetTitle: prepared.targetTitle || ui.targetTitle || null,
       questions: Number(ui.questions || 0),
       auto: Number(ui.auto || 0),

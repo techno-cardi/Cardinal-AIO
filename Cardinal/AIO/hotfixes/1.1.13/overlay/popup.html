@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cardinal</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;width:330px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f6f8fb;color:#172033}.wrap{padding:14px}.brand{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.brand-left{display:flex;align-items:center;gap:8px}.brand img{width:24px;height:24px;border-radius:6px}.brand strong{font-size:15px}.version{font-size:11px;color:#718096}.card{background:#fff;border:1px solid #dce4ef;border-radius:14px;padding:12px;box-shadow:0 6px 20px rgba(15,35,64,.08)}.title{font-weight:800;font-size:13px;margin-bottom:4px}.meta{font-size:12px;color:#65758b;line-height:1.4;margin-bottom:12px}.actions{display:grid;gap:8px}.btn{width:100%;border:0;border-radius:10px;padding:10px 12px;font-weight:750;font-size:13px;cursor:pointer}.primary{background:#132a4a;color:#fff}.secondary{background:#eef3f8;color:#24364f}.btn:disabled{opacity:.5;cursor:not-allowed}.notice{margin-top:10px;font-size:11px;line-height:1.4;color:#65758b}.ok{color:#17653a}.err{color:#9b2626}.diag{margin-top:10px;background:#fff;border:1px solid #dce4ef;border-radius:12px;padding:9px 11px}.diag summary{cursor:pointer;font-size:12px;font-weight:800;color:#33445b}.diag-row{display:flex;align-items:center;gap:7px;margin-top:9px;font-size:11px;color:#65758b}.diag-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}.diag-actions .btn{padding:8px;font-size:11px}.diag-note{font-size:10px;color:#718096;line-height:1.35;margin-top:7px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><div class="brand-left"><img src="icons/icon32.png" alt=""><strong>Cardinal</strong></div><span id="version" class="version"></span></div>
+    <div class="card">
+      <div id="pageTitle" class="title">Détection de la page…</div>
+      <div id="pageMeta" class="meta"></div>
+      <div id="actions" class="actions"></div>
+      <div id="status" class="notice"></div>
+    </div>
+    <details class="diag" id="diagnosticPanel">
+      <summary>Diagnostic</summary>
+      <label class="diag-row"><input id="diagnosticDeep" type="checkbox"> Mode diagnostic approfondi</label>
+      <div class="diag-actions">
+        <button id="diagnosticExport" class="btn secondary" type="button">Exporter</button>
+        <button id="diagnosticClear" class="btn secondary" type="button">Effacer</button>
+      </div>
+      <div id="diagnosticStatus" class="diag-note">Les secrets d’authentification ne sont jamais inclus.</div>
+    </details>
+  </div>
+  <script src="popup-diagnostics.js"></script>
+  <script src="popup.js"></script>
+
+  <div id="cardinal-aio-dashboard" aria-label="État Cardinal AIO"></div>
+  <script src="aio-popup.js"></script>
+</body>
+</html>

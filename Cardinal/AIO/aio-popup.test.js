@@ -10,8 +10,8 @@ assert.deepEqual(
   Popup.MODULES.map(module => module.label),
   [
     'Gestion 1.1.9',
-    'Correction Formative 1.1.3',
-    'Importateur Formative 0.5 RC1',
+    'Correction Formative 1.1.13',
+    'Importateur Formative 0.5 RC2',
     'Mozaïk v14',
     'Pont Classroom 1.2.3',
     'Pont ChatGPT 1.1.9'
@@ -210,6 +210,46 @@ assert.equal(Popup.DISMISS_STORAGE_KEY, FormativePopup.DISMISS_STORAGE_KEY);
   assert.equal(await Popup.runAction('formative-restore', chromeApi), 'Barres masquées réactivées.');
   assert.deepEqual(removed, [Popup.DISMISS_STORAGE_KEY]);
   assert.deepEqual(sent.pop(), { tabId: 42, message: { type: Popup.UI_RESCAN_MESSAGE } });
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
+
+
+
+(async () => {
+  let sends = 0;
+  const injections = [];
+  const chromeApi = {
+    tabs: {
+      async query(info) {
+        if (info.active) return [{ id: 77, url: 'https://chatgpt.com/c/recovery' }];
+        return [];
+      },
+      async sendMessage(tabId, message) {
+        assert.equal(tabId, 77);
+        assert.equal(message.type, Popup.UI_RESCAN_MESSAGE);
+        sends += 1;
+        if (sends === 1) throw new Error('Could not establish connection. Receiving end does not exist.');
+        return { ok: true, scanned: true, packages: 1, bars: 1 };
+      }
+    },
+    scripting: {
+      async executeScript(details) {
+        injections.push(details);
+        return [];
+      }
+    }
+  };
+
+  assert.equal(
+    await Popup.rescanChatGpt(chromeApi),
+    'Scanner réinjecté · 1 paquet Cardinal détecté.'
+  );
+  assert.equal(sends, 2, 'recovery must retry the scan after injection');
+  assert.equal(injections.length, 1);
+  assert.deepEqual(injections[0].target, { tabId: 77 });
+  assert.deepEqual(injections[0].files, Popup.CHATGPT_RECOVERY_SCRIPTS);
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;

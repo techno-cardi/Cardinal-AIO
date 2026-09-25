@@ -249,8 +249,8 @@ jobs:
               assert popup.count('src="aio-popup.js"') == 1
               for label in (
                   "Gestion 1.1.9",
-                  "Correction Formative 1.1.3",
-                  "Importateur Formative 0.5 RC1",
+                  "Correction Formative 1.1.13",
+                  "Importateur Formative 0.5 RC2",
                   "Mozaïk v14",
                   "Pont Classroom 1.2.3",
                   "Pont ChatGPT 1.1.9",
@@ -320,7 +320,7 @@ jobs:
 
   build_user_verified_118:
     needs: contract
-    if: github.repository == 'techno-cardi/database'
+    if: github.repository == 'techno-cardi/Cardinal-AIO'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -341,65 +341,21 @@ jobs:
           path: _pdc
 
       - name: Reconstruct exact user-provided Gestion 1.1.8 baseline
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           python - <<'PY'
           import base64
           import hashlib
-          import json
-          import os
-          import urllib.request
           from pathlib import Path
 
-          repo = os.environ["GITHUB_REPOSITORY"]
           expected_sha = "1a8b2f592f7b112e68ce488a4b63c2175fc535c54eebb17d0fd195d53c0a9a0d"
           expected_size = 89836
-          labels = [
-              *(f"{i:02}/12" for i in range(1, 8)),
-              "08A/12", "08B/12",
-              "09A/12", "09B/12",
-              "10A/12", "10B/12",
-              "11A/12", "11B/12",
-              "12A/12", "12B/12",
-          ]
-          markers = {label: f"CARDINAL_BASELINE_118_PART {label}" for label in labels}
-          found = {label: [] for label in labels}
+          root = Path("Cardinal/AIO/baselines/gestion-1.1.8-user-verified")
+          parts = sorted(root.glob("part*.b64"))
+          if len(parts) != 17:
+              raise SystemExit(f"Baseline 1.1.8 fail-closed: {len(parts)} morceau(x), 17 attendus.")
 
-          page = 1
-          while True:
-              url = f"https://api.github.com/repos/{repo}/issues/8/comments?per_page=100&page={page}"
-              req = urllib.request.Request(
-                  url,
-                  headers={
-                      "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
-                      "Accept": "application/vnd.github+json",
-                      "X-GitHub-Api-Version": "2022-11-28",
-                  },
-              )
-              with urllib.request.urlopen(req) as resp:
-                  rows = json.load(resp)
-              for row in rows:
-                  body = row.get("body") or ""
-                  first, sep, rest = body.partition("\n")
-                  for label, marker in markers.items():
-                      if first == marker:
-                          if not sep:
-                              raise SystemExit(f"Commentaire sans payload pour {marker}")
-                          found[label].append((row.get("id"), rest.strip()))
-              if len(rows) < 100:
-                  break
-              page += 1
-
-          for label in labels:
-              rows = found[label]
-              if len(rows) != 1:
-                  raise SystemExit(
-                      f"Baseline 1.1.8 fail-closed: {label} a {len(rows)} commentaire(s), exactement 1 attendu."
-                  )
-
-          encoded = "".join(found[label][0][1] for label in labels)
+          encoded = "".join(part.read_text(encoding="utf-8").strip() for part in parts)
           raw = base64.b64decode(encoded, validate=True)
           actual_sha = hashlib.sha256(raw).hexdigest()
           if len(raw) != expected_size:
@@ -423,7 +379,7 @@ jobs:
             --baseline-profile gestion-1.1.8-user-verified \
             --repo-root . \
             --classroom-root _pdc/chrome-classroom-native-bridge \
-            --output dist/Cardinal-AIO-1.2.0-rc3-repair-g118.zip
+            --output dist/Cardinal-AIO-1.2.0-formative-1.1.13-flow-fix-g118.zip
 
       - name: Re-extract and verify generated candidate
         shell: bash
@@ -435,7 +391,7 @@ jobs:
           import zipfile
           from pathlib import Path
 
-          archive = Path("dist/Cardinal-AIO-1.2.0-rc3-repair-g118.zip")
+          archive = Path("dist/Cardinal-AIO-1.2.0-formative-1.1.13-flow-fix-g118.zip")
           metadata = archive.with_suffix(".json")
           assert archive.is_file()
           assert metadata.is_file()
@@ -456,7 +412,7 @@ jobs:
               popup_js = zf.read("aio-popup.js").decode("utf-8")
               names = set(zf.namelist())
               assert manifest["version"] == "1.2.0"
-              assert manifest["version_name"] == "1.2.0-rc3-repair-g118"
+              assert manifest["version_name"] == "1.2.0-formative-1.1.13-flow-fix-g118"
               assert "Gestion 1.1.8" in popup_js
               assert "Pont ChatGPT 1.1.8" in popup_js
               assert "background-v093.js" not in names
@@ -464,16 +420,51 @@ jobs:
               assert "formative-simple-ui.js" not in names
               assert "popup-v2.js" not in names
 
+              legacy_worker = zf.read("legacy-service-worker.js").decode("utf-8")
+              formative_ui = zf.read("formative.js").decode("utf-8")
+              for marker in (
+                  "feedbackMessages(orderBy:{field:CREATED,direction:ASC},includeReplies:true,studentIds:$studentIds)",
+                  "feedbackHistory: (feedbackByAnswer.get(answerId) || []).slice(-4)",
+                  "message?.from?.teacher === true ? 'enseignant'",
+                  "feedbackHistoryAvailable",
+              ):
+                  assert marker in legacy_worker, f"Correction feedback contract missing in worker: {marker}"
+              for marker in (
+                  "Échanges précédents dans Formative :",
+                  "Si des échanges précédents de Formative sont fournis",
+                  "Enseignant",
+                  "Élève",
+              ):
+                  assert marker in formative_ui, f"Correction feedback prompt contract missing: {marker}"
+
+              legacy_chatgpt = zf.read("chatgpt.js").decode("utf-8")
+              for marker in (
+                  "data-chatgpt-search-unit-key",
+                  "data-content-search-unit-key",
+                  "data-user-message-bubble",
+              ):
+                  assert marker in legacy_chatgpt, f"Legacy ChatGPT current-UI marker missing: {marker}"
+
+              assert "location.reload()" not in legacy_chatgpt, "ChatGPT auto reload must never ship"
+              assert "setTimeout(()=>location.reload()" not in legacy_chatgpt, "ChatGPT delayed auto reload must never ship"
+              assert "Je reprends l’envoi vers Formative" not in legacy_chatgpt, "ChatGPT auto replay must never ship"
+              assert "Recharge ChatGPT manuellement une seule fois" in legacy_chatgpt, "Manual recovery guidance missing"
+
+              assert "CARDINAL_CHATGPT_BRIDGE_PING" in legacy_chatgpt, "Live ChatGPT bridge ping missing"
+              assert "bridgeVersion:BRIDGE_VERSION" in legacy_chatgpt, "ChatGPT bridge ping version missing"
+              assert "CARDINAL_CHATGPT_BRIDGE_PING" in legacy_worker, "Worker ping-before-reinject missing"
+              assert "if (live?.ok && live?.bridgeVersion === '1.1.8') return;" in legacy_worker, "Worker must skip reinjection when bridge is live"
+
           print(f"AIO_SHA256={digest}")
           PY
 
       - name: Upload exact AIO candidate
         uses: actions/upload-artifact@v4
         with:
-          name: Cardinal-AIO-1.2.0-rc3-repair-g118
+          name: Cardinal-AIO-1.2.0-formative-1.1.13-flow-fix-g118
           path: |
-            dist/Cardinal-AIO-1.2.0-rc3-repair-g118.zip
-            dist/Cardinal-AIO-1.2.0-rc3-repair-g118.json
+            dist/Cardinal-AIO-1.2.0-formative-1.1.13-flow-fix-g118.zip
+            dist/Cardinal-AIO-1.2.0-formative-1.1.13-flow-fix-g118.json
           if-no-files-found: error
           retention-days: 30
 

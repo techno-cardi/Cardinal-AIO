@@ -222,8 +222,7 @@
     async function updateQuestion(id, input) {
       const raw = await invoke('updateQuestion', {
         formativeItemId: String(id),
-        input,
-        withHasItemTags: false
+        input
       });
       await settle();
       return raw;
@@ -408,14 +407,22 @@
             }
             return explicit;
           });
+
+          // Formative peut redimensionner answerChoicePoints si le maximum est
+          // modifié après les pondérations. Invariant prouvé: maximum d'abord,
+          // pondérations finales ensuite, puis ne plus toucher au maximum.
+          await setPoints(id, item.points);
           await updateQuestion(id, {
             isPartialCredit: true,
             answerChoicePoints
           });
         } else {
           await updateQuestion(id, { isPartialCredit: false });
+          await setPoints(id, item.points);
         }
+        return;
       }
+
       await setPoints(id, item.points);
     }
 
@@ -510,8 +517,15 @@
         blankIndex += 1;
       }
 
-      await updateFillBlank(id, tiptapWithBlanks(textParts), blankDefs);
+      const renderedText = tiptapWithBlanks(textParts);
+      await updateFillBlank(id, renderedText, blankDefs);
+
+      // Ne pas supposer que FillInTheBlankEditableContainerMutation persiste
+      // toujours le texte visible d'un inlineChoice. Réécrire explicitement le
+      // même document Tiptap par l'update générique garantit que les libellés
+      // humains entourant chaque dropdown restent visibles.
       await updateQuestion(id, {
+        text: renderedText,
         isRequired: item.isRequired !== false,
         isPartialCredit: item.grading?.partialCredit !== false
       });
@@ -540,6 +554,7 @@
       const structure = buildFitb(item, keys);
       await updateFillBlank(id, structure.text, structure.blanks);
       await updateQuestion(id, {
+        text: structure.text,
         isRequired: item.isRequired !== false,
         isKeywordGrading: true,
         isPartialCredit: item.grading?.partialCredit !== false,

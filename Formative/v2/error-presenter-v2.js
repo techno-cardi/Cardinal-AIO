@@ -104,10 +104,25 @@
     return input?.message || input?.lastError?.message || '';
   }
 
+  function diagnosticDetails(input) {
+    if (!input || typeof input === 'string') return '';
+    const pairs = [
+      ['tabId', input.tabId],
+      ['expectedTargetFormativeId', input.expectedTargetFormativeId],
+      ['urlTargetFormativeId', input.urlTargetFormativeId],
+      ['targetFormativeId', input.targetFormativeId],
+      ['serverTargetFormativeId', input.serverTargetFormativeId],
+      ['observedTargetFormativeId', input.observedTargetFormativeId]
+    ].filter(([, value]) => value != null && value !== '');
+    return pairs.map(([key, value]) => `${key}: ${String(value)}`).join('\n');
+  }
+
   function present(input, options = {}) {
     const code = codeOf(input);
     const row = MAP[code];
-    const technical = rawMessage(input);
+    const message = rawMessage(input);
+    const diagnostics = diagnosticDetails(input);
+    const technical = [message, diagnostics].filter(Boolean).join('\n');
 
     if (row) {
       return {
@@ -142,7 +157,7 @@
     };
   }
 
-  const api = { MAP, present, summarizeIssues };
+  const api = { MAP, present, summarizeIssues, diagnosticDetails };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   globalThis.CardinalFormativeV2ErrorPresenter = api;
 })();

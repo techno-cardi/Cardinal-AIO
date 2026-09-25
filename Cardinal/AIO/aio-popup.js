@@ -7,11 +7,20 @@
   const UI_RESCAN_MESSAGE = 'CARDINAL_FORMATIVE_UI_RESCAN';
   const PREPARE_MESSAGE = 'CARDINAL_FORMATIVE_PREPARE_CHATGPT';
   const DISMISS_STORAGE_KEY = 'cardinal.formative.v2.ui.dismissed';
+  const CHATGPT_RECOVERY_SCRIPTS = Object.freeze([
+    'package-parser-v2.js',
+    'chatgpt-scanner-v2.js',
+    'error-presenter-v2.js',
+    'chatgpt-content-v2.js',
+    'chatgpt-correction-audit-v2.js',
+    'chatgpt-prepare-helper-v2.js',
+    'chatgpt-entry-v2.js'
+  ]);
 
   const MODULES = Object.freeze([
     Object.freeze({ id: 'gestion', label: 'Gestion 1.1.9' }),
-    Object.freeze({ id: 'formativeCorrection', label: 'Correction Formative 1.1.3' }),
-    Object.freeze({ id: 'formativeImporter', label: 'Importateur Formative 0.5 RC1' }),
+    Object.freeze({ id: 'formativeCorrection', label: 'Correction Formative 1.1.13' }),
+    Object.freeze({ id: 'formativeImporter', label: 'Importateur Formative 0.5 RC2' }),
     Object.freeze({ id: 'mozaik', label: 'Mozaïk v14' }),
     Object.freeze({ id: 'classroom', label: 'Pont Classroom 1.2.3' }),
     Object.freeze({ id: 'chatgpt', label: 'Pont ChatGPT 1.1.9' })
@@ -147,11 +156,44 @@
     }
   }
 
+  function missingReceiverError(error) {
+    const message = String(error?.message || error || '');
+    return /Receiving end does not exist/i.test(message) ||
+      /Could not establish connection/i.test(message) ||
+      /message port closed before a response was received/i.test(message);
+  }
+
+  function scanResultMessage(response, reinjected = false) {
+    const count = Number(response?.packages);
+    if (Number.isFinite(count)) {
+      const label = count === 1 ? '1 paquet Cardinal détecté' : `${Math.max(0, count)} paquets Cardinal détectés`;
+      return reinjected ? `Scanner réinjecté · ${label}.` : `Analyse terminée · ${label}.`;
+    }
+    return reinjected ? 'Scanner réinjecté · analyse relancée.' : 'Analyse relancée dans ChatGPT.';
+  }
+
+  async function injectChatGptRecovery(chromeApi, tabId) {
+    if (!chromeApi?.scripting?.executeScript) {
+      throw new Error('Cardinal ne peut pas réinjecter le scanner ChatGPT. Recharge la page puis réessaie.');
+    }
+    await chromeApi.scripting.executeScript({
+      target: { tabId },
+      files: [...CHATGPT_RECOVERY_SCRIPTS]
+    });
+  }
+
   async function rescanChatGpt(chromeApi) {
     const tab = await activeChatGptTab(chromeApi);
     if (!tab) throw new Error('Aucune page ChatGPT active.');
-    await chromeApi.tabs.sendMessage(tab.id, { type: UI_RESCAN_MESSAGE });
-    return 'Analyse relancée dans ChatGPT.';
+    try {
+      const response = await chromeApi.tabs.sendMessage(tab.id, { type: UI_RESCAN_MESSAGE });
+      return scanResultMessage(response, false);
+    } catch (error) {
+      if (!missingReceiverError(error)) throw error;
+      await injectChatGptRecovery(chromeApi, tab.id);
+      const response = await chromeApi.tabs.sendMessage(tab.id, { type: UI_RESCAN_MESSAGE });
+      return scanResultMessage(response, true);
+    }
   }
 
   async function copyText(value, options = {}) {
@@ -399,6 +441,10 @@
     classroomBridgeIsConfirmed,
     formativeAssessmentCount,
     activeChatGptTab,
+    CHATGPT_RECOVERY_SCRIPTS,
+    missingReceiverError,
+    scanResultMessage,
+    injectChatGptRecovery,
     rescanChatGpt,
     copyText,
     prepareChatGpt,

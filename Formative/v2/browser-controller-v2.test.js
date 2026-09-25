@@ -152,6 +152,35 @@ function makeHarness(options = {}) {
     assert.equal(completed.state, 'completed');
   }
 
+  // Question selection must reuse the already-bound target instead of
+  // running target discovery a second time. This reproduces the real false
+  // REQUESTED_TARGET_TAB_MISMATCH seen after clicking the subset menu.
+  {
+    const h = makeHarness();
+    const first = await h.controller.preparePackage({ pkg: { schema: 'full' } });
+    assert.equal(first.ok, true);
+    h.setTargets([{
+      tabId: 10,
+      targetFormativeId: 'some-other-discovery-result',
+      title: 'Transient probe result',
+      active: false,
+      canEdit: true,
+      authState: 'authenticated',
+      pageKind: 'editor'
+    }]);
+
+    const subset = { schema: 'patch', items: [{ id: 'q2' }] };
+    const refreshed = await h.controller.reprepare(first.token, subset);
+    assert.equal(refreshed.ok, true);
+    assert.notEqual(refreshed.token, first.token);
+
+    const prepares = h.calls.filter(x => x[0] === 'prepare');
+    const lastInput = prepares.at(-1)[1];
+    assert.equal(lastInput.targetFormativeId, 'form-a');
+    assert.equal(lastInput.targetTabId, 10);
+    assert.deepEqual(lastInput.pkg, subset);
+  }
+
   // Reimport/retry is always a fresh prepare and server read. It never replays
   // the old prepared object/runId directly.
   {

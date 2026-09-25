@@ -21,6 +21,16 @@
     return stable(a) === stable(b);
   }
 
+  function normalizedPrompt(value) {
+    return String(value ?? '')
+      .normalize('NFC')
+      .replace(/[\u00a0\u202f]/g, ' ')
+      .replace(/[’‘`´]/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLocaleLowerCase('fr');
+  }
+
   function fnv1a64(value) {
     const text = String(value ?? '');
     let hash = 0xcbf29ce484222325n;
@@ -55,7 +65,8 @@
       match: proposal.match,
       managedState: proposal.managedState,
       desiredState: proposal.desiredState,
-      safeToAdoptDesiredAsBaseline: proposal.safeToAdoptDesiredAsBaseline === true
+      safeToAdoptDesiredAsBaseline: proposal.safeToAdoptDesiredAsBaseline === true,
+      safeToAdoptServerAsBaseline: proposal.safeToAdoptServerAsBaseline === true
     });
   }
 
@@ -217,6 +228,7 @@
           confidence: exact ? 'high' : 'review',
           requiresExplicitApproval: true,
           safeToAdoptDesiredAsBaseline: exact,
+          safeToAdoptServerAsBaseline: true,
           note: exact
             ? 'Ancien mapping retrouvé et état serveur identique au paquet.'
             : 'Ancien mapping retrouvé, mais la question actuelle n’est plus identique au paquet.'
@@ -249,6 +261,7 @@
           confidence: 'review',
           requiresExplicitApproval: true,
           safeToAdoptDesiredAsBaseline: true,
+          safeToAdoptServerAsBaseline: true,
           note: 'Question serveur sémantiquement identique, sans ancien mapping fiable.'
         });
         reservedServerIds.add(candidate.formativeItemId);
@@ -258,6 +271,50 @@
           'blocker',
           'BOOTSTRAP_EXACT_MATCH_AMBIGUOUS',
           `Plusieurs questions Formative sont identiques à ${row.sourceItemId || row.fingerprint}; Cardinal ne choisira pas à ta place.`,
+          { sourceItemId: row.sourceItemId || null, candidateIds: candidates.map(candidate => candidate.formativeItemId) }
+        );
+      }
+    }
+
+    // Pass 3: one unique question with the same subtype and normalized prompt
+    // can be linked explicitly even when points/corrigé/settings changed.
+    // Linking adopts the CURRENT SERVER state as baseline; it does not mutate
+    // Formative. The next fresh dry-run will then produce an UPDATE to desired.
+    const alreadyProposed = new Set(proposals.map(row => String(row.fingerprint)));
+    for (const row of unresolved) {
+      if (alreadyProposed.has(String(row.fingerprint))) continue;
+      const prompt = normalizedPrompt(row.managedState?.prompt);
+      if (!prompt) continue;
+      const candidates = server.filter(candidate =>
+        !reservedServerIds.has(candidate.formativeItemId) &&
+        candidate.managedState &&
+        candidate.subtype === row.subtype &&
+        normalizedPrompt(candidate.managedState?.prompt) === prompt
+      );
+
+      if (candidates.length === 1) {
+        const candidate = candidates[0];
+        proposals.push({
+          fingerprint: row.fingerprint,
+          sourceItemId: row.sourceItemId,
+          formativeItemId: candidate.formativeItemId,
+          subtype: row.subtype,
+          managedState: candidate.managedState,
+          desiredState: row.managedState,
+          match: 'prompt-changed',
+          confidence: 'review',
+          requiresExplicitApproval: true,
+          safeToAdoptDesiredAsBaseline: false,
+          safeToAdoptServerAsBaseline: true,
+          note: 'Même type et même énoncé, mais réglages/corrigé différents. La liaison seule ne modifie rien; un UPDATE sera préparé ensuite.'
+        });
+        reservedServerIds.add(candidate.formativeItemId);
+      } else if (candidates.length > 1) {
+        issue(
+          issues,
+          'blocker',
+          'BOOTSTRAP_PROMPT_MATCH_AMBIGUOUS',
+          `Plusieurs questions Formative ont le même énoncé que ${row.sourceItemId || row.fingerprint}; Cardinal ne choisira pas à ta place.`,
           { sourceItemId: row.sourceItemId || null, candidateIds: candidates.map(candidate => candidate.formativeItemId) }
         );
       }
@@ -281,6 +338,7 @@
         legacyExact: finalizedProposals.filter(row => row.match === 'legacy-exact').length,
         legacyChanged: finalizedProposals.filter(row => row.match === 'legacy-changed').length,
         exactState: finalizedProposals.filter(row => row.match === 'exact-state').length,
+        promptChanged: finalizedProposals.filter(row => row.match === 'prompt-changed').length,
         unmatchedDesired: unmatchedDesired.length,
         preservedForeign: foreignServer.length
       }
@@ -319,9 +377,9 @@
         error.fingerprint = proposal.fingerprint;
         throw error;
       }
-      if (proposal.safeToAdoptDesiredAsBaseline !== true) {
-        const error = new Error(`Proposal ${proposal.fingerprint} changed since legacy baseline; explicit conflict resolution required.`);
-        error.code = 'BOOTSTRAP_CHANGED_ITEM_NOT_ADOPTABLE_AS_DESIRED';
+      if (proposal.safeToAdoptServerAsBaseline !== true && proposal.safeToAdoptDesiredAsBaseline !== true) {
+        const error = new Error(`Proposal ${proposal.fingerprint} cannot be safely linked to the current server state.`);
+        error.code = 'BOOTSTRAP_PROPOSAL_NOT_LINKABLE';
         throw error;
       }
       entries.push({
@@ -375,7 +433,7 @@
     };
   }
 
-  const api = { stable, equal, approvalMaterial, approvalToken, analyze, buildBaseline };
+  const api = { stable, equal, normalizedPrompt, approvalMaterial, approvalToken, analyze, buildBaseline };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   globalThis.CardinalFormativeV2Bootstrap = api;
 })();
