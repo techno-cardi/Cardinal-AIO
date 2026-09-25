@@ -131,6 +131,30 @@ assert.notEqual(A.targetAssessmentId('FORMATIVE-123'), A.targetAssessmentId('FOR
   assert(q.grading.matches.some(x => x.text.toLowerCase() === 'rbmk' && x.score === 4));
 }
 
+// Auto Free Response with only partial concept scores receives the complete
+// expected answer as a technical full-score anchor instead of blocking.
+{
+  const auto = baseQuestion({
+    grading: {
+      mode: 'auto',
+      expectedAnswer: 'Deux indices partiels.',
+      provenance: { kind: 'sourceExplicit', sourceRefs: ['text'] },
+      partialCredit: true,
+      caseSensitive: false,
+      requirements: [],
+      concepts: [
+        { id: 'a', label: 'A', score: 1, provenance: 'sourceExplicit', terms: ['indice-a'], riskyTerms: [] },
+        { id: 'b', label: 'B', score: 1, provenance: 'sourceExplicit', terms: ['indice-b'], riskyTerms: [] }
+      ]
+    }
+  });
+  const result = A.adaptPackageV2ToV1(pkg([auto]), { targetFormativeId: 'FORMATIVE-123' });
+  assert.equal(result.state, 'ready');
+  const q = result.packageV1.items[0];
+  assert(q.grading.matches.some(x => x.text === 'Deux indices partiels.' && x.score === 4));
+  assert(q.grading.matches.some(x => x.text === 'indice-a' && x.score === 1));
+}
+
 // Manual mode never invents active grading matches.
 {
   const manual = baseQuestion({
@@ -337,7 +361,8 @@ assert.notEqual(A.targetAssessmentId('FORMATIVE-123'), A.targetAssessmentId('FOR
   assert.equal(result.packageV1.items[0].isRequired, false);
 }
 
-// Auto/assisted with no active concepts must not silently become manual.
+// Auto/assisted with no active concepts uses the expected answer as the native
+// full-score match. It never silently changes the grading mode to manual.
 {
   const empty = baseQuestion({
     grading: {
@@ -346,8 +371,9 @@ assert.notEqual(A.targetAssessmentId('FORMATIVE-123'), A.targetAssessmentId('FOR
     }
   });
   const result = A.adaptPackageV2ToV1(pkg([empty]), { targetFormativeId: 'FORMATIVE-123' });
-  assert.equal(result.state, 'blocked');
-  assert(result.issues.some(x => x.code === 'ADAPTER_EMPTY_GRADING'));
+  assert.equal(result.state, 'ready');
+  assert.equal(result.packageV1.items[0].grading.mode, 'keyword-absolute');
+  assert(result.packageV1.items[0].grading.matches.some(x => x.text === 'x' && x.score === 4));
 }
 
 // Bonus and ungraded semantics remain blocked until their 0.4.1 mapping is proven.
