@@ -69,6 +69,7 @@
         finishedAt: op.action === 'UNCHANGED' || op.action === 'BLOCKED' ? nowIso(now) : null,
         lastError: op.action === 'BLOCKED' ? cleanError({ code: 'PLANNER_BLOCKED', message: 'Operation blocked by planner.' }) : null,
         result: op.action === 'UNCHANGED' ? { reason: 'UNCHANGED' } : null,
+        mutationResult: null,
         mutationMayHaveCommitted: false
       };
     });
@@ -130,7 +131,19 @@
       op.finishedAt = null;
       op.lastError = null;
       op.result = null;
+      op.mutationResult = null;
       op.mutationMayHaveCommitted = false;
+    }, now);
+  }
+
+  function recordMutationResult(journal, operationId, result = {}, now = Date.now()) {
+    return mutate(journal, next => {
+      const op = findOperation(next, operationId);
+      if (op.status !== STATUS.IN_PROGRESS) {
+        throw new Error(`cannot record mutation result for ${operationId} from ${op.status}`);
+      }
+      op.mutationResult = sanitizeResult(result);
+      op.mutationMayHaveCommitted = true;
     }, now);
   }
 
@@ -164,6 +177,7 @@
       op.finishedAt = nowIso(now);
       op.lastError = cleanError(error);
       op.result = null;
+      if (!mayHaveCommitted) op.mutationResult = null;
       op.mutationMayHaveCommitted = mayHaveCommitted;
     }, now);
   }
@@ -196,6 +210,7 @@
       if (serverVerdict.state === 'not_committed') {
         op.status = STATUS.FAILED;
         op.mutationMayHaveCommitted = false;
+        op.mutationResult = null;
         op.lastError = cleanError({
           code: 'RECONCILED_NOT_COMMITTED',
           message: serverVerdict.message || 'Server reread confirms mutation did not commit.'
@@ -274,6 +289,7 @@
     STATUS,
     createJournal,
     startOperation,
+    recordMutationResult,
     markVerified,
     markFailed,
     markBlocked,
