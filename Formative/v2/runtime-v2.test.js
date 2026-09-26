@@ -114,6 +114,19 @@ function runtime(g, o) {
     assert.equal(o.calls.length, 0);
   }
 
+  // Runtime-level blocks must expose their exact issue in the view so the
+  // ChatGPT bar can never collapse to an opaque "1 blocage".
+  {
+    const g = gateway({ observation: { serverTargetFormativeId: 'OTHER' } });
+    const o = orchestrator();
+    const R = runtime(g, o);
+    const prepared = await R.prepare({ pkg: pkg() });
+    assert.equal(prepared.state, 'blocked');
+    assert(Array.isArray(prepared.view.issues));
+    assert(prepared.view.issues.length >= 1);
+    assert.equal(prepared.view.globalIssues[0].message, prepared.issues[0].message);
+  }
+
   // Partial GraphQL/paginated snapshots never become dry-runs.
   {
     const g = gateway({ snapshotComplete: false });
