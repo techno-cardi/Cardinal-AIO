@@ -48,7 +48,7 @@ from aio_rebuild_contract import (
 AIO_VERSION = "1.2.0"
 AIO_VERSION_NAME = "1.2.0-formative-1.1.17-import-durable"
 CLASSROOM_COMMIT = "6887bfa2e8afd523a38a0e3286aa1f826276b8c5"
-FORMATIVE_TREE_SHA = "9d82acd815346ce07c9fbcd00168ce06d86a8d9d"
+FORMATIVE_TREE_SHA = "053d984cc08b6bd9fc9565b3c25be44b789e26d5"
 FORMATIVE_V2_ZIP = "Cardinal-Formative-Importer-STANDALONE-0.5.0-rc1.zip"
 AIO_POPUP_JS = "aio-popup.js"
 HOTFIX_113_OVERLAY = Path("Cardinal/AIO/hotfixes/1.1.13/overlay")
