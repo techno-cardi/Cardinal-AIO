@@ -311,6 +311,19 @@ const U = require('./chatgpt-content-v2.js');
   ]);
 }
 
+// Top-level runtime/preparation issues remain visible even when an older path
+// returns a minimal view object.
+{
+  const view = U.responseView({
+    ok: false,
+    state: 'blocked',
+    issues: [{ severity: 'blocker', code: 'TARGET_REQUIRED', message: 'Cible requise' }],
+    view: { state: 'blocked', statusLabel: '✕ Bloqué', blockers: 1 }
+  });
+  assert.equal(view.issues[0].code, 'TARGET_REQUIRED');
+  assert.equal(view.globalIssues[0].message, 'Cible requise');
+}
+
 console.log('chatgpt-content-v2: all tests passed');
 })().catch(error => {
   console.error(error);
