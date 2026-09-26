@@ -11,16 +11,23 @@
   }
 
   function blocked(reason, message, issues = []) {
+    const normalizedIssues = issues.length
+      ? issues
+      : [{ severity: 'blocker', code: reason, message }];
+    const blockers = normalizedIssues.filter(issue => issue?.severity === 'blocker').length;
+    const warnings = normalizedIssues.filter(issue => issue?.severity === 'warning').length;
     return {
       ok: false,
       state: 'blocked',
       reason,
-      issues: issues.length ? issues : [{ severity: 'blocker', code: reason, message }],
+      issues: normalizedIssues,
       view: {
         state: 'blocked',
         statusLabel: '✕ Bloqué',
-        blockers: Math.max(1, issues.filter(issue => issue?.severity === 'blocker').length),
-        warnings: issues.filter(issue => issue?.severity === 'warning').length,
+        blockers: Math.max(1, blockers),
+        warnings,
+        issues: normalizedIssues,
+        globalIssues: normalizedIssues,
         primaryAction: { id: 'none', label: 'Import bloqué', enabled: false, emphasis: 'danger' }
       }
     };
