@@ -16,9 +16,16 @@ Le protocole ne doit dépendre ni de la mémoire d'un compte ChatGPT, ni de cett
 
 Trois responsabilités seulement:
 
-1. **ChatGPT comprend pédagogiquement**: lit les sources, distingue texte/questions/corrigé, comprend la tâche, propose le type de question, les réponses attendues, les concepts et les termes discriminants.
-2. **Cardinal normalise et vérifie**: calcule les identités, ajoute les variantes mécaniques, valide les points, détecte les incohérences, compare avec Formative et prépare le plan.
-3. **Formative reçoit et confirme**: Cardinal écrit via les mutations natives prouvées, vérifie les réponses serveur et journalise le résultat.
+1. **ChatGPT décide pédagogiquement**: lit les sources, distingue texte/questions/corrigé, comprend la tâche et produit l'intention pédagogique finale à importer: type, mode `auto/assisted/manual`, réponses attendues, concepts, termes, pondérations et issues pédagogiques.
+2. **Cardinal normalise et vérifie techniquement**: parse le paquet, calcule les identités, ajoute seulement les variantes mécaniques sûres, vérifie la représentabilité technique, les bornes de points, la cohérence structurale, la cible et l'état serveur, puis prépare le plan. Cardinal ne remplace jamais une décision pédagogique de ChatGPT par sa propre interprétation.
+3. **Formative reçoit et confirme**: Cardinal écrit via les mutations natives prouvées, relit le serveur, vérifie la postcondition exacte et journalise le résultat.
+
+Règle de séparation durable:
+
+- une heuristique Cardinal sur le sens d'une consigne, un média, un mot générique ou le caractère multipartie peut produire un **warning**, jamais un veto pédagogique implicite;
+- un **blocker Cardinal** est réservé à une contradiction explicite du paquet, une structure impossible à transporter fidèlement, une ambiguïté d'identité/cible, un conflit avec l'état serveur ou une sécurité de mutation;
+- un **blocker explicitement produit par ChatGPT dans `issues`** est respecté par Cardinal et n'est jamais perdu;
+- Cardinal ne fabrique jamais de distracteur, synonyme, réponse, score, pondération ou changement de mode pour « réparer » le paquet.
 
 Règle fondamentale:
 
@@ -227,6 +234,12 @@ Chaque concept/réponse peut porter une provenance:
 
 Cette provenance aide la prévisualisation et l'audit sans alourdir l'interface normale.
 
+## Transport explicite
+
+Cardinal ne choisit jamais une valeur implicite qui modifierait la notation. Les questions doivent porter explicitement `required`; les types structurés doivent expliciter `partialCredit`; les Short/Long Answer Keyword doivent expliciter `partialCredit` et `caseSensitive`.
+
+Une entrée malformée doit être refusée proprement avec un diagnostic visible, jamais faire planter le validateur.
+
 ## Points
 
 Règles:
@@ -239,7 +252,7 @@ Règles:
 - pour `answerChoicePoints`, points maximum d'abord, pondérations ensuite;
 - ne jamais additionner les matches côté Cardinal.
 
-Une incohérence de total doit bloquer l'import jusqu'à correction ou confirmation explicite.
+Une incohérence de total officiel (`provided`) bloque l'import jusqu'à correction ou confirmation explicite. Pour un total seulement `proposed` ou `derived`, Cardinal avertit et conserve les points explicites des questions.
 
 ## Texte source et blocs Formative
 

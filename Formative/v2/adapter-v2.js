@@ -33,6 +33,15 @@
       .trim();
   }
 
+  function normalizeVisibleText(value) {
+    return asString(value)
+      .normalize('NFC')
+      .replace(/[’‘`´]/g, "'")
+      .replace(/[‐‑‒–—−]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function normalizeTerm(value, caseSensitive = false) {
     let text = asString(value)
       .normalize('NFD')
@@ -342,7 +351,7 @@
     const options = Array.isArray(item?.response?.options) ? item.response.options : [];
     const correctCount = options.filter(option => option?.correct === true).length;
     const multi = item.subtype === 'multipleSelection';
-    const partial = multi && item?.grading?.partialCredit !== false;
+    const partial = multi && item?.grading?.partialCredit === true;
 
     const defs = options.map(option => {
       const correct = option?.correct === true;
@@ -427,7 +436,7 @@
       return {
         ...common,
         grading: {
-          partialCredit: item?.grading?.partialCredit !== false
+          partialCredit: item?.grading?.partialCredit === true
         },
         segments: fitbSegments(item, issues)
       };
@@ -440,7 +449,7 @@
       }
       return {
         ...common,
-        grading: { partialCredit: item?.grading?.partialCredit !== false },
+        grading: { partialCredit: item?.grading?.partialCredit === true },
         segments: inlineChoiceSegments(item, issues)
       };
     }
@@ -453,65 +462,116 @@
       return {
         ...common,
         prompt: asString(item.prompt),
-        grading: { partialCredit: item?.grading?.partialCredit !== false },
+        grading: { partialCredit: item.subtype === 'multipleSelection' && item?.grading?.partialCredit === true },
         choices: choiceDefinitions(item, issues)
       };
     }
 
     if (item.subtype === 'resequence') {
+      if (item?.grading?.mode === 'manual') {
+        issue(
+          issues,
+          'blocker',
+          'ADAPTER_MANUAL_RESEQUENCE_NOT_PROVEN',
+          'Une remise en ordre native contient nécessairement un ordre correct; le mode manual ne peut pas être transporté fidèlement.',
+          item.id
+        );
+        return null;
+      }
       const sequence = Array.isArray(item?.response?.sequence)
         ? item.response.sequence.map(asString).filter(Boolean)
         : [];
-      if (sequence.length < 2 || new Set(sequence).size !== sequence.length) {
-        issue(issues, 'blocker', 'ADAPTER_RESEQUENCE_INVALID', 'Resequence exige au moins deux éléments uniques non vides.', item.id);
+      if (sequence.length < 2) {
+        issue(issues, 'blocker', 'ADAPTER_RESEQUENCE_INVALID', 'Resequence exige au moins deux éléments non vides.', item.id);
+      }
+      if (new Set(sequence.map(normalizeVisibleText)).size !== sequence.length) {
+        issue(
+          issues,
+          'warning',
+          'ADAPTER_DUPLICATE_VISIBLE_LABEL',
+          'Resequence contient des libellés identiques; les choix restent distingués par leurs clés Formative.',
+          item.id
+        );
       }
       return {
         ...common,
         prompt: asString(item.prompt),
-        grading: { partialCredit: item?.grading?.partialCredit !== false },
+        grading: { partialCredit: item?.grading?.partialCredit === true },
         choices: sequence
       };
     }
 
     if (item.subtype === 'matching') {
+      if (item?.grading?.mode === 'manual') {
+        issue(
+          issues,
+          'blocker',
+          'ADAPTER_MANUAL_MATCHING_NOT_PROVEN',
+          'Un appariement natif contient nécessairement une clé de correspondance; le mode manual ne peut pas être transporté fidèlement.',
+          item.id
+        );
+        return null;
+      }
       const pairs = Array.isArray(item?.response?.pairs)
         ? item.response.pairs.map(pair => ({ left: asString(pair?.left), right: asString(pair?.right) }))
         : [];
       if (pairs.length < 2 || pairs.some(pair => !pair.left.trim() || !pair.right.trim())) {
         issue(issues, 'blocker', 'ADAPTER_MATCHING_INVALID', 'Matching exige au moins deux paires complètes.', item.id);
       }
-      const left = pairs.map(pair => normalizeText(pair.left));
-      const right = pairs.map(pair => normalizeText(pair.right));
+      const left = pairs.map(pair => normalizeVisibleText(pair.left));
+      const right = pairs.map(pair => normalizeVisibleText(pair.right));
       if (new Set(left).size !== left.length || new Set(right).size !== right.length) {
-        issue(issues, 'blocker', 'ADAPTER_MATCHING_AMBIGUOUS', 'Matching contient des libellés dupliqués; la correspondance ne serait pas réversible.', item.id);
+        issue(
+          issues,
+          'warning',
+          'ADAPTER_DUPLICATE_VISIBLE_LABEL',
+          'Matching contient des libellés identiques; les paires restent distinguées par leurs clés Formative.',
+          item.id
+        );
       }
       return {
         ...common,
         prompt: asString(item.prompt),
-        grading: { partialCredit: item?.grading?.partialCredit !== false },
+        grading: { partialCredit: item?.grading?.partialCredit === true },
         pairs
       };
     }
 
     let matches = flattenConceptMatches(item, issues);
-    if (item?.grading?.mode !== 'manual' && !matches.length) {
-      issue(issues, 'blocker', 'ADAPTER_EMPTY_GRADING', 'Une question auto/assisted doit produire au moins un match actif avant conversion.', item.id);
-      return null;
+    const gradingMode = item?.grading?.mode;
+    const maximum = Number(item?.points?.value);
+    const expectedAnswer = asString(item?.grading?.expectedAnswer).replace(/\s+/g, ' ').trim();
+
+    if (gradingMode !== 'manual' && !matches.length) {
+      // Cardinal is transport, not a second pedagogical corrector. If ChatGPT
+      // supplied a complete expected answer but no keyword concepts, preserve
+      // that answer as the native Formative full-score key instead of blocking
+      // the entire package.
+      if (expectedAnswer && Number.isFinite(maximum)) {
+        matches = [{ text: expectedAnswer, score: maximum, enabled: true }];
+      } else {
+        issue(
+          issues,
+          'blocker',
+          'ADAPTER_EMPTY_GRADING',
+          'La correction auto/assisted ne contient ni match actif ni réponse attendue exploitable techniquement.',
+          item.id
+        );
+        return null;
+      }
     }
 
-    if (item?.grading?.mode === 'assisted' && matches.length) {
-      const maximum = Number(item?.points?.value);
+    if (gradingMode !== 'manual' && matches.length) {
       const hasMaximumMatch = Number.isFinite(maximum) &&
         matches.some(match => Number(match?.score) === maximum);
 
       if (Number.isFinite(maximum) && !hasMaximumMatch) {
-        const expectedAnswer = asString(item?.grading?.expectedAnswer).replace(/\s+/g, ' ').trim();
         if (!expectedAnswer) {
           issue(
             issues,
             'blocker',
-            'ADAPTER_ASSISTED_MAX_ANCHOR_REQUIRED',
-            'Une correction assisted sans match de pleine note exige une réponse attendue complète pour préserver le maximum Formative.',
+            'ADAPTER_KEYWORD_MAX_ANCHOR_REQUIRED',
+            'Une correction Keyword sans match de pleine note exige une réponse attendue complète pour préserver le maximum Formative.',
             item.id
           );
         } else {
@@ -522,7 +582,7 @@
             issue(
               issues,
               'blocker',
-              'ADAPTER_ASSISTED_MAX_ANCHOR_CONFLICT',
+              'ADAPTER_KEYWORD_MAX_ANCHOR_CONFLICT',
               'La réponse attendue complète correspond déjà à un match ayant un score partiel différent.',
               item.id
             );
@@ -547,7 +607,7 @@
     if (item?.grading?.mode !== 'manual' && matches.length) {
       out.grading = {
         mode: 'keyword-absolute',
-        partialCredit: item?.grading?.partialCredit !== false,
+        partialCredit: item?.grading?.partialCredit === true,
         caseSensitive: item?.grading?.caseSensitive === true,
         matches
       };

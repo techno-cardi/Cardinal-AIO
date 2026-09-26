@@ -131,6 +131,30 @@ assert.notEqual(A.targetAssessmentId('FORMATIVE-123'), A.targetAssessmentId('FOR
   assert(q.grading.matches.some(x => x.text.toLowerCase() === 'rbmk' && x.score === 4));
 }
 
+// Auto Free Response with only partial concept scores receives the complete
+// expected answer as a technical full-score anchor instead of blocking.
+{
+  const auto = baseQuestion({
+    grading: {
+      mode: 'auto',
+      expectedAnswer: 'Deux indices partiels.',
+      provenance: { kind: 'sourceExplicit', sourceRefs: ['text'] },
+      partialCredit: true,
+      caseSensitive: false,
+      requirements: [],
+      concepts: [
+        { id: 'a', label: 'A', score: 1, provenance: 'sourceExplicit', terms: ['indice-a'], riskyTerms: [] },
+        { id: 'b', label: 'B', score: 1, provenance: 'sourceExplicit', terms: ['indice-b'], riskyTerms: [] }
+      ]
+    }
+  });
+  const result = A.adaptPackageV2ToV1(pkg([auto]), { targetFormativeId: 'FORMATIVE-123' });
+  assert.equal(result.state, 'ready');
+  const q = result.packageV1.items[0];
+  assert(q.grading.matches.some(x => x.text === 'Deux indices partiels.' && x.score === 4));
+  assert(q.grading.matches.some(x => x.text === 'indice-a' && x.score === 1));
+}
+
 // Manual mode never invents active grading matches.
 {
   const manual = baseQuestion({
@@ -306,6 +330,44 @@ assert.notEqual(A.targetAssessmentId('FORMATIVE-123'), A.targetAssessmentId('FOR
   ]);
 }
 
+// Repeated visible labels are a pedagogical choice from ChatGPT, not a
+// transport blocker. Formative keys keep the underlying entries distinct.
+{
+  const q = baseQuestion({
+    subtype: 'resequence',
+    grading: {
+      mode: 'auto', expectedAnswer: 'A, A', provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      partialCredit: true, caseSensitive: false, requirements: [], concepts: []
+    },
+    response: { sequence: ['A', 'A'] }
+  });
+  const result = A.adaptPackageV2ToV1(pkg([q]), { targetFormativeId: 'FORMATIVE-123' });
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'ADAPTER_DUPLICATE_VISIBLE_LABEL'));
+  assert.deepEqual(result.packageV1.items[0].choices, ['A', 'A']);
+}
+
+{
+  const q = baseQuestion({
+    subtype: 'matching',
+    grading: {
+      mode: 'auto', expectedAnswer: 'Nom-chat; Nom-court', provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      partialCredit: true, caseSensitive: false, requirements: [], concepts: []
+    },
+    response: { pairs: [
+      { left: 'Nom', right: 'chat' },
+      { left: 'Nom', right: 'court' }
+    ] }
+  });
+  const result = A.adaptPackageV2ToV1(pkg([q]), { targetFormativeId: 'FORMATIVE-123' });
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'ADAPTER_DUPLICATE_VISIBLE_LABEL'));
+  assert.deepEqual(result.packageV1.items[0].pairs, [
+    { left: 'Nom', right: 'chat' },
+    { left: 'Nom', right: 'court' }
+  ]);
+}
+
 // No concrete target: never invent a lineage.
 {
   const result = A.adaptPackageV2ToV1(pkg([baseQuestion()]));
@@ -337,7 +399,8 @@ assert.notEqual(A.targetAssessmentId('FORMATIVE-123'), A.targetAssessmentId('FOR
   assert.equal(result.packageV1.items[0].isRequired, false);
 }
 
-// Auto/assisted with no active concepts must not silently become manual.
+// Auto/assisted with no active concepts uses the expected answer as the native
+// full-score match. It never silently changes the grading mode to manual.
 {
   const empty = baseQuestion({
     grading: {
@@ -346,8 +409,9 @@ assert.notEqual(A.targetAssessmentId('FORMATIVE-123'), A.targetAssessmentId('FOR
     }
   });
   const result = A.adaptPackageV2ToV1(pkg([empty]), { targetFormativeId: 'FORMATIVE-123' });
-  assert.equal(result.state, 'blocked');
-  assert(result.issues.some(x => x.code === 'ADAPTER_EMPTY_GRADING'));
+  assert.equal(result.state, 'ready');
+  assert.equal(result.packageV1.items[0].grading.mode, 'keyword-absolute');
+  assert(result.packageV1.items[0].grading.matches.some(x => x.text === 'x' && x.score === 4));
 }
 
 // Bonus and ungraded semantics remain blocked until their 0.4.1 mapping is proven.
@@ -413,6 +477,37 @@ assert.notEqual(A.targetAssessmentId('FORMATIVE-123'), A.targetAssessmentId('FOR
     choices: ['donneur', 'receveur'],
     correct: 'donneur'
   });
+}
+
+// Native ordered/matching questions inherently carry a correct structure.
+// A manual grading request cannot be transported faithfully and must fail
+// before any mutation.
+{
+  const q = baseQuestion({
+    subtype: 'resequence',
+    grading: {
+      mode: 'manual', expectedAnswer: 'A, B', provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      partialCredit: false, caseSensitive: false, requirements: [], concepts: []
+    },
+    response: { sequence: ['A', 'B'] }
+  });
+  const result = A.adaptPackageV2ToV1(pkg([q]), { targetFormativeId: 'FORMATIVE-123' });
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'ADAPTER_MANUAL_RESEQUENCE_NOT_PROVEN'));
+}
+
+{
+  const q = baseQuestion({
+    subtype: 'matching',
+    grading: {
+      mode: 'manual', expectedAnswer: 'A-1; B-2', provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      partialCredit: false, caseSensitive: false, requirements: [], concepts: []
+    },
+    response: { pairs: [{ left: 'A', right: '1' }, { left: 'B', right: '2' }] }
+  });
+  const result = A.adaptPackageV2ToV1(pkg([q]), { targetFormativeId: 'FORMATIVE-123' });
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'ADAPTER_MANUAL_MATCHING_NOT_PROVEN'));
 }
 
 console.log('adapter-v2: all tests passed');

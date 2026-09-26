@@ -203,7 +203,7 @@
   }
 
   function desiredChoiceSemantic(item) {
-    const weighted = item?.subtype === 'multipleSelection' && item?.grading?.partialCredit !== false;
+    const weighted = item?.subtype === 'multipleSelection' && item?.grading?.partialCredit === true;
     return (item?.choices || []).map(choice => {
       const correct = choice?.correct === true;
       return {
@@ -353,7 +353,7 @@
         isRequired: item.isRequired !== false,
         template: fitb.template,
         blanks: fitb.blanks,
-        partialCredit: item?.grading?.partialCredit !== false
+        partialCredit: item?.grading?.partialCredit === true
       });
     }
 
@@ -366,7 +366,7 @@
         isRequired: item.isRequired !== false,
         template: inline.template,
         blanks: inline.blanks,
-        partialCredit: item?.grading?.partialCredit !== false
+        partialCredit: item?.grading?.partialCredit === true
       });
     }
 
@@ -379,7 +379,7 @@
         prompt: normalizeText(item.prompt || ''),
         choices: desiredChoiceSemantic(item),
         partialCredit: item.subtype === 'multipleSelection'
-          ? item?.grading?.partialCredit !== false
+          ? item?.grading?.partialCredit === true
           : false
       });
     }
@@ -392,7 +392,7 @@
         isRequired: item.isRequired !== false,
         prompt: normalizeText(item.prompt || ''),
         sequence: desiredResequenceSemantic(item),
-        partialCredit: item?.grading?.partialCredit !== false
+        partialCredit: item?.grading?.partialCredit === true
       });
     }
 
@@ -404,7 +404,7 @@
         isRequired: item.isRequired !== false,
         prompt: normalizeText(item.prompt || ''),
         pairs: desiredMatchingSemantic(item),
-        partialCredit: item?.grading?.partialCredit !== false
+        partialCredit: item?.grading?.partialCredit === true
       });
     }
 

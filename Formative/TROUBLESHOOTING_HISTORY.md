@@ -68,9 +68,9 @@ Cause: dans ce flux Formative, le maximum visible suit le plus grand `answerChoi
 
 Correctif:
 
-- ne jamais fabriquer une échelle Keyword où tous les matches sont sous le maximum de la question;
-- pour `auto`, bloquer avant toute mutation si aucun match réel ne peut valoir le maximum;
-- pour `assisted`, conserver les indices partiels et ajouter la réponse attendue complète comme match de pleine note si aucun concept ne vaut déjà le maximum;
+- ne jamais fabriquer une échelle Keyword où un mot-clé partiel est artificiellement gonflé au maximum;
+- pour `auto` et `assisted`, conserver les scores fournis par ChatGPT et, si aucun match n'atteint le maximum, ajouter `expectedAnswer` comme ancre technique de pleine note lorsqu'elle est disponible;
+- si ni match exploitable ni `expectedAnswer` ne permet de représenter la correction, bloquer techniquement avant mutation;
 - garder l'ordre `points` puis `answerChoicePoints`, et ne plus réécrire `points` ensuite.
 
 ## 8. Score Keyword absolu vs somme
@@ -378,3 +378,38 @@ Futur validateur doit détecter ces dépendances et avertir/bloquer.
 - futur 0.5.0 = protocole v2, pas encore baseline.
 
 Toujours lire `CURRENT_STATE.md` avant de recommander une version.
+
+## 45. Preflight bloqué avant la première question avec `0 question · 1 blocage`
+
+Symptôme réel observé le 2026-09-25:
+
+- le paquet ChatGPT contient bien toutes les questions;
+- la cible Formative est lisible et modifiable;
+- aucune mutation n'est tentée;
+- la barre affiche seulement `Bloqué` et un compteur générique.
+
+Cause de conception:
+
+- un blocker du validateur/adaptateur pouvait arrêter le preflight avant le planner;
+- l'objet de préparation bloqué ne conservait pas toujours le paquet et les issues nécessaires à l'UI;
+- des heuristiques pédagogiques Cardinal pouvaient aussi devenir des veto globaux alors que ChatGPT avait déjà produit la décision pédagogique.
+
+Correctif durable:
+
+- ChatGPT reste l'autorité pédagogique du paquet;
+- Cardinal bloque seulement pour contrat incohérent, représentation impossible, cible/état serveur dangereux ou sécurité de mutation;
+- les warnings heuristiques ne deviennent pas des veto;
+- un preflight bloqué conserve `pkg`, les questions et les issues exactes;
+- la présentation calcule les lignes de validation même lorsque le planner n'a pas été atteint;
+- régression automatisée: un paquet valide de 10 questions sur une cible vide doit atteindre le planner et produire `CREATE = 10`, jamais un blocage global opaque.
+
+## 46. Blocages runtime opaques hors preflight
+
+Un blocage peut survenir avant le validateur: mauvaise cible, permission, snapshot serveur incomplet, onglet changé ou lecture détaillée insuffisante.
+
+Règle depuis le durcissement 1.1.17:
+
+- tout `runtime.blocked(...)` propage ses issues jusque dans `view.issues` et `view.globalIssues`;
+- la barre ChatGPT affiche la première raison exacte;
+- `1 blocage` sans message explicatif n'est plus un état utilisateur acceptable.
+

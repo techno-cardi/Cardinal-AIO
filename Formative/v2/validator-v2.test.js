@@ -88,8 +88,8 @@ function pkg(items, overrides = {}) {
   assert(result.issues.some(x => x.code === 'TERM_SCORE_CONFLICT'));
 }
 
-// Auto Keyword must contain a genuine full-score match or Formative will
-// collapse the question maximum to the highest answerChoicePoints value.
+// A missing full-score Keyword is a transport concern, not a pedagogical veto.
+// The adapter will add the complete expected answer as a technical anchor.
 {
   const q = baseQuestion({
     grading: {
@@ -106,8 +106,8 @@ function pkg(items, overrides = {}) {
     }
   });
   const result = V2.validatePackageV2(pkg([q]));
-  assert.equal(result.state, 'blocked');
-  assert(result.issues.some(x => x.code === 'KEYWORD_MAX_SCORE_MISMATCH'));
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'KEYWORD_MAX_SCORE_MISMATCH' && x.severity === 'warning'));
 }
 
 {
@@ -143,8 +143,8 @@ function pkg(items, overrides = {}) {
     }
   });
   const result = V2.validatePackageV2(pkg([q]));
-  assert.equal(result.state, 'blocked');
-  assert(result.issues.some(x => x.code === 'ASSISTED_REQUIRED'));
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'ASSISTED_REQUIRED' && x.severity === 'warning'));
 }
 
 // A constructed answer cannot claim useful automatic or assisted keyword
@@ -158,8 +158,8 @@ function pkg(items, overrides = {}) {
     }
   });
   const result = V2.validatePackageV2(pkg([q]));
-  assert.equal(result.state, 'blocked');
-  assert(result.issues.some(x => x.code === 'MISSING_KEYWORD_CONCEPTS'));
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'MISSING_KEYWORD_CONCEPTS' && x.severity === 'warning'));
 }
 
 {
@@ -299,8 +299,8 @@ function pkg(items, overrides = {}) {
     response: { sequence: ['A', 'A'] }
   });
   const result = V2.validatePackageV2(pkg([q]));
-  assert.equal(result.state, 'blocked');
-  assert(result.issues.some(x => x.code === 'BLOCKED_STRUCTURE' || x.code === 'UNSUPPORTED_SUBTYPE'));
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'DUPLICATE_VISIBLE_LABEL' && x.severity === 'warning'));
 }
 
 {
@@ -316,8 +316,23 @@ function pkg(items, overrides = {}) {
     ] }
   });
   const result = V2.validatePackageV2(pkg([q]));
-  assert.equal(result.state, 'blocked');
-  assert(result.issues.some(x => x.code === 'BLOCKED_STRUCTURE'));
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'DUPLICATE_VISIBLE_LABEL' && x.severity === 'warning'));
+}
+
+// Fidelity comparison must preserve meaningful French accents. Cardinal may
+// normalize typography, but it must not treat a -> à as the same prompt.
+{
+  const q = baseQuestion({
+    source: {
+      ...baseQuestion().source,
+      promptExact: '1) Il a terminé.'
+    },
+    prompt: 'Il à terminé.'
+  });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'SOURCE_PROMPT_DRIFT'));
 }
 
 {
@@ -341,6 +356,148 @@ function pkg(items, overrides = {}) {
   assert.equal(result.stats.questions, 8);
   assert.equal(result.stats.blockers, 0);
   assert(result.issues.filter(x => x.code === 'TRANSFORMATION_REVIEW_REQUIRED').length >= 2);
+}
+
+// Explicit ChatGPT blockers are part of the package contract and must stop
+// transport. Cardinal must not discard the pedagogical decision upstream.
+{
+  const q = baseQuestion({
+    issues: [{
+      severity: 'blocker',
+      code: 'SOURCE_REQUIRED',
+      message: 'La source nécessaire est absente.'
+    }]
+  });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'SOURCE_REQUIRED' && x.itemId === 'q1'));
+}
+
+// A media heuristic discovered by Cardinal is advisory only. It must not turn
+// a valid package into a global veto by redoing ChatGPT's pedagogical judgment.
+{
+  const q = baseQuestion({
+    prompt: 'Observe l’image et réponds.',
+    sourceRefs: ['image-source'],
+    grading: {
+      ...baseQuestion().grading,
+      mode: 'manual',
+      provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      concepts: []
+    }
+  });
+  const input = pkg([q], {
+    sources: [
+      { id: 'questions', role: 'questionnaire', label: 'Questions', status: 'provided' },
+      { id: 'image-source', role: 'appendix', label: 'Image', status: 'missing' }
+    ]
+  });
+  const result = V2.validatePackageV2(input);
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'MEDIA_DEPENDENCY_MISSING' && x.severity === 'warning'));
+}
+
+// An explicit contradiction inside the package is technical contract
+// inconsistency, not a Cardinal pedagogical opinion.
+{
+  const q = baseQuestion({
+    grading: {
+      ...baseQuestion().grading,
+      mode: 'auto',
+      provenance: { kind: 'sourceMissing', sourceRefs: ['texte'] }
+    }
+  });
+  const input = pkg([q], {
+    sources: [
+      { id: 'questions', role: 'questionnaire', label: 'Questions', status: 'provided' },
+      { id: 'texte', role: 'text', label: 'Texte', status: 'missing' }
+    ]
+  });
+  const result = V2.validatePackageV2(input);
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'SOURCE_MODE_CONFLICT'));
+}
+
+// Empty pedagogical metadata is a warning when it does not create an invalid
+// Formative payload. expectedAnswer remains available to the adapter.
+{
+  const q = baseQuestion({
+    grading: {
+      ...baseQuestion().grading,
+      concepts: [{ id: 'vide', label: 'Indice', score: 99, provenance: 'sourceExplicit', terms: [] }]
+    }
+  });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'EMPTY_CONCEPT_TERMS' && x.severity === 'warning'));
+  assert(!result.issues.some(x => x.code === 'SCORE_GT_MAX'));
+}
+
+// Malformed sources must fail closed without throwing.
+{
+  const input = pkg([baseQuestion()], { sources: { bad: true } });
+  const result = V2.validatePackageV2(input);
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'BLOCKED_STRUCTURE' && /sources/.test(x.message)));
+}
+
+// Cardinal must never invent required/partial-credit/case semantics omitted by
+// the package.
+{
+  const q = baseQuestion({ required: undefined });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'BLOCKED_STRUCTURE' && /required/.test(x.message)));
+}
+
+{
+  const q = baseQuestion({
+    subtype: 'multipleSelection',
+    grading: {
+      mode: 'auto',
+      expectedAnswer: 'A et B',
+      provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      caseSensitive: false,
+      requirements: [],
+      concepts: []
+    },
+    response: {
+      options: [
+        { id: 'a', text: 'A', correct: true },
+        { id: 'b', text: 'B', correct: true },
+        { id: 'c', text: 'C', correct: false }
+      ]
+    }
+  });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'GRADING_PARTIAL_CREDIT_REQUIRED'));
+  assert(!result.issues.some(x => x.code === 'MULTISELECT_WEIGHTS_REQUIRED'));
+}
+
+{
+  const grading = { ...baseQuestion().grading };
+  delete grading.caseSensitive;
+  const q = baseQuestion({ grading });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert.equal(result.state, 'blocked');
+  assert(result.issues.some(x => x.code === 'GRADING_CASE_SENSITIVE_REQUIRED'));
+}
+
+// Only an official/provided total is a blocking contradiction. Proposed or
+// derived totals are advisory because question points remain authoritative.
+{
+  const input = pkg([baseQuestion()], {
+    assessment: {
+      title: 'Fixture',
+      language: 'fr-CA',
+      sourceMode: 'external-reference-only',
+      declaredTotalPoints: { value: 9, provenance: 'proposed' }
+    }
+  });
+  const result = V2.validatePackageV2(input);
+  assert.equal(result.state, 'review');
+  assert(result.issues.some(x => x.code === 'TOTAL_POINTS_MISMATCH' && x.severity === 'warning'));
 }
 
 console.log('validator-v2: all tests passed');

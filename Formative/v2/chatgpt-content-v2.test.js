@@ -42,7 +42,7 @@ const U = require('./chatgpt-content-v2.js');
       unchanged: 3,
       deleteProposed: 2,
       warnings: 1
-    }), '2 à créer · 1 à mettre à jour · 3 inchangés · 2 retraits à vérifier');
+    }), '2 à créer · 1 à mettre à jour · 3 inchangés · 2 retraits à vérifier · 1 avertissement');
 
     assert.equal(U.summarizeView({
       create: 1,
@@ -129,11 +129,31 @@ const U = require('./chatgpt-content-v2.js');
     const partial = U.buildSelectedQuestionPackage(original, ['q2']);
     assert.equal(partial.partial, true);
     assert.equal(partial.pkg.packageMode, 'patch');
-    assert.deepEqual(partial.pkg.items.map(item => item.id), ['q2']);
+    assert.deepEqual(partial.pkg.items.map(item => item.id), ['s1', 'q2', 'i1']);
     assert.equal('declaredTotalPoints' in partial.pkg.assessment, false);
     assert.deepEqual(partial.pkg.issues.map(issue => issue.code), ['Q2_ONLY', 'GLOBAL_SOURCE_NOTE']);
     assert.equal(original.packageMode, 'full', 'selection must not mutate the source package');
     assert.deepEqual(original.items.map(item => item.id), ['s1', 'q1', 'q2', 'i1']);
+
+    const withPassage = JSON.parse(JSON.stringify(original));
+    withPassage.items.splice(1, 0, {
+      id: 'p1',
+      kind: 'passageGroup',
+      order: 2,
+      embed: true,
+      sourceRefs: ['src'],
+      content: 'Texte commun',
+      questionIds: ['q1', 'q2']
+    });
+    withPassage.items.find(item => item.id === 'q1').order = 3;
+    withPassage.items.find(item => item.id === 'q2').order = 4;
+    withPassage.items.find(item => item.id === 'i1').order = 5;
+    withPassage.issues.push({ severity: 'blocker', code: 'PASSAGE_CONTEXT', itemId: 'p1', message: 'Passage requis' });
+    const passageSubset = U.buildSelectedQuestionPackage(withPassage, ['q2']);
+    const keptPassage = passageSubset.pkg.items.find(item => item.id === 'p1');
+    assert(keptPassage, 'relevant passageGroup must survive question selection');
+    assert.deepEqual(keptPassage.questionIds, ['q2']);
+    assert(passageSubset.pkg.issues.some(issue => issue.code === 'PASSAGE_CONTEXT'), 'context blocker must not be stripped');
 
     const all = U.buildSelectedQuestionPackage(original, ['q2', 'q1']);
     assert.equal(all.partial, false);
@@ -275,7 +295,36 @@ const U = require('./chatgpt-content-v2.js');
     bridge.stop();
   }
 
-  console.log('chatgpt-content-v2: all tests passed');
+  // Exact blocker messages must be available to the visible ChatGPT bar instead
+// of collapsing to an opaque "1 blocage".
+{
+  const messages = U.issueMessages({
+    issues: [
+      { severity: 'blocker', code: 'X', message: 'Raison exacte' },
+      { severity: 'blocker', code: 'X2', message: 'Raison exacte' },
+      { severity: 'warning', code: 'W', message: 'À vérifier' }
+    ]
+  });
+  assert.deepEqual(messages, [
+    { severity: 'blocker', code: 'X', message: 'Raison exacte' },
+    { severity: 'warning', code: 'W', message: 'À vérifier' }
+  ]);
+}
+
+// Top-level runtime/preparation issues remain visible even when an older path
+// returns a minimal view object.
+{
+  const view = U.responseView({
+    ok: false,
+    state: 'blocked',
+    issues: [{ severity: 'blocker', code: 'TARGET_REQUIRED', message: 'Cible requise' }],
+    view: { state: 'blocked', statusLabel: '✕ Bloqué', blockers: 1 }
+  });
+  assert.equal(view.issues[0].code, 'TARGET_REQUIRED');
+  assert.equal(view.globalIssues[0].message, 'Cible requise');
+}
+
+console.log('chatgpt-content-v2: all tests passed');
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;

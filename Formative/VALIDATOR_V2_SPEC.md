@@ -79,13 +79,9 @@ Codes possibles:
 
 Règle source manquante:
 
-Si la réponse dépend explicitement d'une source absente, `grading.provenance.kind` doit être `sourceMissing` et le mode ne peut pas être `auto`.
+Si ChatGPT déclare explicitement `grading.provenance.kind = sourceMissing`, le mode `auto` constitue une contradiction du contrat et Cardinal bloque avant mutation.
 
-Selon la tâche:
-
-- création de la question possible avec avertissement;
-- autocorrection bloquée;
-- import entier bloqué seulement si la question deviendrait pédagogiquement inutilisable.
+Une source référencée avec `status = missing` ne suffit pas, à elle seule, à autoriser Cardinal à reclasser pédagogiquement la question. Cardinal l'affiche comme avertissement. Si l'absence rend réellement la question inutilisable, ChatGPT doit l'exprimer par une `issue` `blocker`; cette issue est alors contraignante pour l'import.
 
 # 3. Fidélité source -> Formative
 
@@ -141,6 +137,18 @@ Codes:
 - `PATCH_DELETE_FORBIDDEN`;
 - `DELETE_PROPOSED`.
 
+# 4.1 Aucun défaut implicite de notation
+
+Le validateur doit refuser les champs manquants lorsque leur valeur changerait réellement le comportement Formative:
+
+- `required` absent/non booléen;
+- `partialCredit` absent sur un subtype structuré qui l'utilise;
+- `partialCredit` ou `caseSensitive` absent sur une Short/Long Answer en correction Keyword.
+
+Raison: choisir silencieusement `true` ou `false` serait une décision pédagogique/notation qui n'appartient pas à Cardinal.
+
+Le validateur doit aussi être total sur les entrées malformées: un `sources` non-tableau, un objet incomplet ou une issue invalide retourne un résultat `blocked`; aucune forme invalide ne doit provoquer une exception non gérée.
+
 # 5. Points
 
 Vérifier pour chaque question:
@@ -164,25 +172,24 @@ Codes:
 - `TOTAL_POINTS_MISMATCH`;
 - `UNEXPECTED_ZERO_POINTS`.
 
-Une incohérence de total `provided` bloque l'import tant qu'elle n'est pas résolue explicitement.
+Une incohérence de total `provided` bloque l'import tant qu'elle n'est pas résolue explicitement. Une incohérence de total `proposed` ou `derived` reste un warning: Cardinal conserve les points des questions et signale l'écart.
 
 # 6. Choix du mode de correction
 
-Le validateur ne doit pas croire aveuglément le mode proposé par ChatGPT.
+Le mode `auto` / `assisted` / `manual` appartient à la décision pédagogique produite par ChatGPT. Cardinal ne le recalcule pas et ne le remplace pas silencieusement.
 
-## Auto admissible seulement si
+Le validateur peut détecter des signaux de risque et les afficher comme avertissements, mais il ne refait pas le jugement pédagogique de la consigne. Il bloque seulement lorsqu'il existe une contradiction explicite du paquet ou lorsque le mode demandé ne peut pas être représenté fidèlement par le transport Formative.
 
-- source disponible;
-- réponse suffisamment déterministe;
-- aucun requirement multi-composante non vérifiable;
-- aucune dépendance à une relation logique complexe;
-- aucun risque majeur de négation/contradiction;
-- answer key structurellement complet;
-- terms suffisamment discriminants.
+Exemples de contradictions techniques bloquantes:
 
-## Forcer/abaisser vers assisted si
+- `grading.provenance.kind = sourceMissing` combiné à `grading.mode = auto`;
+- un terme réellement envoyé avec un score supérieur au maximum;
+- le même terme normalisé réellement envoyé avec deux scores différents;
+- un subtype natif dont le mode `manual` ne peut pas être représenté sans écrire une clé automatique.
 
-La consigne exige notamment:
+## Signaux à avertir, sans changer le mode
+
+La consigne peut notamment comporter:
 
 - deux ou plusieurs éléments distincts;
 - `pour chacun/chacune`;
@@ -194,18 +201,15 @@ La consigne exige notamment:
 - opinion justifiée avec éléments source;
 - réponse libre où un seul match ne prouve pas la complétude.
 
-Code:
+Code d'avertissement:
 
 - `ASSISTED_REQUIRED`.
 
-## Manual si
+Cardinal conserve toutefois le mode déclaré dans le paquet. Si ChatGPT veut réellement empêcher l'import, il produit une `issue` de sévérité `blocker`, que Cardinal respecte comme partie du contrat.
 
-- correction objective impossible avec les sources disponibles;
-- média/source indispensable absent;
-- subtype nécessaire non supporté et aucune transformation acceptable;
-- réponse réellement ouverte sans critères automatisables utiles.
+## `manual` selon ChatGPT
 
-`manual` n'interdit pas `expectedAnswer` ou des critères pédagogiques; il interdit seulement la prétention à une autocorrection fiable.
+`manual` reste la décision de ChatGPT lorsque la correction automatique/assistée n'est pas pédagogiquement appropriée. Cardinal vérifie seulement que ce mode est techniquement représentable pour le subtype demandé.
 
 # 7. Concepts et mots-clés
 
@@ -360,12 +364,13 @@ En plus:
 
 - >= 2 éléments;
 - ordre non vide;
-- doublons identiques permis seulement si l'adaptateur sait les distinguer; sinon warning/blocker.
+- des libellés visibles identiques ne sont pas un motif de blocage si les clés Formative distinctes permettent de les transporter; Cardinal émet un warning et conserve l'ordre fourni par ChatGPT.
 
 ## Matching
 
 - >= 2 paires;
 - aucune paire vide;
+- les libellés répétés sont transportables tant que les clés Formative distinctes permettent de préserver chaque entrée; Cardinal avertit sans réécrire la tâche;
 - update d'un item existant préserve les choice keys réelles lues sur le serveur.
 
 ## Unsupported
@@ -386,10 +391,9 @@ Détecter dans la consigne et les métadonnées:
 - audio/vidéo;
 - équation/rich content indispensable.
 
-Si le média n'est pas disponible aux élèves dans le contexte cible:
+Si Cardinal détecte seulement par heuristique qu'un média pourrait manquer, il émet un warning. Cardinal ne décide pas lui-même que la question devient pédagogiquement impossible.
 
-- warning si non essentiel;
-- blocker si la question devient impossible ou change de sens.
+Si ChatGPT a établi, à partir des sources, que le média manquant rend la question inutilisable ou change son sens, le paquet porte explicitement une issue `blocker` telle que `MEDIA_DEPENDENCY_MISSING`, et Cardinal respecte ce blocker.
 
 Codes:
 
@@ -524,6 +528,8 @@ Sortie compacte:
 `14 créations · 7 mises à jour · 2 inchangées · 1 bloquée · 0 suppression automatique`
 
 Le dry-run doit utiliser le même validateur et le même planner que le vrai import. Pas de logique parallèle simplifiée.
+
+Les `issues` déclarées dans le paquet et dans chaque question font partie de l'entrée du validateur. Elles sont validées structurellement, dédupliquées et propagées jusqu'à l'UI. Une `issue` déclarée `blocker` ne peut jamais disparaître entre ChatGPT, le preflight et la barre d'import.
 
 # 17. Verrou et concurrence
 

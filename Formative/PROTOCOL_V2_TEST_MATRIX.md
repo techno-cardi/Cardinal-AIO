@@ -146,6 +146,8 @@ Le mode est prouvé non additif, mais la **priorité entre plusieurs matches sim
 | Blanks de poids différents | moteur peut ne pas représenter | PROBE / assisted si besoin | SHOULD |
 | InlineChoice | choice IDs désalignés | validation structure | MUST |
 | Resequence | ordre partiel | vérifier partial credit réel | SHOULD |
+| Resequence avec deux libellés identiques | faux blocage pédagogique | conserver les deux entrées via clés distinctes + warning | MUST |
+| Matching avec libellés répétés | faux blocage pédagogique | conserver les paires via clés distinctes + warning | MUST |
 | Matching update | IDs régénérés | préserver keys | MUST |
 | Categorize update | structure fragile | preserve/blocked tant que non verrouillé | MUST |
 
@@ -440,6 +442,8 @@ Minimum obligatoire:
 34. Item non Cardinal à préserver.
 35. Conflit subtype.
 36. Rapport final et reprise.
+37. Paquet valide de 10 questions + Formative vide -> preflight non bloqué, `CREATE = 10`, 10 questions visibles.
+38. Blocage avant preflight (cible/permission/snapshot) -> raison exacte visible dans la barre, jamais compteur opaque seul.
 
 ## Critère de sortie 0.5.0
 

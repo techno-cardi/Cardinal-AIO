@@ -67,7 +67,38 @@
       if (value > 0) parts.push(`${value} ${value === 1 ? singular : plural}`);
     }
     if (Number(view.blockers || 0) > 0) parts.push(`${Number(view.blockers)} blocage${Number(view.blockers) > 1 ? 's' : ''}`);
+    if (Number(view.warnings || 0) > 0) parts.push(`${Number(view.warnings)} avertissement${Number(view.warnings) > 1 ? 's' : ''}`);
     return parts.join(' · ') || oneLine(view.statusLabel) || 'Prêt';
+  }
+
+  function issueMessages(view = {}) {
+    const rows = Array.isArray(view.issues) ? view.issues : [];
+    const seen = new Set();
+    const out = [];
+    for (const current of rows) {
+      const message = oneLine(current?.message || current?.code);
+      if (!message || seen.has(message)) continue;
+      seen.add(message);
+      out.push({
+        severity: current?.severity === 'blocker' ? 'blocker' : 'warning',
+        code: oneLine(current?.code),
+        message
+      });
+    }
+    return out;
+  }
+
+  function responseView(response = {}) {
+    const base = response?.view && typeof response.view === 'object'
+      ? response.view
+      : {};
+    const responseIssues = Array.isArray(response?.issues) ? response.issues : [];
+    if (!responseIssues.length || (Array.isArray(base.issues) && base.issues.length)) return base;
+    return {
+      ...base,
+      issues: responseIssues,
+      globalIssues: responseIssues.filter(issue => !issue?.itemId)
+    };
   }
 
   function actionIntent(view = {}, reviewAcknowledged = false) {
@@ -131,9 +162,23 @@
     const selectedSet = new Set(selected);
     const clone = JSON.parse(JSON.stringify(pkg));
     clone.packageMode = 'patch';
-    clone.items = (clone.items || []).filter(item =>
-      item?.kind === 'question' && selectedSet.has(String(item.id))
-    );
+
+    // Question selection must never strip context silently. Keep structural
+    // text/instructions, and keep any passageGroup that owns a selected
+    // question. This prevents a subset import from bypassing a passage/source
+    // blocker by dropping the parent context.
+    clone.items = (clone.items || []).flatMap(item => {
+      if (item?.kind === 'question') {
+        return selectedSet.has(String(item.id)) ? [item] : [];
+      }
+      if (item?.kind === 'section' || item?.kind === 'instruction') return [item];
+      if (item?.kind === 'passageGroup') {
+        const questionIds = (item.questionIds || []).map(String).filter(id => selectedSet.has(id));
+        return questionIds.length ? [{ ...item, questionIds }] : [];
+      }
+      return [];
+    });
+    const keptItemIds = new Set((clone.items || []).map(item => String(item?.id || '')).filter(Boolean));
 
     // A subset is not the complete assessment anymore. Keeping the original
     // declared total would be misleading for downstream validation/reporting.
@@ -141,11 +186,12 @@
       delete clone.assessment.declaredTotalPoints;
     }
 
-    // Item-specific issues for unselected questions are irrelevant. A full-
-    // assessment total mismatch is also irrelevant in patch mode.
+    // Item-specific issues for removed items are irrelevant. A full-assessment
+    // total mismatch is also irrelevant in patch mode. Issues on retained
+    // context/passages remain binding.
     clone.issues = (clone.issues || []).filter(issue => {
       if (issue?.code === 'TOTAL_POINTS_MISMATCH') return false;
-      if (issue?.itemId) return selectedSet.has(String(issue.itemId));
+      if (issue?.itemId) return keptItemIds.has(String(issue.itemId));
       return true;
     });
 
@@ -579,9 +625,22 @@
       panel.style.paddingTop = '10px';
       panel.style.borderTop = '1px solid rgba(128,128,128,.28)';
 
+      const globalIssues = Array.isArray(view?.globalIssues) ? view.globalIssues : [];
+      if (globalIssues.length) {
+        const global = element('div');
+        global.style.marginBottom = '9px';
+        for (const current of globalIssues) {
+          const prefix = current?.severity === 'blocker' ? 'Blocage' : 'À vérifier';
+          const line = element('div', `${prefix}: ${oneLine(current?.message || current?.code)}`);
+          line.style.marginTop = '3px';
+          global.appendChild(line);
+        }
+        panel.appendChild(global);
+      }
+
       const rows = view?.validationRows || [];
       if (!rows.length) {
-        panel.appendChild(element('div', 'Aucun détail de correction supplémentaire à afficher.'));
+        if (!globalIssues.length) panel.appendChild(element('div', 'Aucun détail de correction supplémentaire à afficher.'));
         return panel;
       }
 
@@ -664,7 +723,7 @@
         return;
       }
 
-      const view = response?.view || {};
+      const view = responseView(response);
       record.token = response?.token || record.token || null;
       record.shell.replaceChildren();
 
@@ -693,6 +752,21 @@
       summary.style.marginTop = summaryText ? '4px' : '0';
       summary.style.opacity = '.76';
       body.append(heading, summary);
+
+      const visibleIssues = issueMessages(view);
+      const firstBlocker = visibleIssues.find(current => current.severity === 'blocker');
+      const firstWarning = visibleIssues.find(current => current.severity === 'warning');
+      const firstVisibleIssue = firstBlocker || firstWarning;
+      if (firstVisibleIssue) {
+        const prefix = firstBlocker ? 'Blocage' : 'À vérifier';
+        const reason = element('div', `${prefix}: ${firstVisibleIssue.message}`);
+        Object.assign(reason.style, {
+          marginTop: '5px',
+          fontSize: '12px',
+          fontWeight: firstBlocker ? '600' : '500'
+        });
+        body.appendChild(reason);
+      }
 
       const close = element('button', '×');
       close.type = 'button';
@@ -1038,6 +1112,8 @@
     signature,
     invalidContextMessage,
     summarizeView,
+    issueMessages,
+    responseView,
     actionIntent,
     questionSelectionRows,
     buildSelectedQuestionPackage,

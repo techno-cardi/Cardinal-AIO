@@ -62,7 +62,40 @@ function pkg() {
   const view = P.buildPreparedView(prepared);
   assert.equal(view.primaryAction.id, 'import');
   assert.equal(view.primaryAction.label, 'Importer dans Formative');
-  assert.equal(view.statusLabel, '✓ Prêt');
+  assert.equal(view.statusLabel, '⚠ À vérifier');
+}
+
+// A preflight blocker must keep the original questions and expose the exact
+// reason instead of collapsing the UI to "0 question / 1 blocage".
+{
+  const blockedPkg = pkg();
+  const issue = {
+    severity: 'blocker',
+    code: 'TECHNICAL_BLOCK',
+    itemId: 'q2',
+    message: 'Blocage technique de test'
+  };
+  const prepared = {
+    ok: false,
+    state: 'blocked',
+    targetTitle: 'Tchernobyl',
+    pkg: blockedPkg,
+    preflight: {
+      issues: [issue],
+      data: {
+        validation: {
+          stats: { questions: 2, auto: 1, assisted: 1, manual: 0 }
+        }
+      }
+    }
+  };
+  const view = P.buildPreparedView(prepared);
+  assert.equal(view.questions, 2);
+  assert.equal(view.blockers, 1);
+  assert.equal(view.validationRows.length, 2);
+  assert(view.validationRows[1].issues.some(x => x.code === 'TECHNICAL_BLOCK'));
+  assert.equal(view.issues[0].message, 'Blocage technique de test');
+  assert.equal(view.primaryAction.id, 'none');
 }
 
 // Recovery is explicit and resumable.
@@ -149,6 +182,19 @@ function pkg() {
   }, { targetTitle: 'T' });
   assert.equal(view.primaryAction.id, 'resume');
   assert.equal(view.primaryAction.label, 'Reprendre en sécurité');
+}
+
+// The same declared issue may exist in the package and in preflight output.
+// It must remain visible once, not be counted/rendered twice.
+{
+  const issue = { severity: 'warning', code: 'W', itemId: 'q1', message: 'Même avertissement' };
+  const duplicatePkg = pkg();
+  duplicatePkg.items[1].issues = [issue];
+  const rows = P.buildValidationRows(duplicatePkg, [issue]);
+  assert.equal(rows[0].issues.filter(x => x.code === 'W').length, 1);
+
+  const deduped = P.dedupeIssues([issue, { ...issue }]);
+  assert.equal(deduped.length, 1);
 }
 
 console.log('presentation-v2: all tests passed');

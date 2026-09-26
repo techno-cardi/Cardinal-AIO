@@ -126,7 +126,7 @@ Ordre obligatoire:
 2. écrire les `answerChoicePoints` finaux;
 3. ne plus changer le maximum.
 
-Preuve réelle du 2026-09-25: lors de l'écriture Keyword, Formative aligne aussi `details.points` sur le plus grand `answerChoicePoints`. Donc `max(answerChoicePoints)` doit correspondre au maximum de la question. Pour une question `assisted` dont tous les concepts sont partiels, Cardinal utilise la réponse attendue complète déjà fournie comme ancre de pleine note, sans gonfler le score d'un mot isolé.
+Preuve réelle du 2026-09-25: lors de l'écriture Keyword, Formative aligne aussi `details.points` sur le plus grand `answerChoicePoints`. Donc `max(answerChoicePoints)` doit correspondre au maximum de la question. Pour `auto` comme pour `assisted`, si tous les concepts sont partiels, Cardinal utilise la réponse attendue complète déjà fournie comme ancre technique de pleine note, sans gonfler le score d'un mot isolé.
 
 Ne jamais sommer les matches côté Cardinal.
 
@@ -141,6 +141,12 @@ Baseline 0.4.1 branche un vrai answer key Keyword sur `longAnswer` via l'update 
 - `isCaseSensitive`.
 
 Ne pas confondre disponibilité du corrigé et fiabilité d'une auto-correction complète pour une question complexe.
+
+## 4.1 Séparation des responsabilités
+
+ChatGPT porte le jugement pédagogique final du paquet: type, mode de correction, réponse attendue, concepts, termes, pondérations et issues pédagogiques.
+
+Cardinal ne refait pas ce jugement. Il peut signaler des risques par warning, mais ses blockers sont réservés à la structure, la représentabilité technique, les contradictions explicites du paquet, l'identité/cible, l'état serveur et la sécurité des mutations. Toute issue `blocker` explicitement produite par ChatGPT doit être propagée jusqu'au preflight et à l'UI.
 
 ## 5. Règles absolues de création pédagogique
 

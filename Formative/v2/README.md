@@ -25,6 +25,12 @@ Elle est maintenant réellement construite par GitHub Actions à partir du code 
 
 Important: **RC construite et testée en CI ne signifie pas encore remplacement de production de 0.4.1**. Les smoke tests réels dans Formative restent la prochaine gate.
 
+## Invariant d'autorité pédagogique
+
+Le paquet ChatGPT est l'intention pédagogique à transporter. Cardinal ne recalcule pas le sens de la consigne et ne choisit pas à la place de ChatGPT entre `auto`, `assisted` et `manual`.
+
+Le preflight peut bloquer seulement pour une incohérence explicite du contrat, une représentation Formative impossible, une cible/identité ambiguë, un conflit serveur ou une sécurité de mutation. Les heuristiques de contenu restent des warnings. Les blockers déclarés dans le paquet sont conservés et affichés.
+
 ## Chaîne exécutable actuelle
 
 La chaîne de sûreté est matérialisée jusqu'au navigateur et aux primitives GraphQL prouvées:
@@ -51,7 +57,7 @@ Les types actuellement prouvés dans le pipeline complet sont:
 
 La RC contient maintenant `chatgpt-prepare-helper-v2.js`.
 
-Le bouton **Copier le prompt Formative** copie une consigne compacte de moins de 3 500 caractères. Le professeur la colle dans ChatGPT et envoie lui-même le message. Si son brouillon contient déjà une demande ou un examen, Cardinal copie seulement la consigne à coller à la fin: il ne réécrit pas le brouillon et ne le duplique pas.
+Le bouton **Copier le prompt Formative** copie une consigne compacte maintenue sous 6 000 caractères par test de non-régression. Le professeur la colle dans ChatGPT et envoie lui-même le message. Si son brouillon contient déjà une demande ou un examen, Cardinal copie seulement la consigne à coller à la fin: il ne réécrit pas le brouillon et ne le duplique pas.
 
 La consigne couvre les réponses déjà présentes dans le chat, les PDF, DOCX et autres pièces jointes pertinentes. Elle demande un tableau humain, un paquet v2, des types de questions adaptés, un corrigé fondé sur les sources et des mots clés discriminants avec scores absolus prudents. Le protocole détaillé reste dans le dépôt comme référence normative; le flux actif ne le joint plus automatiquement à ChatGPT.
 
@@ -151,7 +157,12 @@ Mappings actifs:
 - section/instruction -> bloc texte;
 - shortAnswer;
 - longAnswer;
-- fillInTheBlank.
+- fillInTheBlank;
+- multipleChoice;
+- multipleSelection;
+- inlineChoice;
+- resequence;
+- matching.
 
 L'identité d'une question privilégie la source et un fingerprint stable plutôt que le prompt courant, afin qu'une reformulation ne crée pas automatiquement une nouvelle question.
 

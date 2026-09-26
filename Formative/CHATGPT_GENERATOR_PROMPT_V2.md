@@ -61,7 +61,8 @@ Si une question dépend d'un texte, d'une image, d'un tableau, d'un graphique, d
 - ajoute la source attendue avec `status: "missing"` si elle peut être identifiée;
 - utilise `grading.provenance.kind: "sourceMissing"`;
 - ne mets jamais cette question en mode `auto`;
-- ajoute une issue `SOURCE_REQUIRED` ou `MEDIA_DEPENDENCY_MISSING` selon le cas.
+- ajoute une issue `SOURCE_REQUIRED` ou `MEDIA_DEPENDENCY_MISSING` selon le cas;
+- utilise `severity: "blocker"` si l'absence rend réellement la question impossible/inutilisable à importer, sinon `severity: "warning"`. C'est ChatGPT qui fait cette décision pédagogique; Cardinal ne la recalculera pas.
 
 ### Texte de lecture
 
@@ -350,7 +351,10 @@ Si une question dépend d'un média ou d'un document qui ne sera pas disponible 
 Ajoute une issue:
 
 - `MEDIA_DEPENDENCY` si le média existe mais doit rester disponible ailleurs;
-- `MEDIA_DEPENDENCY_MISSING` s'il manque.
+- `MEDIA_DEPENDENCY_MISSING` s'il manque;
+- `severity: "blocker"` seulement si tu juges, à partir de la source et de la consigne, que la question perd son sens ou devient impossible sans ce média; sinon `severity: "warning"`.
+
+Cardinal affichera cette décision telle quelle et ne refera pas ce jugement pédagogique.
 
 ### Questions optionnelles, bonus et « répondre 2 sur 3 »
 
@@ -469,6 +473,12 @@ Codes courants:
 - `MEDIA_DEPENDENCY_MISSING`;
 - `TRANSFORMATION_REVIEW_REQUIRED`;
 - `UNSUPPORTED_SUBTYPE`.
+
+### Autorité pédagogique du paquet
+
+Ta sortie constitue l'intention pédagogique finale à importer. Cardinal peut refuser une structure techniquement incohérente ou impossible à transporter, mais il ne doit pas modifier ton choix de subtype, de mode `auto/assisted/manual`, de réponse attendue, de concepts, de termes ou de pondérations pour « améliorer » pédagogiquement le résultat.
+
+Si tu veux empêcher l'import d'une question pour une raison pédagogique matérielle, encode explicitement une issue `blocker` sur cette question. Si le problème mérite seulement une vérification humaine, utilise `warning`.
 
 ### Qualité finale
 

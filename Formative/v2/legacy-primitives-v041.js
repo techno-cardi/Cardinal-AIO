@@ -331,7 +331,7 @@
           correctAnswers: matches.map(match => match.text),
           answerChoicePoints: matches.map(match => match.score),
           isKeywordGrading: true,
-          isPartialCredit: item.grading?.partialCredit !== false,
+          isPartialCredit: item.grading?.partialCredit === true,
           isCaseSensitive: item.grading?.caseSensitive === true
         });
       }
@@ -407,7 +407,7 @@
       );
 
       if (item.subtype === 'multipleSelection') {
-        const partial = item.grading?.partialCredit !== false;
+        const partial = item.grading?.partialCredit === true;
         if (partial) {
           const answerChoicePoints = defs.map(x => {
             if (x.correct !== true) return 0;
@@ -450,7 +450,7 @@
         isRequired: item.isRequired !== false
       });
       await updateChoices(id, labels, keys, [...keys]);
-      await updateQuestion(id, { isPartialCredit: item.grading?.partialCredit !== false });
+      await updateQuestion(id, { isPartialCredit: item.grading?.partialCredit === true });
       await setPoints(id, item.points);
     }
 
@@ -478,7 +478,7 @@
         keys,
         [...keys]
       );
-      await updateQuestion(id, { isPartialCredit: item.grading?.partialCredit !== false });
+      await updateQuestion(id, { isPartialCredit: item.grading?.partialCredit === true });
       await setPoints(id, item.points);
     }
 
@@ -541,7 +541,7 @@
       await updateQuestion(id, {
         text: renderedText,
         isRequired: item.isRequired !== false,
-        isPartialCredit: item.grading?.partialCredit !== false
+        isPartialCredit: item.grading?.partialCredit === true
       });
       await setPoints(id, item.points);
     }
@@ -571,7 +571,7 @@
         text: structure.text,
         isRequired: item.isRequired !== false,
         isKeywordGrading: true,
-        isPartialCredit: item.grading?.partialCredit !== false,
+        isPartialCredit: item.grading?.partialCredit === true,
         partialCreditMode: item.grading?.partialCreditMode || 'standard'
       });
       await setPoints(id, item.points);

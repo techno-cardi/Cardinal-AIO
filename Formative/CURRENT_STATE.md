@@ -150,11 +150,16 @@ Supportés de bout en bout dans la 0.5.x actuelle:
 
 - `shortAnswer`;
 - `longAnswer`;
-- `fillInTheBlank`.
+- `fillInTheBlank`;
+- `multipleChoice`;
+- `multipleSelection`;
+- `inlineChoice`;
+- `resequence`;
+- `matching`.
 
 Les blocs texte nécessaires aux sections/instructions sont aussi représentés par les primitives historiques prouvées.
 
-Les autres subtypes Formative restent bloqués tant que CREATE + READ + UPDATE + VERIFY n'ont pas été prouvés avec leur contrat natif exact.
+`categorize`, `passageGroup` et les autres subtypes partiels/non prouvés restent bloqués tant que CREATE + READ + UPDATE + VERIFY n'ont pas été verrouillés avec leur contrat natif exact.
 
 ## 8. Couche exécutable 0.5.x
 
@@ -307,14 +312,27 @@ Donc:
 - score d'un mot = score direct de cette correspondance;
 - plusieurs mots ne s'additionnent pas;
 - le maximum Formative suit le plus grand `answerChoicePoints` dans le flux Keyword observé le 2026-09-25;
-- `auto` exige donc au moins un match légitime pouvant valoir le maximum;
-- `assisted` conserve les scores partiels et utilise au besoin la réponse attendue complète comme ancre de pleine note;
+- pour `auto` comme pour `assisted`, Cardinal ne gonfle jamais un mot-clé partiel pour atteindre le maximum;
+- si aucun match fourni n'atteint le maximum mais que `expectedAnswer` existe, l'adaptateur ajoute cette réponse complète comme ancre technique de pleine note, en conservant tous les scores pédagogiques fournis;
 - auto seulement pour les tâches déterministes;
 - assisted pour explication, multipartie ou réponse nécessitant jugement;
 - manuel seulement lorsque nécessaire;
 - une Free Response peut avoir un corrigé Keyword riche sans prétendre être totalement auto-corrigeable.
 
 Le popup et la barre ChatGPT contiennent l'audit du corrigé réellement destiné à Formative.
+
+Séparation figée depuis le durcissement du 25 septembre 2026:
+
+- aucune valeur de notation importante n'est désormais inventée par défaut: `required`, crédit partiel et casse Keyword sont vérifiés lorsqu'ils affectent le transport;
+- un paquet malformé doit finir en `blocked` avec une raison, jamais en exception non gérée;
+- un total officiel incohérent bloque; un total proposé/dérivé incohérent avertit sans écraser les points des questions;
+
+- ChatGPT est l'autorité pédagogique du paquet;
+- Cardinal ne rétrograde/reclasse pas un mode de correction à partir de ses propres heuristiques;
+- les heuristiques Cardinal de média, multipartie ou termes génériques sont des warnings;
+- les blockers Cardinal sont techniques/structurels ou liés à la sécurité de mutation;
+- les blockers explicitement présents dans `pkg.issues` ou `item.issues` sont propagés et respectés;
+- un preflight bloqué conserve le paquet, les questions et la raison exacte afin d'éviter l'état opaque `0 question · 1 blocage`.
 
 ## 12. CI / build
 
