@@ -88,6 +88,19 @@
     return out;
   }
 
+  function responseView(response = {}) {
+    const base = response?.view && typeof response.view === 'object'
+      ? response.view
+      : {};
+    const responseIssues = Array.isArray(response?.issues) ? response.issues : [];
+    if (!responseIssues.length || (Array.isArray(base.issues) && base.issues.length)) return base;
+    return {
+      ...base,
+      issues: responseIssues,
+      globalIssues: responseIssues.filter(issue => !issue?.itemId)
+    };
+  }
+
   function actionIntent(view = {}, reviewAcknowledged = false) {
     const action = view?.primaryAction || {};
     switch (action.id) {
@@ -710,7 +723,7 @@
         return;
       }
 
-      const view = response?.view || {};
+      const view = responseView(response);
       record.token = response?.token || record.token || null;
       record.shell.replaceChildren();
 
@@ -1100,6 +1113,7 @@
     invalidContextMessage,
     summarizeView,
     issueMessages,
+    responseView,
     actionIntent,
     questionSelectionRows,
     buildSelectedQuestionPackage,
