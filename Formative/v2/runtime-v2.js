@@ -11,9 +11,10 @@
   }
 
   function blocked(reason, message, issues = []) {
-    const normalizedIssues = issues.length
-      ? issues
-      : [{ severity: 'blocker', code: reason, message }];
+    const normalizedIssues = Array.isArray(issues) ? [...issues] : [];
+    if (!normalizedIssues.some(issue => issue?.severity === 'blocker')) {
+      normalizedIssues.unshift({ severity: 'blocker', code: reason, message });
+    }
     const blockers = normalizedIssues.filter(issue => issue?.severity === 'blocker').length;
     const warnings = normalizedIssues.filter(issue => issue?.severity === 'warning').length;
     return {
@@ -24,7 +25,7 @@
       view: {
         state: 'blocked',
         statusLabel: '✕ Bloqué',
-        blockers: Math.max(1, blockers),
+        blockers,
         warnings,
         issues: normalizedIssues,
         globalIssues: normalizedIssues,
