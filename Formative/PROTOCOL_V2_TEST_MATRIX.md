@@ -442,6 +442,8 @@ Minimum obligatoire:
 34. Item non Cardinal à préserver.
 35. Conflit subtype.
 36. Rapport final et reprise.
+37. Paquet valide de 10 questions + Formative vide -> preflight non bloqué, `CREATE = 10`, 10 questions visibles.
+38. Blocage avant preflight (cible/permission/snapshot) -> raison exacte visible dans la barre, jamais compteur opaque seul.
 
 ## Critère de sortie 0.5.0
 
