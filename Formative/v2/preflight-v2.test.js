@@ -83,6 +83,71 @@ function baselineFor(pkg, target = 'F1', serverPrompt = pkg.items[0].prompt) {
   assert.equal(r.data.ui.status, '✓ Prêt');
 }
 
+// Regression for the 2026-09-25 failure: a valid ten-question package
+// targeting an empty Formative must reach the planner. One warning may put the
+// package in review, but Cardinal must never collapse it to a global blocker
+// before a single question is attempted.
+{
+  const seed = v2('Question 1?', 'full');
+  const items = Array.from({ length: 10 }, (_, index) => {
+    const n = index + 1;
+    const mode = n % 3 === 0 ? 'manual' : n % 3 === 1 ? 'auto' : 'assisted';
+    const grading = mode === 'manual'
+      ? {
+          mode,
+          expectedAnswer: `Réponse attendue ${n}`,
+          provenance: { kind: 'sourceExplicit', sourceRefs: ['text'] },
+          partialCredit: false,
+          caseSensitive: false,
+          requirements: [],
+          concepts: []
+        }
+      : {
+          mode,
+          expectedAnswer: `Réponse attendue ${n}`,
+          provenance: { kind: 'sourceExplicit', sourceRefs: ['text'] },
+          partialCredit: true,
+          caseSensitive: false,
+          requirements: mode === 'assisted' ? [{ type: 'mustAddress', text: 'Répondre complètement' }] : [],
+          concepts: [{
+            id: `concept-${n}`,
+            label: `Concept ${n}`,
+            score: 2,
+            provenance: 'sourceExplicit',
+            terms: [`mot-${n}`],
+            riskyTerms: []
+          }]
+        };
+    return {
+      ...seed.items[0],
+      id: `q${n}`,
+      order: n,
+      source: {
+        ...seed.items[0].source,
+        number: String(n),
+        promptExact: `${n}) Question ${n}?`
+      },
+      prompt: `Question ${n}?`,
+      grading
+    };
+  });
+  const pkg10 = { ...seed, items };
+  const r = preflight.preflightPackageV2({
+    pkg: pkg10,
+    targetFormativeId: 'F1',
+    targetTitle: 'Questionnaire 10',
+    assessmentFingerprint: 'A10',
+    baselineRecord: null,
+    serverItems: []
+  }, deps);
+  assert.equal(r.ok, true);
+  assert.notEqual(r.state, 'blocked');
+  assert.equal(r.data.validation.stats.questions, 10);
+  assert.equal(r.data.planner.counts.CREATE, 10);
+  assert.equal(r.data.ui.questions, 10);
+  assert.equal(r.data.ui.blockers, 0);
+}
+
 // Non-empty target without baseline blocks initial blind creation.
 {
   const r = preflight.preflightPackageV2({
