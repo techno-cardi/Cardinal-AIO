@@ -298,6 +298,69 @@ function pkg(items, overrides = {}) {
   assert(result.issues.some(x => x.code === 'BLOCKED_STRUCTURE'));
 }
 
+// Les notions "schéma narratif" et "schéma actantiel" ne prouvent pas
+// l'existence d'un média externe.
+for (const prompt of [
+  "Associe chaque événement à l'étape du schéma narratif qui lui correspond le mieux.",
+  "Associe chaque élément à son rôle dans le schéma actantiel."
+]) {
+  const q = baseQuestion({
+    source: {
+      sourceRef: 'questions',
+      page: 1,
+      printedPage: null,
+      number: '9',
+      subNumber: null,
+      promptExact: prompt
+    },
+    sourceRefs: ['texte'],
+    prompt,
+    subtype: 'matching',
+    grading: {
+      mode: 'auto', expectedAnswer: 'A = 1; B = 2',
+      provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      partialCredit: true, caseSensitive: false, requirements: [], concepts: []
+    },
+    response: { pairs: [
+      { left: 'A', right: '1' },
+      { left: 'B', right: '2' }
+    ] },
+    transformations: []
+  });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert(!result.issues.some(x => x.code === 'MEDIA_DEPENDENCY' || x.code === 'MEDIA_DEPENDENCY_MISSING'));
+}
+
+// Une vraie référence à un support visuel doit continuer d'être signalée.
+{
+  const prompt = 'Observe le schéma ci-dessous et associe chaque élément à son rôle.';
+  const q = baseQuestion({
+    source: {
+      sourceRef: 'questions',
+      page: 1,
+      printedPage: null,
+      number: '10',
+      subNumber: null,
+      promptExact: prompt
+    },
+    sourceRefs: ['texte'],
+    prompt,
+    subtype: 'matching',
+    grading: {
+      mode: 'auto', expectedAnswer: 'A = 1; B = 2',
+      provenance: { kind: 'questionIntrinsic', sourceRefs: [] },
+      partialCredit: true, caseSensitive: false, requirements: [], concepts: []
+    },
+    response: { pairs: [
+      { left: 'A', right: '1' },
+      { left: 'B', right: '2' }
+    ] },
+    transformations: []
+  });
+  const result = V2.validatePackageV2(pkg([q]));
+  assert(result.issues.some(x => x.code === 'MEDIA_DEPENDENCY'));
+}
+
 {
   const variants = V2.expandMechanicalVariants('grand-mère');
   assert(variants.includes('grand-mère'));
