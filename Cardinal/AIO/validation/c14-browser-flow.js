@@ -91,6 +91,17 @@ async function importAll(bar) {
   }
 }
 
+async function syncServer() {
+  if (!workerRef) return;
+  const state = await workerRef.evaluate(() => globalThis.__cardinalBrowserServer?.snapshot());
+  if (!state) return;
+  items.clear();
+  for (const item of state.items) items.set(item._id, item);
+  mutations.splice(0, mutations.length, ...state.mutations);
+  requests.splice(0, requests.length, ...state.requests);
+  for (const error of state.errors) if (!errors.includes(error)) errors.push(error);
+}
+
 async function main() {
   context = await pw.chromium.launchPersistentContext(path.join(root, 'browser-profile-' + Date.now()), {
     executablePath: process.env.CARDINAL_BROWSER_CHROMIUM || path.join(root, 'browser-deps/root/usr/lib/chromium/chromium'),
@@ -103,6 +114,27 @@ async function main() {
   workerRef = worker;
   worker.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   const id = worker.url().split('/')[2];
+  // Playwright routing does not intercept extension-worker fetches. Install
+  // the same external GraphQL fixture at the fetch boundary and restart the
+  // real app through its production boot API so the client captures it.
+  await worker.evaluate(`(() => {
+    const clone = value => JSON.parse(JSON.stringify(value));
+    const items = new Map(), requests = [], mutations = [], errors = [];
+    let nextId = 0;
+    const assert = { equal(a,b) { if (a !== b) throw new Error('Expected ' + b + ', received ' + a); } };
+    const graph = ${graph.toString()};
+    globalThis.__cardinalBrowserServer = { snapshot: () => ({ items: [...items.values()], requests, mutations, errors }) };
+    globalThis.fetch = async (url, init) => {
+      if (!String(url).startsWith('https://svc.goformative.com/graphql/')) throw new Error('Unexpected external request: ' + url);
+      let body;
+      try { body = graph(JSON.parse(init.body)); }
+      catch (error) { errors.push(error.message); body = { errors: [{ message: error.message }] }; }
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    };
+    globalThis.__cardinalFormativeV2App.detach();
+    globalThis.__cardinalFormativeV2App = null;
+    globalThis.CardinalFormativeV2Background.start();
+  })()`);
   let theme = 'dark';
   await context.route('**/*', async route => {
     const request = route.request();
@@ -167,6 +199,7 @@ async function main() {
     await bar.getByRole('button', { name: 'Voir le corrigé préparé', exact: true }).click();
     await importAll(bar);
     await bar.getByRole('button', { name: 'Réimporter dans Formative', exact: true }).waitFor({ timeout: 60000 });
+    await syncServer();
     assert.equal(items.size, 15);
     assert.equal([...items.values()].reduce((sum, item) => sum + item.details.points, 0), 60);
     assert.equal(mutations.filter(row => row.name === 'FormativeTeacherAddFormativeItem').length, 15);
@@ -180,6 +213,7 @@ async function main() {
     await bar.getByRole('button', { name: 'Importer dans Formative', exact: true }).waitFor({ timeout: 20000 });
     await importAll(bar);
     await bar.getByRole('button', { name: 'Réimporter dans Formative', exact: true }).waitFor({ timeout: 60000 });
+    await syncServer();
     assert.equal(items.size, 15); assert.equal(mutations.length, before);
   });
   await check('closing the bar and refreshing the page restores the usable menu', async () => {
@@ -207,6 +241,7 @@ async function main() {
 }
 
 main().catch(error => { checks.push({ name: 'browser setup and real extension startup', ok: false, error: error.stack }); console.log(error.stack); }).finally(async () => {
+  await syncServer().catch(error => errors.push(error.message));
   if (chatPage && workerRef) {
     try {
       diagnostics.push({ stage: 'final', bars: await chatPage.locator('[data-cardinal-formative-signature]').allInnerTexts(), storage: await workerRef.evaluate(() => chrome.storage.local.get(null)), session: await workerRef.evaluate(() => chrome.storage.session.get(null)) });
