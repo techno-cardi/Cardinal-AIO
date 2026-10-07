@@ -107,6 +107,7 @@ async function main() {
   await context.route('**/*', async route => {
     const request = route.request();
     const url = new URL(request.url());
+    if (url.protocol === 'chrome-extension:') return route.continue();
     if (url.hostname === 'chatgpt.com') return route.fulfill({ contentType: 'text/html', body: html(theme) });
     if (url.hostname === 'app.formative.com') return route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Les Six Cygnes</title><main>Éditeur de test</main><script>setTimeout(()=>fetch("https://svc.goformative.com/graphql/query/LocalSessionProbe",{method:"POST",headers:{"authorization":"Bearer local-test-session","content-type":"application/json"},body:JSON.stringify({operationName:"LocalSessionProbe",variables:{}})}),300)</script>' });
     if (url.hostname === 'svc.goformative.com' && request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST,OPTIONS' } });
@@ -126,7 +127,7 @@ async function main() {
   const bar = chat.locator('[data-cardinal-formative-signature]').first();
   await bar.waitFor({ timeout: 20000 });
   await chat.waitForTimeout(1200);
-  diagnostics.push({ stage: 'initial', bar: await bar.innerText(), storage: await worker.evaluate(() => chrome.storage.local.get(null)) });
+  diagnostics.push({ stage: 'initial', bar: await bar.innerText(), storage: await worker.evaluate(() => chrome.storage.local.get(null)), session: await worker.evaluate(() => chrome.storage.session.get(null)) });
   console.log(JSON.stringify(diagnostics.at(-1)));
   await chat.screenshot({ path: output.replace(/\.json$/, '-initial.png'), fullPage: true });
 
@@ -208,7 +209,7 @@ async function main() {
 main().catch(error => { checks.push({ name: 'browser setup and real extension startup', ok: false, error: error.stack }); console.log(error.stack); }).finally(async () => {
   if (chatPage && workerRef) {
     try {
-      diagnostics.push({ stage: 'final', bars: await chatPage.locator('[data-cardinal-formative-signature]').allInnerTexts(), storage: await workerRef.evaluate(() => chrome.storage.local.get(null)) });
+      diagnostics.push({ stage: 'final', bars: await chatPage.locator('[data-cardinal-formative-signature]').allInnerTexts(), storage: await workerRef.evaluate(() => chrome.storage.local.get(null)), session: await workerRef.evaluate(() => chrome.storage.session.get(null)) });
       console.log(JSON.stringify(diagnostics.at(-1)));
     } catch {}
   }
