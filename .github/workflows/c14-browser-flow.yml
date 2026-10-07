@@ -13,10 +13,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install Chromium test runtime
+      - name: Install Playwright
+        timeout-minutes: 3
         run: |
-          npm install --no-save --package-lock=false playwright@1.56.1
-          npx playwright install --with-deps chromium
+          npm install --ignore-scripts --no-audit --no-fund --no-save --package-lock=false playwright@1.56.1
+      - name: Install Chromium
+        timeout-minutes: 3
+        run: npx playwright install chromium
       - name: Extract the exact shipped ZIP
         run: |
           mkdir -p /tmp/cardinal-browser/artifact

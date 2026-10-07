@@ -135,7 +135,7 @@ async function main() {
     const popup = await popupFor(chat, id);
     await popup.evaluate(async () => {
       const tabs = await chrome.tabs.query({ url: 'https://chatgpt.com/*' });
-      await chrome.scripting.executeScript({ target: { tabId: tabs[0].id }, func: () => { globalThis.__cardinalFormativePrepareHelperV2?.stop(); globalThis.__cardinalFormativePrepareHelperV2 = null; } });
+      await chrome.scripting.executeScript({ target: { tabId: tabs[0].id }, func: () => { globalThis.__cardinalFormativePrepareHelperV2?.stop(); } });
     });
     const response = await popup.evaluate(async () => {
       const copied = [];
