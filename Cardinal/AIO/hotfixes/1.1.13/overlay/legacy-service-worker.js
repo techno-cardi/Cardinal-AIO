@@ -2547,6 +2547,63 @@ async function formativeAiPrepare091InsidePage(formativeId, assignmentId, sectio
     return [...new Set(out.map(x => String(x).replace(/\s+/g,' ').trim()).filter(Boolean))].slice(0,24);
   }
 
+  // Correctif c14/resequence: Formative stores the submitted order as opaque
+  // choice keys. Keep decoding deterministic by pairing Formative's own
+  // correct key order with the already human-readable correction reference.
+  function extractResequenceCorrectTokens(definition) {
+    if (!definition || typeof definition !== 'object') return [];
+    const candidates = [];
+    const seen = new WeakSet();
+    const walk = value => {
+      if (!value || typeof value !== 'object' || seen.has(value)) return;
+      seen.add(value);
+      if (Array.isArray(value)) { value.forEach(walk); return; }
+      if (Array.isArray(value.correctAnswers)) {
+        const raw = value.correctAnswers;
+        const tokens = raw.map(v => (typeof v === 'string' || typeof v === 'number') ? String(v).trim() : '');
+        if (
+          tokens.length >= 2 &&
+          tokens.length === raw.length &&
+          tokens.every(token => token && looksOpaqueToken(token)) &&
+          new Set(tokens).size === tokens.length
+        ) candidates.push(tokens);
+      }
+      for (const child of Object.values(value)) walk(child);
+    };
+    walk(definition);
+    candidates.sort((a,b) => b.length - a.length);
+    return candidates[0] || [];
+  }
+
+  function hydrateResequenceTokenMapFromReference(tokenMap, definition, expectedAnswers) {
+    const tokens = extractResequenceCorrectTokens(definition);
+    const labels = Array.isArray(expectedAnswers)
+      ? expectedAnswers.map(v => String(v ?? '').replace(/\\s+/g,' ').trim()).filter(Boolean)
+      : [];
+    if (tokens.length < 2 || tokens.length !== labels.length) return false;
+    if (labels.some(label => looksOpaqueToken(label) || label.length > 700)) return false;
+    if (new Set(labels).size !== labels.length) return false;
+    for (let i = 0; i < tokens.length; i++) {
+      if (!tokenMap.has(tokens[i])) tokenMap.set(tokens[i], labels[i]);
+    }
+    return tokens.every(token => tokenMap.has(token));
+  }
+
+  function decodeResequenceAnswer(content, tokenMap, questionId='') {
+    const raw = richInfo(content).text.replace(/\\s+/g,' ').trim();
+    if (!raw) return null;
+    const tokens = raw.split(/[\\s,;|]+/).map(v => v.trim()).filter(Boolean);
+    if (tokens.length < 2 || !tokens.every(looksOpaqueToken)) return null;
+    const resolved = tokens.map(token =>
+      tokenMap.get(token) ||
+      resolveTokenFromCapturedNetwork(token, questionId) ||
+      resolveChoiceTokenFromDom(token) ||
+      ''
+    );
+    if (!resolved.every(Boolean)) return null;
+    return resolved.map(v => String(v).replace(/\\s+/g,' ').trim());
+  }
+
   function extractBlankKeyOrder(definition) {
     if (!definition || typeof definition !== 'object') return [];
     const candidates = [];
@@ -2862,19 +2919,32 @@ async function formativeAiPrepare091InsidePage(formativeId, assignmentId, sectio
     const parentContext = parentContextFor(item);
     const qHasRubric = item?.details?.isRubricEnabled === true || (Array.isArray(item?.rubric?.criteria) && item.rubric.criteria.length > 0);
     const questionId = String(item._id);
+    const questionType = String(item.subtype || item.type || '');
     const capturedDefinition = getCapturedQuestionDefinition(questionId);
     const apiDefinition = await fetchQuestionDefinitionWithRetry(questionId);
     const definitionSources = [apiDefinition, capturedDefinition, item].filter(Boolean);
     const decoderDefinition = definitionSources.length > 1 ? { __cardinalQuestionSources: definitionSources } : (definitionSources[0] || item);
     const tokenMap = buildQuestionTokenMap(decoderDefinition, questionId);
-    const expectedAnswers = collectCorrectReferences(decoderDefinition, tokenMap, questionId);
+    let expectedAnswers = collectCorrectReferences(decoderDefinition, tokenMap, questionId);
+    if (questionType === 'resequence' && hydrateResequenceTokenMapFromReference(tokenMap, decoderDefinition, expectedAnswers)) {
+      expectedAnswers = collectCorrectReferences(decoderDefinition, tokenMap, questionId);
+    }
     const answers = [];
     for (const answer of detail?.answers?.nodes || []) {
       const sid = String(answer?.owner?._id || '');
       const meta = studentMap.get(sid) || { studentId:sid, studentLabel:'Réponse', studentName:'', studentEmail:'' };
       const aInfo = richInfo(answer?.content);
       const rawAnswerText = aInfo.text;
-      const decodedAnswer = decodeStructuredAnswer(answer?.content, tokenMap, questionId, decoderDefinition);
+      const resequenceValues = questionType === 'resequence'
+        ? decodeResequenceAnswer(answer?.content, tokenMap, questionId)
+        : null;
+      const decodedAnswer = resequenceValues
+        ? {
+            text: resequenceValues.map((value,index) => `${index + 1}. ${value}`).join('\\n'),
+            values: resequenceValues,
+            unresolvedTokens: []
+          }
+        : decodeStructuredAnswer(answer?.content, tokenMap, questionId, decoderDefinition);
       const resolvedChoiceText = resolveTokenFromCapturedNetwork(rawAnswerText, questionId) || resolveChoiceTokenFromDom(rawAnswerText);
       if (decodedAnswer.text) aInfo.text = decodedAnswer.text;
       else if (resolvedChoiceText) aInfo.text = resolvedChoiceText;
@@ -2919,7 +2989,7 @@ async function formativeAiPrepare091InsidePage(formativeId, assignmentId, sectio
       hasRubric: qHasRubric,
       rubricKnown,
       rubric: rubricText(item.rubric),
-      questionType: String(item.subtype || item.type || ''),
+      questionType,
       expectedAnswers,
       decoderDefinitionFound: !!decoderDefinition,
       decoderDefinitionSource: apiDefinition ? 'server' : (capturedDefinition ? 'captured-network' : 'formative-item'),
