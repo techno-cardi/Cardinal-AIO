@@ -299,3 +299,12 @@ Correctif: uniquement pour `questionType === "resequence"`, découper la séquen
 Validation locale du correctif: syntaxe complète du service worker, ordre normal, permutation des deux premiers éléments, clé entièrement alphabétique `mttd`, séparateurs alternatifs, échec fermé sur clé inconnue et garde spécifique `resequence`.
 
 Ce hotfix est documenté comme expérimental tant qu'il n'a pas été validé dans une vraie question Formative après installation du ZIP dérivé du correctif 14.
+
+
+## Hotfix expérimental 2026-10-07 - faux média sur « schéma »
+
+Sur le correctif 14, `detectMediaDependency` considérait toute occurrence normalisée de `schema` comme une dépendance à un média. Cela produisait un faux avertissement `MEDIA_DEPENDENCY` sur des formulations purement notionnelles comme « schéma narratif » et « schéma actantiel », notamment les questions matching Q9 et Q10 du questionnaire Les Six Cygnes.
+
+Correctif: `schema` n'est plus un déclencheur seul. Le signal média demeure actif lorsqu'un indice explicite de support externe est présent, par exemple « schéma ci-dessous », « schéma joint », « schéma fourni », « observe le schéma » ou « consulte le schéma ». Les autres détecteurs média existants sont conservés.
+
+Régressions ajoutées: « schéma narratif » et « schéma actantiel » ne génèrent plus `MEDIA_DEPENDENCY`; « Observe le schéma ci-dessous » continue de le générer.
