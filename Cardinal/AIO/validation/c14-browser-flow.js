@@ -18,6 +18,7 @@ const requests = [];
 const mutations = [];
 const errors = [];
 const checks = [];
+const diagnostics = [];
 let nextId = 0;
 let context;
 
@@ -111,7 +112,9 @@ async function main() {
   await chat.goto('https://chatgpt.com/c/cardinal-test');
   const bar = chat.locator('[data-cardinal-formative-signature]').first();
   await bar.waitFor({ timeout: 20000 });
-  await bar.getByRole('button', { name: 'Importer dans Formative', exact: true }).waitFor({ timeout: 20000 });
+  await chat.waitForTimeout(1200);
+  diagnostics.push({ stage: 'initial', bar: await bar.innerText(), storage: await worker.evaluate(() => chrome.storage.local.get(null)) });
+  console.log(JSON.stringify(diagnostics.at(-1)));
   await chat.screenshot({ path: output.replace(/\.json$/, '-initial.png'), fullPage: true });
 
   await check('primary action is readable with the current dark-theme variables', async () => {
@@ -190,7 +193,7 @@ async function main() {
 }
 
 main().catch(error => { checks.push({ name: 'browser setup and real extension startup', ok: false, error: error.stack }); console.log(error.stack); }).finally(async () => {
-  const result = { artifact, chromium: context ? context.browser()?.version() : null, checks, errors, serverItems: items.size, mutations: mutations.length, requests: requests.length };
+  const result = { artifact, chromium: context ? context.browser()?.version() : null, checks, errors, diagnostics, serverItems: items.size, mutations: mutations.length, requests: requests.length };
   fs.writeFileSync(output, JSON.stringify(result, null, 2));
   if (context) await context.close();
   process.exitCode = checks.some(row => !row.ok) || errors.length ? 1 : 0;
