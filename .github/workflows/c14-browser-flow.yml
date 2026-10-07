@@ -1,0 +1,49 @@
+name: Cardinal C14 browser regression
+on:
+  push:
+    branches: ['hotfix/1.2.0-c14-ui-recovery']
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium test runtime
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Extract the exact shipped ZIP
+        run: |
+          mkdir -p /tmp/cardinal-browser/artifact
+          python3 - <<'PY'
+          import zipfile,hashlib
+          from pathlib import Path
+          archive=Path('Cardinal/AIO/validation/c14-observed.zip')
+          print('ZIP SHA256',hashlib.sha256(archive.read_bytes()).hexdigest())
+          with zipfile.ZipFile(archive) as z:
+              assert z.testzip() is None
+              z.extractall('/tmp/cardinal-browser/artifact')
+          PY
+      - name: Exercise popup, real buttons and worker messaging
+        env:
+          CARDINAL_PLAYWRIGHT: playwright
+          CARDINAL_BROWSER_ROOT: /tmp/cardinal-browser
+          CARDINAL_BROWSER_PACKET: Formative/fixtures/v2/exact-six-cygnes-c14.json
+        run: |
+          export CARDINAL_BROWSER_CHROMIUM="$(node -e 'process.stdout.write(require("playwright").chromium.executablePath())')"
+          node Cardinal/AIO/validation/c14-browser-flow.js /tmp/cardinal-browser/artifact /tmp/cardinal-browser/results.json
+      - name: Preserve regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cardinal-C14-browser-evidence
+          path: |
+            /tmp/cardinal-browser/results.json
+            /tmp/cardinal-browser/*.png
+          if-no-files-found: warn
+          retention-days: 14
