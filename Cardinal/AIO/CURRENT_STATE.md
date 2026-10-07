@@ -285,3 +285,17 @@ Ordre recommandé :
 8. reprise/rechargement pour confirmer les scénarios de session.
 
 Les versions séparées restent disponibles comme rollbacks tant que cette matrice n'est pas passée. Une régression observée doit être corrigée dans l'adaptateur AIO en priorité plutôt que par une refonte du moteur historique.
+
+## Hotfix expérimental 2026-10-07 - export resequence lisible
+
+Branche isolée: `hotfix/1.2.0-c14-resequence-labels`.
+
+Base exacte: commit `d9fffbcac847ae2285098d257ce6ca164b05909f`, build `1.2.0-formative-1.1.14-recovery-idempotence-g118`.
+
+Défaut reproduit: les réponses d'une question Formative `resequence` pouvaient être exportées vers ChatGPT sous forme de clés internes, par exemple `yr3f yyd2 mttd ovx9`, même quand les libellés humains de la question étaient disponibles. La cause était la détection générique des jetons opaques, qui exigeait un mélange lettres/chiffres et ne reconnaissait donc pas une clé valide entièrement alphabétique comme `mttd`.
+
+Correctif: uniquement pour `questionType === "resequence"`, découper la séquence soumise et convertir chaque clé avec la table de choix Formative déjà construite. La conversion n'est acceptée que si tous les jetons sont résolus. Un jeton inconnu fait échouer ce chemin de décodage sans inventer de réponse. Aucun changement aux autres types de questions, au pointage, au transport, à la reprise ou à l'idempotence.
+
+Validation locale du correctif: syntaxe complète du service worker, ordre normal, permutation des deux premiers éléments, clé entièrement alphabétique `mttd`, séparateurs alternatifs, échec fermé sur clé inconnue et garde spécifique `resequence`.
+
+Ce hotfix est documenté comme expérimental tant qu'il n'a pas été validé dans une vraie question Formative après installation du ZIP dérivé du correctif 14.
