@@ -608,10 +608,15 @@
     const patterns = [
       /\bimage\b/,
       /\bfigure\b/,
-      /\bschema\b/,
+      // "schéma narratif" et "schéma actantiel" sont des notions, pas des
+      // preuves qu'une pièce jointe ou une image est nécessaire. Un schéma
+      // n'est considéré comme média que si le prompt contient un indice
+      // explicite de support visuel/externe.
+      /\bschema\s+(?:ci-dessus|ci-dessous|suivant|suivante|precedent|precedente|joint|jointe|fourni|fournie|affiche|affichee|presente|presentee)\b/,
+      /\b(?:observe|consulte|regarde|voir)\s+(?:le\s+)?schema\b/,
       /\bgraphique\b/,
       /\bcarte\b/,
-      /\btableau\s+(?:ci-dessus|suivant|precedent)\b/,
+      /\btableau\s+(?:ci-dessus|ci-dessous|suivant|precedent)\b/,
       /\bdocument\s+\d+\b/,
       /\billustration\b/
     ];
