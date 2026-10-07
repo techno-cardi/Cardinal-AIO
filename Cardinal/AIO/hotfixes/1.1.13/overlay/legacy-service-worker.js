@@ -2564,7 +2564,7 @@ async function formativeAiPrepare091InsidePage(formativeId, assignmentId, sectio
         if (
           tokens.length >= 2 &&
           tokens.length === raw.length &&
-          tokens.every(token => token && token.length <= 120 && !/[\\s,;|]/.test(token)) &&
+          tokens.every(token => token && token.length <= 120 && !/[\s,;|]/.test(token)) &&
           new Set(tokens).size === tokens.length
         ) candidates.push(tokens);
       }
@@ -2578,7 +2578,7 @@ async function formativeAiPrepare091InsidePage(formativeId, assignmentId, sectio
   function hydrateResequenceTokenMapFromReference(tokenMap, definition, expectedAnswers) {
     const tokens = extractResequenceCorrectTokens(definition);
     const labels = Array.isArray(expectedAnswers)
-      ? expectedAnswers.map(v => String(v ?? '').replace(/\\s+/g,' ').trim()).filter(Boolean)
+      ? expectedAnswers.map(v => String(v ?? '').replace(/\s+/g,' ').trim()).filter(Boolean)
       : [];
     if (tokens.length < 2 || tokens.length !== labels.length) return false;
     if (labels.some(label => !label || label.length > 700)) return false;
@@ -2590,9 +2590,9 @@ async function formativeAiPrepare091InsidePage(formativeId, assignmentId, sectio
   }
 
   function decodeResequenceAnswer(content, tokenMap, questionId='') {
-    const raw = richInfo(content).text.replace(/\\s+/g,' ').trim();
+    const raw = richInfo(content).text.replace(/\s+/g,' ').trim();
     if (!raw) return null;
-    const tokens = raw.split(/[\\s,;|]+/).map(v => v.trim()).filter(Boolean);
+    const tokens = raw.split(/[\s,;|]+/).map(v => v.trim()).filter(Boolean);
     if (tokens.length < 2) return null;
     const resolved = tokens.map(token =>
       tokenMap.get(token) ||
@@ -2601,7 +2601,7 @@ async function formativeAiPrepare091InsidePage(formativeId, assignmentId, sectio
       ''
     );
     if (!resolved.every(Boolean)) return null;
-    return resolved.map(v => String(v).replace(/\\s+/g,' ').trim());
+    return resolved.map(v => String(v).replace(/\s+/g,' ').trim());
   }
 
   function extractBlankKeyOrder(definition) {
