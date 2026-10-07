@@ -2547,9 +2547,9 @@ async function formativeAiPrepare091InsidePage(formativeId, assignmentId, sectio
     return [...new Set(out.map(x => String(x).replace(/\s+/g,' ').trim()).filter(Boolean))].slice(0,24);
   }
 
-  // Correctif c14/resequence: Formative stores the submitted order as opaque
-  // choice keys. Keep decoding deterministic by pairing Formative's own
-  // correct key order with the already human-readable correction reference.
+  // Correctif c14/resequence: Formative stores the submitted order as internal
+  // choice keys. Resolve only keys that belong to this resequence map and keep
+  // the student's exact order. Unknown keys fail closed instead of being guessed.
   function extractResequenceCorrectTokens(definition) {
     if (!definition || typeof definition !== 'object') return [];
     const candidates = [];
@@ -2564,7 +2564,7 @@ async function formativeAiPrepare091InsidePage(formativeId, assignmentId, sectio
         if (
           tokens.length >= 2 &&
           tokens.length === raw.length &&
-          tokens.every(token => token && looksOpaqueToken(token)) &&
+          tokens.every(token => token && token.length <= 120 && !/[\\s,;|]/.test(token)) &&
           new Set(tokens).size === tokens.length
         ) candidates.push(tokens);
       }
@@ -2581,7 +2581,7 @@ async function formativeAiPrepare091InsidePage(formativeId, assignmentId, sectio
       ? expectedAnswers.map(v => String(v ?? '').replace(/\\s+/g,' ').trim()).filter(Boolean)
       : [];
     if (tokens.length < 2 || tokens.length !== labels.length) return false;
-    if (labels.some(label => looksOpaqueToken(label) || label.length > 700)) return false;
+    if (labels.some(label => !label || label.length > 700)) return false;
     if (new Set(labels).size !== labels.length) return false;
     for (let i = 0; i < tokens.length; i++) {
       if (!tokenMap.has(tokens[i])) tokenMap.set(tokens[i], labels[i]);
@@ -2593,7 +2593,7 @@ async function formativeAiPrepare091InsidePage(formativeId, assignmentId, sectio
     const raw = richInfo(content).text.replace(/\\s+/g,' ').trim();
     if (!raw) return null;
     const tokens = raw.split(/[\\s,;|]+/).map(v => v.trim()).filter(Boolean);
-    if (tokens.length < 2 || !tokens.every(looksOpaqueToken)) return null;
+    if (tokens.length < 2) return null;
     const resolved = tokens.map(token =>
       tokenMap.get(token) ||
       resolveTokenFromCapturedNetwork(token, questionId) ||
