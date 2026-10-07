@@ -1,0 +1,84 @@
+CARDINAL AIO C14 : CORRECTIF IMPORT ET AFFICHAGE DES BLOCAGES
+Validation du 7 octobre 2026
+
+Archive : Cardinal-AIO-1.2.0-c14-importfix-g118.zip
+Version affichee : 1.2.0-formative-1.1.14-recovery-idempotence-resequence-labels-mediafix-importfix-g118
+SHA256 : 367a02eee0b6c7f503f227687fc9c9ac4eb2a783463f92995259691b125a02fa
+Taille : 298628 octets
+
+CAUSE REPRODUITE
+Le paquet « Les Six Cygnes - Lecture et notions de langue » correspond
+exactement a l'empreinte du diagnostic :
+cfi-package-a0ee7d930240324cf3c0b8c958b3d543.
+Le validateur strict produit 34 blocages de format. Le resultat de preparation
+ne conservait pas le paquet ni les details necessaires a leur affichage,
+d'ou « 1 blocage » et aucune ligne de question.
+Les lectures du diagnostic repondent HTTP 200 et aucune mutation d'import
+n'est presente dans cette tentative.
+
+CORRECTIF
+A la frontiere d'import, les alias explicites de metadonnees sont acceptes :
+source.title vers label si label est absent; total numerique vers objet;
+provenance des points source vers provided;
+provenance de correction source vers sourceExplicit et inference vers
+sourceInferred. Les valeurs inconnues restent bloquees.
+Le validateur strict conserve son comportement par defaut.
+Le paquet original, les enonces, reponses, points et identites restent intacts.
+La preparation conserve les lignes et les causes. La barre ChatGPT affiche
+« Voir les causes du blocage » avec leurs messages precis et leur nombre.
+L'affichage supporte les champs rejetes sans planter et conserve les corriges
+sous forme de listes, notamment Q1 et Q4.
+
+VERIFICATION EXECUTEE
+60 fichiers de tests : 60 reussis, 0 echec.
+69 fichiers JavaScript : syntaxe valide.
+16 nouveaux cas de regression, dont 14 sur le paquet complet et l'affichage,
+et 2 sur le cycle d'import avec serveur GraphQL simule.
+Les 16 cas passent aussi sur les fichiers reextraits du ZIP livre.
+Paquet complet : 15 questions, 60 points, 15 operations CREATE.
+Q9 : association de 5 paires. Q10 : association de 4 paires.
+Creation puis relecture : 15 questions verifiees.
+Reimport identique : 15 UNCHANGED, aucune nouvelle ecriture, aucun doublon.
+Modification de Q9 : 1 UPDATE, 14 UNCHANGED, cles d'association conservees.
+Question ajoutee manuellement : conservee apres execution, aucune ecriture.
+Changement de cible Formative : import bloque avant mutation.
+Baseline locale absente : 15 correspondances proposees, aucun doublon.
+Total incoherent, points negatifs, valeur inconnue, reponse obligatoire vide
+et vraie dependance a un schema absent : restent bloques.
+Vue bloquee : causes detaillees, lignes conservees, bouton d'import desactive.
+Relecture independante : aucun probleme restant dans le perimetre revu;
+les lignes de previsualisation correspondent a la base pour cinq fixtures.
+
+CONTROLE DE L'ARCHIVE
+Base exacte : Cardinal-AIO-1.2.0-c14-resequence-labels-mediafix-g118.zip
+SHA256 de la base : c3adb7071040d3f8915dbc5138107acc5d412b57564410e4c076649ef7db821e
+77 fichiers, memes chemins et ordre que la base, CRC valides.
+70 fichiers identiques octet pour octet.
+7 fichiers modifies :
+bootstrap-reconciliation-v2.js
+chatgpt-content-v2.js
+manifest.json
+orchestrator-v2.js
+preflight-v2.js
+presentation-v2.js
+validator-v2.js
+Le manifeste ne change que version_name; toutes ses ressources existent.
+Les autres modules, le transport, l'executeur, le journal et la reprise
+conservent exactement les fichiers de la base fournie.
+
+SOURCE DU CORRECTIF
+Base GitHub : techno-cardi/Cardinal-AIO
+Commit de depart : c124f037b70a92cc0f05b4703a3661f10159031d
+Branche isolee : hotfix/1.2.0-c14-import-metadata-errors
+Le script patch_importfix.py applique les six fichiers runtime sur le ZIP
+exact et verifie son empreinte et les 70 fichiers conserves.
+
+INSTALLATION
+Decompresser le ZIP dans le dossier de l'extension deja chargee par Chrome.
+Dans chrome://extensions, cliquer sur Recharger pour Cardinal, puis
+actualiser les pages ChatGPT et Formative.
+Le nom de version doit contenir mediafix-importfix-g118.
+
+LIMITE DE VERIFICATION
+Tests locaux et serveur GraphQL simule. L'installation dans le Chrome de
+l'utilisateur et un import sur son compte Formative n'ont pas ete verifies.

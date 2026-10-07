@@ -174,7 +174,10 @@
       return finish([], [], issues);
     }
 
-    const validation = deps.validator.validatePackageV2(input.pkg, { capabilities: input.capabilities });
+    const validation = deps.validator.validatePackageV2(input.pkg, {
+      capabilities: input.capabilities,
+      normalizeKnownAliases: true
+    });
     issues.push(...(validation.issues || []));
     if (!validation.ok) return finish([], [], issues, { validation });
 

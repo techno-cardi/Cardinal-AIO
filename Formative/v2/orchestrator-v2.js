@@ -265,6 +265,7 @@
           assessmentFingerprint,
           baselineRecord,
           preflight,
+          pkg: input.pkg,
           reason: 'PREFLIGHT_BLOCKED'
         };
       }

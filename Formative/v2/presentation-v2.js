@@ -26,14 +26,30 @@
     'prompt-changed': 'Même énoncé, réglages différents'
   });
 
+  function displayText(value) {
+    if (Array.isArray(value)) return value.map(displayText).join(',');
+    return ['string', 'number', 'boolean'].includes(typeof value)
+      ? String(value)
+      : '';
+  }
+
   function oneLine(value) {
-    return value == null ? '' : String(value).replace(/\s+/g, ' ').trim();
+    return displayText(value).replace(/\s+/g, ' ').trim();
+  }
+
+  function displayNumber(value) {
+    if (typeof value !== 'number' && typeof value !== 'string') return 0;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
   }
 
   function questionIssues(pkgIssues, item) {
     const out = [];
-    for (const i of item?.issues || []) out.push(i);
-    for (const i of pkgIssues || []) {
+    for (const i of Array.isArray(item?.issues) ? item.issues : []) {
+      if (i && typeof i === 'object') out.push(i);
+    }
+    for (const i of Array.isArray(pkgIssues) ? pkgIssues : []) {
+      if (!i || typeof i !== 'object') continue;
       if (i?.itemId === item?.id) out.push(i);
     }
     return out;
@@ -41,20 +57,23 @@
 
   function correctionFor(item) {
     const grading = item?.grading || {};
-    const concepts = (grading.concepts || []).map(concept => ({
-      id: concept.id,
-      label: oneLine(concept.label),
-      score: Number(concept.score || 0),
-      terms: [...(concept.terms || [])],
-      riskyTerms: [...(concept.riskyTerms || [])]
-    }));
+    const mode = typeof grading.mode === 'string' ? grading.mode : 'manual';
+    const concepts = (Array.isArray(grading.concepts) ? grading.concepts : [])
+      .filter(concept => concept && typeof concept === 'object')
+      .map(concept => ({
+        id: concept.id,
+        label: oneLine(concept.label),
+        score: displayNumber(concept.score),
+        terms: Array.isArray(concept.terms) ? [...concept.terms] : [],
+        riskyTerms: Array.isArray(concept.riskyTerms) ? [...concept.riskyTerms] : []
+      }));
 
     return {
-      mode: grading.mode || 'manual',
-      modeLabel: GRADING_LABELS[grading.mode] || grading.mode || 'Manuelle',
+      mode: mode || 'manual',
+      modeLabel: GRADING_LABELS[mode] || mode || 'Manuelle',
       expectedAnswer: oneLine(grading.expectedAnswer),
       provenance: grading?.provenance?.kind || null,
-      requirements: [...(grading.requirements || [])],
+      requirements: Array.isArray(grading.requirements) ? [...grading.requirements] : [],
       concepts,
       activeTermCount: concepts.reduce((sum, c) => sum + c.terms.length, 0),
       riskyTermCount: concepts.reduce((sum, c) => sum + c.riskyTerms.length, 0)
@@ -65,21 +84,23 @@
     const rows = [];
     let visibleNumber = 0;
 
-    for (const item of [...(pkg?.items || [])].sort((a, b) => Number(a.order || 0) - Number(b.order || 0))) {
-      if (item?.kind !== 'question') continue;
+    const questions = (Array.isArray(pkg?.items) ? pkg.items : [])
+      .filter(item => item && typeof item === 'object' && item.kind === 'question');
+    for (const item of questions.sort((a, b) => displayNumber(a.order) - displayNumber(b.order))) {
       visibleNumber += 1;
       const issues = questionIssues(pkg?.issues || [], item);
       const correction = correctionFor(item);
       const blockers = issues.filter(x => x.severity === 'blocker').length;
       const warnings = issues.filter(x => x.severity === 'warning').length;
+      const subtype = typeof item.subtype === 'string' ? item.subtype : null;
 
       rows.push({
-        itemId: item.id,
-        number: item?.source?.number || String(visibleNumber),
+        itemId: oneLine(item.id) || null,
+        number: oneLine(item?.source?.number) || String(visibleNumber),
         prompt: oneLine(item.prompt),
-        type: item.subtype,
-        typeLabel: TYPE_LABELS[item.subtype] || item.subtype || 'Question',
-        points: Number(item?.points?.value || 0),
+        type: subtype,
+        typeLabel: TYPE_LABELS[subtype] || subtype || 'Question',
+        points: displayNumber(item?.points?.value),
         pointsProvenance: item?.points?.provenance || null,
         correction,
         correctionSummary: correction.expectedAnswer || correction.concepts.map(c => c.label).filter(Boolean).join(' · '),
@@ -221,25 +242,48 @@
     }
 
     const ui = prepared?.preflight?.data?.ui || {};
+    const stats = prepared?.preflight?.data?.validation?.stats || {};
+    const seenIssues = new Set();
+    const issues = [
+      ...(prepared?.preflight?.issues || []),
+      ...(prepared?.issues || []),
+      ...(prepared?.runtimeIssues || [])
+    ].filter(issue => {
+      if (!issue || typeof issue !== 'object') return false;
+      const key = [issue.severity, issue.code, issue.itemId, issue.sourceRef, issue.message].map(oneLine).join('|');
+      if (seenIssues.has(key)) return false;
+      seenIssues.add(key);
+      return true;
+    });
+    const blockers = Math.max(Number(ui.blockers || 0), issues.filter(issue => issue.severity === 'blocker').length) ||
+      (prepared.ok ? 0 : 1);
+    const warnings = Math.max(Number(ui.warnings || 0), issues.filter(issue => issue.severity === 'warning').length);
+    const rowIssues = [...issues];
+    for (const issue of Array.isArray(prepared?.pkg?.issues) ? prepared.pkg.issues : []) {
+      if (!issue || typeof issue !== 'object') continue;
+      if (!rowIssues.some(current => current.code === issue?.code &&
+          current.message === issue?.message && current.itemId === issue?.itemId)) rowIssues.push(issue);
+    }
     const model = {
       state: prepared.state || (prepared.ok ? 'ready' : 'blocked'),
-      statusLabel: Number(ui.blockers || (prepared.ok ? 0 : 1)) > 0
-        ? (ui.status || '✕ Bloqué')
+      statusLabel: blockers > 0
+        ? '✕ Bloqué'
         : '✓ Prêt',
       targetTitle: prepared.targetTitle || ui.targetTitle || null,
-      questions: Number(ui.questions || 0),
-      auto: Number(ui.auto || 0),
-      assisted: Number(ui.assisted || 0),
-      manual: Number(ui.manual || 0),
+      questions: Number(ui.questions ?? stats.questions ?? 0),
+      auto: Number(ui.auto ?? stats.auto ?? 0),
+      assisted: Number(ui.assisted ?? stats.assisted ?? 0),
+      manual: Number(ui.manual ?? stats.manual ?? 0),
       create: Number(ui.create || 0),
       update: Number(ui.update || 0),
       unchanged: Number(ui.unchanged || 0),
       preserveExternal: Number(ui.preserveExternal || 0),
       deleteProposed: Number(ui.deleteProposed || 0),
-      warnings: Number(ui.warnings || 0),
-      blockers: Number(ui.blockers || (prepared.ok ? 0 : 1)),
+      warnings,
+      blockers,
+      issues,
       packageFingerprint: prepared.packageFingerprint || null,
-      validationRows: buildValidationRows(prepared.pkg || {})
+      validationRows: buildValidationRows({ ...(prepared.pkg || {}), issues: rowIssues })
     };
     model.primaryAction = primaryAction(model);
     model.showCorrectionButton = model.validationRows.some(row =>

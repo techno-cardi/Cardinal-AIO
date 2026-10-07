@@ -676,6 +676,29 @@
       summary.style.opacity = '.76';
       body.append(heading, summary);
 
+      const reportedIssues = view.issues || response?.prepared?.preflight?.issues ||
+        response?.prepared?.issues || [];
+      const blockingIssues = reportedIssues.filter(issue => issue?.severity === 'blocker');
+      if (blockingIssues.length) {
+        const details = element('details');
+        details.style.marginTop = '8px';
+        const label = element('summary', 'Voir les causes du blocage');
+        details.appendChild(label);
+        const rows = new Map((view.validationRows || []).map(row => [row.itemId, row]));
+        const seen = new Set();
+        for (const issue of blockingIssues) {
+          const row = rows.get(issue.itemId);
+          const prefix = row?.number ? 'Question ' + row.number + ' : ' : '';
+          const message = prefix + oneLine(issue.message || issue.code);
+          if (seen.has(message)) continue;
+          seen.add(message);
+          const line = element('div', message);
+          line.style.marginTop = '5px';
+          details.appendChild(line);
+        }
+        body.appendChild(details);
+      }
+
       const close = element('button', '×');
       close.type = 'button';
       close.title = 'Masquer cette version';

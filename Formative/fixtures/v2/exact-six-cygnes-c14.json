@@ -1,0 +1,1137 @@
+{
+  "schema": "cardinal.formative/2",
+  "protocolVersion": "2.0.0",
+  "packageMode": "full",
+  "assessment": {
+    "title": "Les Six Cygnes - Lecture et notions de langue",
+    "language": "fr-CA",
+    "sourceMode": "external-reference-only",
+    "declaredTotalPoints": 60
+  },
+  "sources": [
+    {
+      "id": "assessment_draft",
+      "role": "questionnaire",
+      "status": "provided",
+      "title": "Questionnaire personnalisé Les Six Cygnes - version préparée dans la conversation"
+    },
+    {
+      "id": "six_cygnes",
+      "role": "text",
+      "status": "provided",
+      "title": "Les Six Cygnes",
+      "fileName": "Six contes merveilleux (recueil).pdf",
+      "printedPages": "9-13"
+    },
+    {
+      "id": "planning",
+      "role": "appendix",
+      "status": "external",
+      "title": "Planification pédagogique Supabase - notions enseignées jusqu'au 7 octobre 2026"
+    }
+  ],
+  "items": [
+    {
+      "id": "q1",
+      "order": 1,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "1",
+        "subNumber": null,
+        "promptExact": "Remets les événements dans l'ordre. A. Le roi accepte la condition de la vieille femme. B. Les noces sont célébrées. C. Le roi se perd dans la forêt. D. La vieille femme exige que sa fille devienne reine."
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes"
+      ],
+      "prompt": "Remets les événements dans l'ordre.",
+      "subtype": "resequence",
+      "required": true,
+      "points": {
+        "value": 4,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "response": {
+        "sequence": [
+          "Le roi se perd dans la forêt.",
+          "La vieille femme exige que sa fille devienne reine.",
+          "Le roi accepte la condition de la vieille femme.",
+          "Les noces sont célébrées."
+        ]
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": [
+          "Le roi se perd dans la forêt.",
+          "La vieille femme exige que sa fille devienne reine.",
+          "Le roi accepte la condition de la vieille femme.",
+          "Les noces sont célébrées."
+        ],
+        "provenance": {
+          "kind": "source",
+          "sourceRefs": [
+            "six_cygnes"
+          ]
+        },
+        "partialCredit": false,
+        "caseSensitive": false,
+        "requirements": [
+          "Respecter l'ordre chronologique des quatre événements."
+        ],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q2",
+      "order": 2,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "2",
+        "subNumber": null,
+        "promptExact": "Pourquoi le roi cache-t-il ses sept enfants dans un château isolé?"
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes"
+      ],
+      "prompt": "Pourquoi le roi cache-t-il ses sept enfants dans un château isolé?",
+      "subtype": "multipleChoice",
+      "required": true,
+      "points": {
+        "value": 2,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "response": {
+        "options": [
+          {
+            "id": "a",
+            "text": "Pour les empêcher de quitter le royaume.",
+            "correct": false
+          },
+          {
+            "id": "b",
+            "text": "Pour les protéger de leur nouvelle belle-mère.",
+            "correct": true
+          },
+          {
+            "id": "c",
+            "text": "Pour leur apprendre à vivre seuls.",
+            "correct": false
+          },
+          {
+            "id": "d",
+            "text": "Pour que personne ne découvre qu'il a des enfants.",
+            "correct": false
+          }
+        ]
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "Pour les protéger de leur nouvelle belle-mère.",
+        "provenance": {
+          "kind": "source",
+          "sourceRefs": [
+            "six_cygnes"
+          ]
+        },
+        "partialCredit": false,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q3",
+      "order": 3,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "3",
+        "subNumber": null,
+        "promptExact": "Complète les informations sur les objets merveilleux. La pelote est utilisée par __________ et son pouvoir est de __________. Les petites chemises ensorcelées sont utilisées par __________ et elles ont pour effet de __________."
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes"
+      ],
+      "prompt": "Complète les informations sur les objets merveilleux. La pelote est utilisée par {{b1}} et son pouvoir est de {{b2}}. Les petites chemises ensorcelées sont utilisées par {{b3}} et elles ont pour effet de {{b4}}.",
+      "subtype": "fillInTheBlank",
+      "required": true,
+      "points": {
+        "value": 4,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "response": {
+        "blanks": [
+          {
+            "id": "b1",
+            "answers": [
+              "le roi et la reine",
+              "le roi puis la reine",
+              "le roi, puis la reine",
+              "le roi et la nouvelle reine"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b2",
+            "answers": [
+              "montrer le chemin",
+              "indiquer le chemin",
+              "montrer le chemin vers le château",
+              "indiquer le chemin vers le château"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b3",
+            "answers": [
+              "la reine",
+              "la nouvelle reine",
+              "la belle-mère"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b4",
+            "answers": [
+              "transformer les six garçons en cygnes",
+              "transformer les garçons en cygnes",
+              "transformer les enfants en cygnes"
+            ],
+            "conceptIds": []
+          }
+        ]
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "La pelote est utilisée par le roi puis par la reine et indique le chemin. Les chemises sont utilisées par la reine et transforment les six garçons en cygnes.",
+        "provenance": {
+          "kind": "source",
+          "sourceRefs": [
+            "six_cygnes"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [
+          "Compléter correctement les quatre informations."
+        ],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q4",
+      "order": 4,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "4",
+        "subNumber": null,
+        "promptExact": "Quelles conditions la sœur doit-elle respecter pour délivrer ses frères? Sélectionne toutes les bonnes réponses."
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes"
+      ],
+      "prompt": "Quelles conditions la sœur doit-elle respecter pour délivrer ses frères? Sélectionne toutes les bonnes réponses.",
+      "subtype": "multipleSelection",
+      "required": true,
+      "points": {
+        "value": 4,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "response": {
+        "options": [
+          {
+            "id": "a",
+            "text": "Ne pas parler pendant six ans.",
+            "correct": true
+          },
+          {
+            "id": "b",
+            "text": "Ne pas rire pendant six ans.",
+            "correct": true
+          },
+          {
+            "id": "c",
+            "text": "Confectionner six chemises faites de fleurs.",
+            "correct": true
+          },
+          {
+            "id": "d",
+            "text": "Vivre dans la hutte avec ses frères pendant six ans.",
+            "correct": false
+          },
+          {
+            "id": "e",
+            "text": "Ne jamais dormir pendant sa mission.",
+            "correct": false
+          },
+          {
+            "id": "f",
+            "text": "Brûler les chemises à la fin des six années.",
+            "correct": false
+          }
+        ]
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": [
+          "Ne pas parler pendant six ans.",
+          "Ne pas rire pendant six ans.",
+          "Confectionner six chemises faites de fleurs."
+        ],
+        "provenance": {
+          "kind": "source",
+          "sourceRefs": [
+            "six_cygnes"
+          ]
+        },
+        "partialCredit": false,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q5",
+      "order": 5,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "5",
+        "subNumber": null,
+        "promptExact": "Pendant combien de temps les frères peuvent-ils reprendre leur apparence humaine chaque soir?"
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes"
+      ],
+      "prompt": "Pendant combien de temps les frères peuvent-ils reprendre leur apparence humaine chaque soir? {{b1}}",
+      "subtype": "fillInTheBlank",
+      "required": true,
+      "points": {
+        "value": 2,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "response": {
+        "blanks": [
+          {
+            "id": "b1",
+            "answers": [
+              "un quart d'heure",
+              "un quart d’heure",
+              "15 minutes",
+              "quinze minutes"
+            ],
+            "conceptIds": []
+          }
+        ]
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "Un quart d'heure.",
+        "provenance": {
+          "kind": "source",
+          "sourceRefs": [
+            "six_cygnes"
+          ]
+        },
+        "partialCredit": false,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q6",
+      "order": 6,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "6",
+        "subNumber": null,
+        "promptExact": "Quelle conséquence entraîne la chemise incomplète au dénouement?"
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes"
+      ],
+      "prompt": "Quelle conséquence entraîne la chemise incomplète au dénouement?",
+      "subtype": "multipleChoice",
+      "required": true,
+      "points": {
+        "value": 2,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "response": {
+        "options": [
+          {
+            "id": "a",
+            "text": "Le plus jeune frère demeure entièrement un cygne.",
+            "correct": false
+          },
+          {
+            "id": "b",
+            "text": "Le plus jeune frère retrouve sa forme humaine, mais conserve une aile à la place du bras gauche.",
+            "correct": true
+          },
+          {
+            "id": "c",
+            "text": "La sœur doit recommencer les six années.",
+            "correct": false
+          },
+          {
+            "id": "d",
+            "text": "Un des frères ne peut plus parler.",
+            "correct": false
+          }
+        ]
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "Le plus jeune frère retrouve sa forme humaine, mais conserve une aile à la place du bras gauche.",
+        "provenance": {
+          "kind": "source",
+          "sourceRefs": [
+            "six_cygnes"
+          ]
+        },
+        "partialCredit": false,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q7",
+      "order": 7,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "7",
+        "subNumber": null,
+        "promptExact": "Cite un passage qui montre que la sœur est déterminée à sauver ses frères. Explique ensuite ce que ce passage permet d'inférer sur elle."
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes"
+      ],
+      "prompt": "Cite un passage qui montre que la sœur est déterminée à sauver ses frères. Explique ensuite ce que ce passage permet d'inférer sur elle.",
+      "subtype": "longAnswer",
+      "required": true,
+      "points": {
+        "value": 4,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "grading": {
+        "mode": "assisted",
+        "expectedAnswer": "Exemple très probant: « La jeune fille résolut cependant de sauver ses frères, même si cela devait lui coûter la vie. » L'élève doit expliquer que ce passage montre notamment sa détermination, son courage, sa persévérance ou sa capacité à se sacrifier pour ses frères. Tout autre passage précis et pertinent est acceptable.",
+        "provenance": {
+          "kind": "source",
+          "sourceRefs": [
+            "six_cygnes"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [
+          "Citer un passage précis du texte.",
+          "Expliquer ce que ce passage permet d'inférer sur la sœur.",
+          "Établir un lien logique entre la preuve et l'inférence."
+        ],
+        "concepts": [
+          {
+            "id": "q7_full",
+            "label": "Preuve textuelle très probante de la détermination",
+            "score": 4,
+            "provenance": "source",
+            "terms": [
+              "résolut cependant de sauver ses frères",
+              "même si cela devait lui coûter la vie"
+            ]
+          },
+          {
+            "id": "q7_partial",
+            "label": "Preuve pertinente mais réponse incomplète",
+            "score": 2,
+            "provenance": "source",
+            "terms": [
+              "sauver ses frères",
+              "coûter la vie",
+              "commença à coudre"
+            ]
+          },
+          {
+            "id": "q7_weak",
+            "label": "Inférence pertinente sans preuve suffisamment précise",
+            "score": 1,
+            "provenance": "inference",
+            "terms": [
+              "déterminée",
+              "courageuse",
+              "persévérante",
+              "sacrifice"
+            ]
+          }
+        ]
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q8",
+      "order": 8,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "8",
+        "subNumber": null,
+        "promptExact": "Quelle affirmation décrit correctement le narrateur et le point de vue du conte?"
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes",
+        "planning"
+      ],
+      "prompt": "Quelle affirmation décrit correctement le narrateur et le point de vue du conte?",
+      "subtype": "multipleChoice",
+      "required": true,
+      "points": {
+        "value": 4,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "response": {
+        "options": [
+          {
+            "id": "a",
+            "text": "Le narrateur participe à l'histoire et raconte à la première personne.",
+            "correct": false
+          },
+          {
+            "id": "b",
+            "text": "Le narrateur est extérieur à l'histoire et connaît notamment les pensées et les sentiments des personnages.",
+            "correct": true
+          },
+          {
+            "id": "c",
+            "text": "Le narrateur est extérieur, mais rapporte seulement ce qu'une caméra pourrait observer.",
+            "correct": false
+          },
+          {
+            "id": "d",
+            "text": "La sœur raconte elle-même les événements après les avoir vécus.",
+            "correct": false
+          }
+        ]
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "Le narrateur est extérieur à l'histoire et connaît notamment les pensées et les sentiments des personnages.",
+        "provenance": {
+          "kind": "inference",
+          "sourceRefs": [
+            "six_cygnes"
+          ]
+        },
+        "partialCredit": false,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q9",
+      "order": 9,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "9",
+        "subNumber": null,
+        "promptExact": "Associe chaque événement à l'étape du schéma narratif qui lui correspond le mieux."
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes",
+        "planning"
+      ],
+      "prompt": "Associe chaque événement à l'étape du schéma narratif qui lui correspond le mieux.",
+      "subtype": "matching",
+      "required": true,
+      "points": {
+        "value": 5,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "response": {
+        "pairs": [
+          {
+            "left": "Le roi a sept enfants auxquels il tient énormément et cherche à les protéger.",
+            "right": "Situation initiale"
+          },
+          {
+            "left": "La nouvelle reine transforme les six garçons en cygnes.",
+            "right": "Élément déclencheur"
+          },
+          {
+            "left": "La sœur entreprend sa longue épreuve, confectionne les chemises, devient reine et subit de fausses accusations.",
+            "right": "Péripéties"
+          },
+          {
+            "left": "La sœur lance les chemises à ses frères, ceux-ci redeviennent humains et elle peut enfin proclamer son innocence.",
+            "right": "Dénouement"
+          },
+          {
+            "left": "Le roi, la reine et les six frères vivent ensuite dans le bonheur et la paix.",
+            "right": "Situation finale"
+          }
+        ]
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "Situation initiale = protection des sept enfants; élément déclencheur = transformation des six garçons; péripéties = quête et épreuves de la sœur; dénouement = délivrance des frères et innocence révélée; situation finale = bonheur et paix.",
+        "provenance": {
+          "kind": "inference",
+          "sourceRefs": [
+            "six_cygnes",
+            "planning"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q10",
+      "order": 10,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "10",
+        "subNumber": null,
+        "promptExact": "Dans la quête principale de la sœur, associe chaque élément à son rôle dans le schéma actantiel."
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes",
+        "planning"
+      ],
+      "prompt": "Dans la quête principale de la sœur, associe chaque élément à son rôle dans le schéma actantiel.",
+      "subtype": "matching",
+      "required": true,
+      "points": {
+        "value": 4,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "response": {
+        "pairs": [
+          {
+            "left": "La sœur",
+            "right": "Sujet"
+          },
+          {
+            "left": "Délivrer ses six frères",
+            "right": "Objet de la quête"
+          },
+          {
+            "left": "La belle-mère sorcière",
+            "right": "Opposant"
+          },
+          {
+            "left": "Les six chemises qu'elle confectionne",
+            "right": "Adjuvant"
+          }
+        ]
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "La sœur = sujet; délivrer ses six frères = objet de la quête; belle-mère sorcière = opposant; six chemises = adjuvant.",
+        "provenance": {
+          "kind": "inference",
+          "sourceRefs": [
+            "six_cygnes",
+            "planning"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q11",
+      "order": 11,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "11",
+        "subNumber": null,
+        "promptExact": "Dans le passage suivant, indique la classe de chacun des mots ciblés. « Les enfants, voyant quelqu'un arriver de loin, crurent que c'était leur cher père qui venait vers eux et ils coururent pleins de joie à sa rencontre. » Les = ___; enfants = ___; leur = ___; cher = ___; père = ___; ils = ___; coururent = ___."
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes",
+        "planning"
+      ],
+      "prompt": "Dans le passage suivant, indique la classe de chacun des mots ciblés. « Les enfants, voyant quelqu'un arriver de loin, crurent que c'était leur cher père qui venait vers eux et ils coururent pleins de joie à sa rencontre. » Les = {{b1}}; enfants = {{b2}}; leur = {{b3}}; cher = {{b4}}; père = {{b5}}; ils = {{b6}}; coururent = {{b7}}.",
+      "subtype": "fillInTheBlank",
+      "required": true,
+      "points": {
+        "value": 7,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "response": {
+        "blanks": [
+          {
+            "id": "b1",
+            "answers": [
+              "déterminant"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b2",
+            "answers": [
+              "nom"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b3",
+            "answers": [
+              "déterminant"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b4",
+            "answers": [
+              "adjectif"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b5",
+            "answers": [
+              "nom"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b6",
+            "answers": [
+              "pronom"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b7",
+            "answers": [
+              "verbe"
+            ],
+            "conceptIds": []
+          }
+        ]
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "Les = déterminant; enfants = nom; leur = déterminant; cher = adjectif; père = nom; ils = pronom; coururent = verbe.",
+        "provenance": {
+          "kind": "inference",
+          "sourceRefs": [
+            "six_cygnes",
+            "planning"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q12",
+      "order": 12,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "12",
+        "subNumber": null,
+        "promptExact": "Le mot « leur » n'a pas toujours la même classe. Indique sa classe dans chacun des groupes suivants. a) « leur joie » b) « elle leur lança son collier d'or » c) « leur peau apparut »"
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes",
+        "planning"
+      ],
+      "prompt": "Le mot « leur » n'a pas toujours la même classe. Indique sa classe dans chacun des contextes suivants. a) « leur joie » = {{b1}}; b) « elle leur lança son collier d'or » = {{b2}}; c) « leur peau apparut » = {{b3}}.",
+      "subtype": "fillInTheBlank",
+      "required": true,
+      "points": {
+        "value": 3,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "response": {
+        "blanks": [
+          {
+            "id": "b1",
+            "answers": [
+              "déterminant"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b2",
+            "answers": [
+              "pronom"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b3",
+            "answers": [
+              "déterminant"
+            ],
+            "conceptIds": []
+          }
+        ]
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "a) déterminant; b) pronom; c) déterminant.",
+        "provenance": {
+          "kind": "inference",
+          "sourceRefs": [
+            "six_cygnes",
+            "planning"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q13",
+      "order": 13,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "13",
+        "subNumber": null,
+        "promptExact": "Accord dans le groupe nominal. Mets au pluriel: « une petite chemise de soie blanche ». Ensuite, indique avec quel nom l'adjectif « blanche » s'accorde."
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes",
+        "planning"
+      ],
+      "prompt": "Accord dans le groupe nominal. Mets au pluriel: « une petite chemise de soie blanche ». Réponse: {{b1}}. Ensuite, indique avec quel nom l'adjectif « blanche » s'accorde: {{b2}}.",
+      "subtype": "fillInTheBlank",
+      "required": true,
+      "points": {
+        "value": 4,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "response": {
+        "blanks": [
+          {
+            "id": "b1",
+            "answers": [
+              "des petites chemises de soie blanche"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b2",
+            "answers": [
+              "soie"
+            ],
+            "conceptIds": []
+          }
+        ]
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "des petites chemises de soie blanche; blanche s'accorde avec soie.",
+        "provenance": {
+          "kind": "inference",
+          "sourceRefs": [
+            "six_cygnes",
+            "planning"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [
+          "Mettre au pluriel les éléments qui dépendent du nom chemises.",
+          "Conserver blanche au féminin singulier puisqu'il qualifie soie."
+        ],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q14",
+      "order": 14,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "14",
+        "subNumber": null,
+        "promptExact": "Observe ce passage: « Un jour, un roi chassait dans une grande forêt. [...] Quand le soir arriva, il s'arrêta. » Pour chacun des verbes, indique le temps et son rôle dans le récit."
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes",
+        "planning"
+      ],
+      "prompt": "Observe ce passage: « Un jour, un roi chassait dans une grande forêt. [...] Quand le soir arriva, il s'arrêta. » Pour chacun des verbes, indique le temps et son rôle dans le récit. chassait: temps = {{b1}} / rôle = {{b2}}; arriva: temps = {{b3}} / rôle = {{b4}}; s'arrêta: temps = {{b5}} / rôle = {{b6}}. Choix pour le rôle: action en cours ou arrière-plan / action ponctuelle qui fait avancer le récit.",
+      "subtype": "fillInTheBlank",
+      "required": true,
+      "points": {
+        "value": 6,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "response": {
+        "blanks": [
+          {
+            "id": "b1",
+            "answers": [
+              "imparfait"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b2",
+            "answers": [
+              "action en cours ou arrière-plan",
+              "arrière-plan",
+              "action en cours"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b3",
+            "answers": [
+              "passé simple"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b4",
+            "answers": [
+              "action ponctuelle qui fait avancer le récit",
+              "action ponctuelle"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b5",
+            "answers": [
+              "passé simple"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b6",
+            "answers": [
+              "action ponctuelle qui fait avancer le récit",
+              "action ponctuelle"
+            ],
+            "conceptIds": []
+          }
+        ]
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "chassait = imparfait, action en cours ou arrière-plan; arriva = passé simple, action ponctuelle qui fait avancer le récit; s'arrêta = passé simple, action ponctuelle qui fait avancer le récit.",
+        "provenance": {
+          "kind": "inference",
+          "sourceRefs": [
+            "six_cygnes",
+            "planning"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    },
+    {
+      "id": "q15",
+      "order": 15,
+      "kind": "question",
+      "source": {
+        "sourceRef": "assessment_draft",
+        "page": null,
+        "printedPage": null,
+        "number": "15",
+        "subNumber": null,
+        "promptExact": "Harmonise les temps verbaux en utilisant l'imparfait ou le passé simple. Pendant que le roi (chasser) __________, la reine (aller) __________ dans la forêt. La pelote lui (montrer) __________ le chemin. Les enfants (croire) __________ que leur père arrivait et (courir) __________ à sa rencontre."
+      },
+      "sourceRefs": [
+        "assessment_draft",
+        "six_cygnes",
+        "planning"
+      ],
+      "prompt": "Harmonise les temps verbaux en utilisant l'imparfait ou le passé simple. Pendant que le roi (chasser) {{b1}}, la reine (aller) {{b2}} dans la forêt. La pelote lui (montrer) {{b3}} le chemin. Les enfants (croire) {{b4}} que leur père arrivait et (courir) {{b5}} à sa rencontre.",
+      "subtype": "fillInTheBlank",
+      "required": true,
+      "points": {
+        "value": 5,
+        "provenance": "source",
+        "graded": true,
+        "bonus": false
+      },
+      "response": {
+        "blanks": [
+          {
+            "id": "b1",
+            "answers": [
+              "chassait"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b2",
+            "answers": [
+              "alla"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b3",
+            "answers": [
+              "montrait"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b4",
+            "answers": [
+              "crurent"
+            ],
+            "conceptIds": []
+          },
+          {
+            "id": "b5",
+            "answers": [
+              "coururent"
+            ],
+            "conceptIds": []
+          }
+        ]
+      },
+      "grading": {
+        "mode": "auto",
+        "expectedAnswer": "chassait; alla; montrait; crurent; coururent.",
+        "provenance": {
+          "kind": "inference",
+          "sourceRefs": [
+            "six_cygnes",
+            "planning"
+          ]
+        },
+        "partialCredit": true,
+        "caseSensitive": false,
+        "requirements": [
+          "Employer l'imparfait pour l'arrière-plan ou les actions en cours.",
+          "Employer le passé simple pour les actions ponctuelles qui font avancer le récit."
+        ],
+        "concepts": []
+      },
+      "transformations": [],
+      "issues": []
+    }
+  ],
+  "issues": []
+}

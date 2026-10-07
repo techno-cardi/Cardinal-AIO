@@ -127,7 +127,65 @@
     return count;
   }
 
+  // Only explicit metadata aliases are translated for the import boundary.
+  // The source package, question wording, answers, point values and identity
+  // material stay untouched. Unknown values still reach the strict validator.
+  function normalizePackageMetadata(pkg) {
+    if (!pkg || typeof pkg !== 'object' || Array.isArray(pkg)) return pkg;
+    const pointOrigin = value => value === 'source' ? 'provided' : value;
+    const gradingOrigin = value => value === 'source'
+      ? 'sourceExplicit'
+      : value === 'inference' ? 'sourceInferred' : value;
+    const pointMetadata = value => value && typeof value === 'object' && !Array.isArray(value)
+      ? { ...value, provenance: pointOrigin(value.provenance) }
+      : value;
+    const assessment = pkg.assessment && typeof pkg.assessment === 'object' && !Array.isArray(pkg.assessment)
+      ? { ...pkg.assessment }
+      : pkg.assessment;
+    if (assessment && typeof assessment === 'object' && !Array.isArray(assessment) &&
+        assessment.declaredTotalPoints != null) {
+      const total = assessment.declaredTotalPoints;
+      assessment.declaredTotalPoints = typeof total === 'number'
+        ? { value: total, provenance: 'provided' }
+        : pointMetadata(total);
+    }
+    return {
+      ...pkg,
+      assessment,
+      sources: Array.isArray(pkg.sources) ? pkg.sources.map(source => {
+        if (!source || typeof source !== 'object' || Array.isArray(source)) return source;
+        if ((source.label == null || source.label === '') &&
+            typeof source.title === 'string' && source.title.trim()) {
+          return { ...source, label: source.title };
+        }
+        return source;
+      }) : pkg.sources,
+      items: Array.isArray(pkg.items) ? pkg.items.map(item => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
+        const grading = item.grading;
+        return {
+          ...item,
+          points: pointMetadata(item.points),
+          grading: grading && typeof grading === 'object' && !Array.isArray(grading) ? {
+            ...grading,
+            provenance: grading.provenance && typeof grading.provenance === 'object' &&
+              !Array.isArray(grading.provenance) ? {
+                ...grading.provenance,
+                kind: gradingOrigin(grading.provenance.kind)
+              } : grading.provenance,
+            concepts: Array.isArray(grading.concepts) ? grading.concepts.map(concept =>
+              concept && typeof concept === 'object' && !Array.isArray(concept)
+                ? { ...concept, provenance: gradingOrigin(concept.provenance) }
+                : concept
+            ) : grading.concepts
+          } : grading
+        };
+      }) : pkg.items
+    };
+  }
+
   function validatePackageV2(pkg, options = {}) {
+    if (options.normalizeKnownAliases === true) pkg = normalizePackageMetadata(pkg);
     const issues = [];
     const capabilities = new Set(options.capabilities || [...DEFAULT_CAPABILITIES]);
 
