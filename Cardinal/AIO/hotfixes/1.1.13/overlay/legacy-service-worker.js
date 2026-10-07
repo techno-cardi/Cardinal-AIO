@@ -2547,48 +2547,10 @@ async function formativeAiPrepare091InsidePage(formativeId, assignmentId, sectio
     return [...new Set(out.map(x => String(x).replace(/\s+/g,' ').trim()).filter(Boolean))].slice(0,24);
   }
 
-  // Correctif c14/resequence: Formative stores the submitted order as internal
-  // choice keys. Resolve only keys that belong to this resequence map and keep
-  // the student's exact order. Unknown keys fail closed instead of being guessed.
-  function extractResequenceCorrectTokens(definition) {
-    if (!definition || typeof definition !== 'object') return [];
-    const candidates = [];
-    const seen = new WeakSet();
-    const walk = value => {
-      if (!value || typeof value !== 'object' || seen.has(value)) return;
-      seen.add(value);
-      if (Array.isArray(value)) { value.forEach(walk); return; }
-      if (Array.isArray(value.correctAnswers)) {
-        const raw = value.correctAnswers;
-        const tokens = raw.map(v => (typeof v === 'string' || typeof v === 'number') ? String(v).trim() : '');
-        if (
-          tokens.length >= 2 &&
-          tokens.length === raw.length &&
-          tokens.every(token => token && token.length <= 120 && !/[\s,;|]/.test(token)) &&
-          new Set(tokens).size === tokens.length
-        ) candidates.push(tokens);
-      }
-      for (const child of Object.values(value)) walk(child);
-    };
-    walk(definition);
-    candidates.sort((a,b) => b.length - a.length);
-    return candidates[0] || [];
-  }
-
-  function hydrateResequenceTokenMapFromReference(tokenMap, definition, expectedAnswers) {
-    const tokens = extractResequenceCorrectTokens(definition);
-    const labels = Array.isArray(expectedAnswers)
-      ? expectedAnswers.map(v => String(v ?? '').replace(/\s+/g,' ').trim()).filter(Boolean)
-      : [];
-    if (tokens.length < 2 || tokens.length !== labels.length) return false;
-    if (labels.some(label => !label || label.length > 700)) return false;
-    if (new Set(labels).size !== labels.length) return false;
-    for (let i = 0; i < tokens.length; i++) {
-      if (!tokenMap.has(tokens[i])) tokenMap.set(tokens[i], labels[i]);
-    }
-    return tokens.every(token => tokenMap.has(token));
-  }
-
+  // Correctif c14/resequence: a resequence answer can be a whitespace-separated
+  // list of Formative choice keys, including keys made only of letters (ex. "mttd").
+  // Resolve the list only when every submitted token is already known by Formative.
+  // Unknown tokens fail closed instead of being guessed.
   function decodeResequenceAnswer(content, tokenMap, questionId='') {
     const raw = richInfo(content).text.replace(/\s+/g,' ').trim();
     if (!raw) return null;
@@ -2925,10 +2887,7 @@ async function formativeAiPrepare091InsidePage(formativeId, assignmentId, sectio
     const definitionSources = [apiDefinition, capturedDefinition, item].filter(Boolean);
     const decoderDefinition = definitionSources.length > 1 ? { __cardinalQuestionSources: definitionSources } : (definitionSources[0] || item);
     const tokenMap = buildQuestionTokenMap(decoderDefinition, questionId);
-    let expectedAnswers = collectCorrectReferences(decoderDefinition, tokenMap, questionId);
-    if (questionType === 'resequence' && hydrateResequenceTokenMapFromReference(tokenMap, decoderDefinition, expectedAnswers)) {
-      expectedAnswers = collectCorrectReferences(decoderDefinition, tokenMap, questionId);
-    }
+    const expectedAnswers = collectCorrectReferences(decoderDefinition, tokenMap, questionId);
     const answers = [];
     for (const answer of detail?.answers?.nodes || []) {
       const sid = String(answer?.owner?._id || '');
