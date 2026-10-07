@@ -21,6 +21,8 @@ const checks = [];
 const diagnostics = [];
 let nextId = 0;
 let context;
+let chatPage;
+let workerRef;
 
 async function check(name, fn) {
   try { await fn(); checks.push({ name, ok: true }); }
@@ -81,6 +83,14 @@ async function popupFor(chat, id) {
   return popup;
 }
 
+async function importAll(bar) {
+  await bar.getByRole('button', { name: 'Importer dans Formative', exact: true }).click();
+  if (await bar.getByRole('button', { name: 'Appliquer la sélection', exact: true }).count()) {
+    await bar.getByRole('button', { name: 'Appliquer la sélection', exact: true }).click();
+    await bar.getByRole('button', { name: 'Importer dans Formative', exact: true }).click();
+  }
+}
+
 async function main() {
   context = await pw.chromium.launchPersistentContext(path.join(root, 'browser-profile-' + Date.now()), {
     executablePath: process.env.CARDINAL_BROWSER_CHROMIUM || path.join(root, 'browser-deps/root/usr/lib/chromium/chromium'),
@@ -88,7 +98,9 @@ async function main() {
     headless: true, ignoreHTTPSErrors: true, colorScheme: 'dark', viewport: { width: 1250, height: 1100 },
     args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-extensions-except=' + artifact, '--load-extension=' + artifact]
   });
+  context.setDefaultTimeout(8000);
   const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker', { timeout: 20000 });
+  workerRef = worker;
   worker.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   const id = worker.url().split('/')[2];
   let theme = 'dark';
@@ -108,6 +120,7 @@ async function main() {
   await form.goto('https://app.formative.com/formatives/F/edit');
   await form.waitForTimeout(700);
   const chat = await context.newPage();
+  chatPage = chat;
   chat.on('pageerror', e => errors.push(e.message));
   await chat.goto('https://chatgpt.com/c/cardinal-test');
   const bar = chat.locator('[data-cardinal-formative-signature]').first();
@@ -151,7 +164,7 @@ async function main() {
   });
   await check('all 15 questions import through the real button and the real worker', async () => {
     await bar.getByRole('button', { name: 'Voir le corrigé préparé', exact: true }).click();
-    await bar.getByRole('button', { name: 'Importer dans Formative', exact: true }).click();
+    await importAll(bar);
     await bar.getByRole('button', { name: 'Réimporter dans Formative', exact: true }).waitFor({ timeout: 60000 });
     assert.equal(items.size, 15);
     assert.equal([...items.values()].reduce((sum, item) => sum + item.details.points, 0), 60);
@@ -164,7 +177,7 @@ async function main() {
     const before = mutations.length;
     await bar.getByRole('button', { name: 'Réimporter dans Formative', exact: true }).click();
     await bar.getByRole('button', { name: 'Importer dans Formative', exact: true }).waitFor({ timeout: 20000 });
-    await bar.getByRole('button', { name: 'Importer dans Formative', exact: true }).click();
+    await importAll(bar);
     await bar.getByRole('button', { name: 'Réimporter dans Formative', exact: true }).waitFor({ timeout: 60000 });
     assert.equal(items.size, 15); assert.equal(mutations.length, before);
   });
@@ -193,6 +206,12 @@ async function main() {
 }
 
 main().catch(error => { checks.push({ name: 'browser setup and real extension startup', ok: false, error: error.stack }); console.log(error.stack); }).finally(async () => {
+  if (chatPage && workerRef) {
+    try {
+      diagnostics.push({ stage: 'final', bars: await chatPage.locator('[data-cardinal-formative-signature]').allInnerTexts(), storage: await workerRef.evaluate(() => chrome.storage.local.get(null)) });
+      console.log(JSON.stringify(diagnostics.at(-1)));
+    } catch {}
+  }
   const result = { artifact, chromium: context ? context.browser()?.version() : null, checks, errors, diagnostics, serverItems: items.size, mutations: mutations.length, requests: requests.length };
   fs.writeFileSync(output, JSON.stringify(result, null, 2));
   if (context) await context.close();
