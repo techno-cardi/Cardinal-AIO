@@ -1,6 +1,5 @@
 (() => {
   'use strict';
-  const MAP_KEY = 'pdcNativeClassroomGroupMapV1';
   const MAX_TEXT = 22000;
   const $ = (tag, text = '', cls = '') => { const n=document.createElement(tag); if(text)n.textContent=text; if(cls)n.className=cls; return n; };
   function safe(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -68,7 +67,7 @@
     const ok=document.execCommand('copy');sel.removeAllRanges();holder.remove();
     if(!ok)throw Error('Impossible de copier le format HTML dans le presse-papiers.');
   }
-  function mount(card, message){
+  function mount(card, message, doc=globalThis.document, chromeApi=globalThis.chrome, mapKey=''){
     const container=$('section','','classroom-composer');
     const label=$('p','Publication Classroom depuis ChatGPT','classroom-title');
     const open=$('button','Préparer une publication','action');open.type='button';
@@ -89,7 +88,7 @@
     let sourceTabId=null;
     async function fillGroups(){
       select.replaceChildren();const def=$('option','Choisir un groupe');def.value='';select.append(def);
-      const stored=await chrome.storage.local.get(MAP_KEY);const linked=optionsFrom(stored?.[MAP_KEY]);
+      const stored=await chrome.storage.local.get(mapKey);const linked=optionsFrom(stored?.[mapKey]);
       for(const [num,data] of linked){const o=$('option',`Groupe ${num} - ${data.courseName||'Classroom'}`);o.value=num;select.append(o)}
       publish.disabled=!linked.length;
       if(!linked.length)status.textContent='Aucun groupe Classroom lié : ouvre l’agenda pour synchroniser les groupes.';
@@ -118,7 +117,7 @@
     return {open,body,select,publish};
   }
   function paragraphs(body){return String(body||'').replace(/\r\n?/g,'\n').split(/\n\s*\n+/).map(x=>x.trim()).filter(Boolean);}
-  function groupOptions(stored,mapKey=MAP_KEY){return optionsFrom(stored?.[mapKey]);}
+  function groupOptions(stored,mapKey=''){return optionsFrom(stored?.[mapKey]);}
   const api=Object.freeze({format,formatAnnouncement:format,paragraphs,groupOptions,readFromChatGPT,mount});
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   globalThis.CardinalClassroomComposer=api;
