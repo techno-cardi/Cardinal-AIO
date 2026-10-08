@@ -33,11 +33,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Checkout pinned Classroom 1.2.3 source
+      - name: Checkout pinned Classroom 1.2.4 source
         uses: actions/checkout@v4
         with:
           repository: techno-cardi/Plan-de-cours
-          ref: 6887bfa2e8afd523a38a0e3286aa1f826276b8c5
+          ref: 584e7d5b03d1b8ac496e2e1d6ff3e1b18ec991ca
           path: _pdc
 
       - name: Compile repair scripts
@@ -252,7 +252,7 @@ jobs:
                   "Correction Formative 1.1.3",
                   "Importateur Formative 0.5 RC1",
                   "Mozaïk v14",
-                  "Pont Classroom 1.2.3",
+                  "Pont Classroom 1.2.4",
                   "Pont ChatGPT 1.1.9",
               ):
                   assert label in popup_js
@@ -333,11 +333,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Checkout pinned Classroom 1.2.3 source
+      - name: Checkout pinned Classroom 1.2.4 source
         uses: actions/checkout@v4
         with:
           repository: techno-cardi/Plan-de-cours
-          ref: 6887bfa2e8afd523a38a0e3286aa1f826276b8c5
+          ref: 584e7d5b03d1b8ac496e2e1d6ff3e1b18ec991ca
           path: _pdc
 
       - name: Reconstruct exact user-provided Gestion 1.1.8 baseline
