@@ -1,168 +1,121 @@
 (() => {
   'use strict';
-  const MODULE = 'CardinalClassroomComposer';
-  const PREPARE = 'PDC_NATIVE_PREPARE';
-  const MAX_CHARS = 18000;
-
-  function escapeHtml(value) {
-    return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
+  const MAP_KEY = 'pdcNativeClassroomGroupMapV1';
+  const MAX_TEXT = 22000;
+  const $ = (tag, text = '', cls = '') => { const n=document.createElement(tag); if(text)n.textContent=text; if(cls)n.className=cls; return n; };
+  function safe(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function format(title, input){
+    const clean=String(input||'').replace(/\r\n?/g,'\n').trim();
+    if(!clean)throw Error('Aucun texte à publier. Vérifie la récupération dans ChatGPT.');
+    const paragraphs=clean.split(/\n\s*\n+/).map(x=>x.trim()).filter(Boolean);
+    const t=String(title||'Annonce aux élèves').trim().slice(0,140);
+    // Classroom supprime les marges des paragraphes : doubles <br> explicites.
+    const html='<p><b><u>'+safe(t)+'</u></b><br><br></p>'+paragraphs.map((p,i)=>'<p>'+p.split('\n').map(safe).join('<br>')+(i<paragraphs.length-1?'<br><br>':'')+'</p>').join('');
+    return {title:t,richHtml:html,text:t+'\n\n'+paragraphs.join('\n\n'),probes:paragraphs.filter(x=>x.length>14).slice(0,5)};
   }
-  function paragraphs(text) {
-    return String(text || '').replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ')
-      .split(/\n\s*\n+/).map(x => x.trim()).filter(Boolean);
-  }
-  function formatAnnouncement(title, body) {
-    const clean = paragraphs(body);
-    if (!clean.length) throw new Error('Aucun message à publier.');
-    const heading = String(title || 'Message aux élèves').trim().slice(0, 140);
-    // Classroom rend souvent les <p> sans margin. Deux <br> explicites
-    // sont inclus dans chaque paragraphe (sauf le dernier) pour l'espacement.
-    const richHtml = `<p><b><u>${escapeHtml(heading)}</u></b><br><br></p>` +
-      clean.map((part, index) => `<p>${part.split('\n').map(escapeHtml).join('<br>')}${index < clean.length - 1 ? '<br><br>' : ''}</p>`).join('');
-    const text = heading + '\n\n' + clean.join('\n\n');
-    return { richHtml, text, title: heading, probes: clean.filter(x => x.length > 12).slice(0, 4) };
-  }
-  // Cette fonction est exécutée dans l'onglet ChatGPT par chrome.scripting.
-  // Aucune extraction en arrière-plan : le professeur déclenche l'action.
-  function readChatGptPage() {
-    const selection = window.getSelection();
-    const selectedText = String(selection?.toString() || '').trim();
-    if (selectedText.length >= 20) {
-      return { text: selectedText.slice(0, 18000), kind: 'selection' };
+  // Fonction autonome sérialisable par chrome.scripting.executeScript, sans dépendance à l'extension.
+  function readFromChatGPT(){
+    const visible=(n)=>!!(n&&n.isConnected&&n.getClientRects?.().length && (n.innerText||n.textContent||'').trim());
+    const raw=(n)=>String(n?.innerText||n?.textContent||'').trim();
+    const sel=String(window.getSelection?.()?.toString()||'').trim();
+    if(sel.length>=12)return {text:sel,kind:'sélection'};
+    const writingSelector='[data-testid*="writing" i], [data-testid*="artifact" i], [class*="writing-block" i], [class*="WritingBlock"], [data-testid*="document" i]';
+    const turns=[...document.querySelectorAll('[data-message-author-role="assistant"], [data-role="assistant"], [data-testid*="assistant-message"], article[data-author="assistant"]')].filter(visible);
+    let scope=turns.at(-1);
+    if(!scope){
+      const wrappers=[...document.querySelectorAll('[data-testid*="conversation-turn"], article, [data-testid*="conversation-item"]')].filter(visible);
+      scope=wrappers.filter(n=>n.querySelector('[data-message-author-role="assistant"], [data-role="assistant"]')||/assistant/i.test(n.getAttribute('data-testid')||'')).at(-1);
     }
-    const assistants = [...document.querySelectorAll('[data-message-author-role="assistant"]')];
-    if (!assistants.length) return { text: '', error: 'Aucune réponse ChatGPT détectée.' };
-    const last = assistants[assistants.length - 1];
-    const writing = [...last.querySelectorAll('[data-testid*="writing-block"], [data-testid*="writing_block"], [data-testid*="writingBlock"], [data-testid*="writing"], [data-testid*="artifact"]')]
-      .filter(x => (x.innerText || x.textContent || '').trim().length > 20);
-    const readable = [...last.querySelectorAll('.markdown, .prose, [data-testid*="markdown"]')]
-      .filter(x => (x.innerText || x.textContent || '').trim().length > 20);
-    const target = writing[writing.length - 1] || readable[readable.length - 1] || last;
-    const clone = target.cloneNode(true);
-    clone.querySelectorAll('button, nav, aside, script, style, svg, [role="toolbar"], [aria-hidden="true"], [data-testid*="toolbar"]').forEach(x => x.remove());
-    const blocks = [...clone.querySelectorAll('h1,h2,h3,h4,p,li,blockquote')].filter(x =>
-      !x.parentElement?.closest('h1,h2,h3,h4,p,li,blockquote'));
-    let text = blocks.map(x => String(x.innerText || x.textContent || '').trim()).filter(Boolean).join('\n\n');
-    if (!text.trim()) text = String(clone.innerText || clone.textContent || '').trim();
-    if (text.length > 18000) return { error: 'La réponse dépasse 18 000 caractères. Sélectionne seulement le passage à publier.' };
-    return { text, kind: writing.length ? 'bloc de rédaction' : 'dernière réponse' };
-  }
-  async function draftFromTab(chromeApi) {
-    const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
-    const tab = tabs.find(x => Number.isInteger(x?.id) && /^https:\/\/(chatgpt\.com|chat\.openai\.com)(\/|$)/.test(String(x.url || '')));
-    if (!tab) throw new Error('Ouvre d’abord une conversation ChatGPT.');
-    if (!chromeApi.scripting?.executeScript) throw new Error('La permission Chrome « scripting » manque.');
-    const executed = await chromeApi.scripting.executeScript({target:{tabId:tab.id},func:readChatGptPage});
-    const result = executed?.[0]?.result || {};
-    if (result.error) throw new Error(result.error);
-    if (!String(result.text||'').trim()) throw new Error('Bloc vide. Sélectionne le texte dans ChatGPT et recommence.');
-    return {text: result.text, kind:result.kind, tabId:tab.id};
-  }
-  async function copyRich(doc, richHtml, text, clipboard = globalThis.navigator?.clipboard) {
-    if (typeof ClipboardItem !== 'undefined' && clipboard?.write) {
-      try {
-        await clipboard.write([new ClipboardItem({
-          'text/html': new Blob([richHtml], {type:'text/html'}),
-          'text/plain': new Blob([text], {type:'text/plain'})
-        })]);
-        return true;
-      } catch (_) { /* retour à la copie HTML native */ }
+    // Certaines interfaces de ChatGPT n'ajoutent aucun data-message-author-role.
+    const root=scope||document.querySelector('main')||document.body;
+    const writing=[...root.querySelectorAll(writingSelector)].filter(n=>visible(n)&&raw(n).length>=15&&!n.closest('nav,aside,form'));
+    let target=writing.at(-1);
+    if(!target){
+      const markdown=[...root.querySelectorAll('.markdown,.prose,[data-testid*="markdown"], [data-testid*="message-content"], [class*="markdown-body"]')].filter(n=>visible(n)&&raw(n).length>=15&&!n.closest('nav,aside,form'));
+      target=markdown.at(-1);
     }
-    const tmp = doc.createElement('div');
-    tmp.contentEditable = 'true'; tmp.innerHTML = richHtml;
-    tmp.style.cssText = 'position:fixed;left:-99999px;top:0';
-    (doc.body || doc.documentElement).appendChild(tmp);
-    const range = doc.createRange(); range.selectNodeContents(tmp);
-    const sel = doc.getSelection ? doc.getSelection() : globalThis.getSelection();
-    sel.removeAllRanges(); sel.addRange(range);
-    const ok = doc.execCommand('copy') === true;
-    sel.removeAllRanges(); tmp.remove();
-    return ok;
+    if(!target)target=scope;
+    if(!target){
+      // Dernier recours : récupérer la dernière zone textuelle placée juste avant les actions de copie.
+      const buttons=[...root.querySelectorAll('button[aria-label*="copier" i],button[aria-label*="copy" i],[data-testid*="copy" i]')].filter(visible);
+      const b=buttons.at(-1);
+      target=b?.closest('[data-testid*="conversation-turn"],article,[data-message-author-role],section')||null;
+    }
+    if(!target)return {text:'',error:'Aucun bloc de réponse repéré. Sélectionne le passage avec la souris et réessaie.'};
+    const blocks=[...target.querySelectorAll('h1,h2,h3,h4,p,li,blockquote,pre')].filter(n=>visible(n)&&!n.parentElement?.closest('h1,h2,h3,h4,p,li,blockquote,pre')&&!n.closest('nav,aside,form'));
+    let text=blocks.length?blocks.map(raw).filter(Boolean).join('\n\n'):raw(target);
+    text=text.replace(/\n{4,}/g,'\n\n').trim();
+    if(text.length>22000)return {text:'',error:'Texte trop long : sélectionne seulement le passage à envoyer.'};
+    return {text,kind:writing.length?'boîte de rédaction':'dernière réponse'};
   }
-  function groupOptions(stored, mapKey) {
-    const map = stored?.[mapKey];
-    return Object.entries(map && typeof map === 'object' ? map : {})
-      .filter(([group, value]) => /^\d{1,3}$/.test(group) && /^\d+$/.test(String(value?.courseId || ''))
-        && /^https:\/\/classroom\.google\.com\/c\//.test(String(value?.alternateLink || '')))
-      .sort((a,b) => Number(a[0]) - Number(b[0]));
+  async function getDraft(){
+    const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
+    if(!tab?.id||!/^https:\/\/(?:chatgpt\.com|chat\.openai\.com)(?:\/|$)/.test(tab.url||''))throw Error('Ouvre la conversation ChatGPT dans l’onglet actif.');
+    const output=await chrome.scripting.executeScript({target:{tabId:tab.id},func:readFromChatGPT});
+    const r=output?.[0]?.result;
+    if(!r?.text)throw Error(r?.error||'Aucune réponse détectée. Sélectionne le texte dans ChatGPT, puis réessaie.');
+    return {text:r.text,kind:r.kind,tabId:tab.id};
   }
-  function create(doc, tag, label, className) {
-    const n = doc.createElement(tag);
-    if (label) n.textContent = label;
-    if (className) n.className = className;
-    return n;
+  function optionsFrom(map){return Object.entries(map||{}).filter(([group,value])=>/^\d{1,3}$/.test(group)&&/^\d+$/.test(String(value?.courseId||''))&&/^https:\/\/classroom\.google\.com\/c\//.test(String(value?.alternateLink||''))).sort((a,b)=>Number(a[0])-Number(b[0]));}
+  async function copyRich(fmt){
+    // Le presse-papiers HTML est requis pour les publications automatiques du pont Classroom.
+    if(navigator.clipboard?.write&&globalThis.ClipboardItem){
+      await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([fmt.richHtml],{type:'text/html'}),'text/plain':new Blob([fmt.text],{type:'text/plain'})})]);
+      return;
+    }
+    const holder=$('div');holder.innerHTML=fmt.richHtml;holder.contentEditable='true';holder.style='position:fixed;left:-99999px;top:0';document.body.append(holder);
+    const sel=window.getSelection(),rg=document.createRange();rg.selectNodeContents(holder);sel.removeAllRanges();sel.addRange(rg);
+    const ok=document.execCommand('copy');sel.removeAllRanges();holder.remove();
+    if(!ok)throw Error('Impossible de copier le format HTML dans le presse-papiers.');
   }
-  function mount(card, message, doc = globalThis.document, chromeApi = globalThis.chrome, mapKey = '') {
-    const area = create(doc, 'div', '', 'classroom-area'); area.hidden = true;
-    const status = create(doc, 'p', '', 'classroom-status'); status.setAttribute('role','status');
-    const desc = create(doc, 'p', 'Relis ou adapte ce texte avant de le publier.', 'classroom-help');
-    const titleInput = create(doc,'input'); titleInput.type='text'; titleInput.value='Annonce aux élèves'; titleInput.maxLength=140;
-    titleInput.setAttribute('aria-label','Titre de l’annonce');
-    const editor = create(doc,'textarea'); editor.rows=9; editor.maxLength=MAX_CHARS;
-    editor.setAttribute('aria-label','Texte de la publication');
-    const groupLabel = create(doc,'label','Groupe Classroom :');
-    const groupSelect = create(doc,'select'); groupSelect.setAttribute('aria-label','Groupe Classroom');
-    groupLabel.append(groupSelect);
-    const controls = create(doc,'div','','classroom-controls');
-    const copy = create(doc,'button','Copier HTML avec espacements','action'); copy.type='button';
-    const publish = create(doc,'button','Publier dans Classroom','action'); publish.type='button';
-    controls.append(copy,publish); area.append(desc,titleInput,editor,groupLabel,controls,status);
-    const open = create(doc,'button','Classroom : dernière réponse ou sélection','action'); open.type='button';
-    open.addEventListener('click',async () => {
-      open.disabled = true; status.textContent = '';
-      try {
-        const draft = await draftFromTab(chromeApi);
-        editor.value=draft.text;
-        groupSelect.replaceChildren();
-        const opt = create(doc,'option','Choisir un groupe'); opt.value='';groupSelect.append(opt);
-        const linked=groupOptions(await chromeApi.storage.local.get(mapKey),mapKey);
-        for(const [num,link] of linked){const o=create(doc,'option',`Groupe ${num} - ${link.courseName||'Classroom'}`);o.value=num;groupSelect.append(o);}
-        publish.disabled = !linked.length;
-        area.hidden=false;
-        area.dataset.sourceTabId=String(draft.tabId);
-        status.textContent=`Source : ${draft.kind}. ${linked.length} groupe(s) lié(s).`;
-      } catch(e) {area.hidden=false;status.textContent=e.message||String(e);}
-      finally {open.disabled=false;}
-    });
-    copy.addEventListener('click',async()=>{
-      copy.disabled=true;
-      try{const value=formatAnnouncement(titleInput.value,editor.value);
-        const ok=await copyRich(doc,value.richHtml,value.text);
-        if(!ok)throw new Error('Copie refusée par Chrome.');
-        status.textContent='HTML copié avec des lignes d’espacement. Colle avec Ctrl + V.';
-      }catch(e){status.textContent=e.message||String(e);}finally{copy.disabled=false;}
-    });
+  function mount(card, message){
+    const container=$('section','','classroom-composer');
+    const label=$('p','Publication Classroom depuis ChatGPT','classroom-title');
+    const open=$('button','Préparer une publication','action');open.type='button';
+    const panel=$('div','','classroom-panel');panel.hidden=true;
+    const status=$('p','','classroom-status');status.setAttribute('role','status');
+    const titleLabel=$('label','Titre');const title=$('input');title.type='text';title.value='Annonce aux élèves';title.maxLength=140;
+    const bodyLabel=$('label','Texte récupéré - modifiable');const body=$('textarea');body.rows=10;body.maxLength=MAX_TEXT;
+    const groupLabel=$('label','Groupe Classroom');const select=$('select');
+    const refresh=$('button','Relire ChatGPT','action');refresh.type='button';
+    const copy=$('button','Copier HTML','action');copy.type='button';
+    const publish=$('button','Publier','action');publish.type='button';
+    const buttons=$('div','','classroom-buttons');buttons.append(refresh,copy,publish);
+    titleLabel.append(title);bodyLabel.append(body);groupLabel.append(select);
+    panel.append(status,titleLabel,bodyLabel,groupLabel,buttons);
+    container.append(label,open,panel);
+    const style=$('style');style.textContent=`.classroom-composer{margin-top:12px;padding:9px;border:1px solid #d1dbe5;border-radius:10px;background:#f8fbff}.classroom-title{font-size:12px;font-weight:700}.classroom-panel{display:grid;gap:10px}.classroom-panel[hidden]{display:none}.classroom-panel label{font:11px/1.6 system-ui;display:grid;gap:4px}.classroom-panel input,.classroom-panel textarea,.classroom-panel select{box-sizing:border-box;width:100%;max-width:100%;font:12px system-ui;padding:7px;border:1px solid #adbdcb;border-radius:7px}.classroom-panel textarea{white-space:pre-wrap;resize:vertical}.classroom-buttons{display:flex;flex-wrap:wrap;gap:5px}.classroom-buttons button{flex:1}.classroom-status{font:11px/1.5 system-ui;color:#3e546b;white-space:pre-wrap}`;
+    card.append(style,container);
+    let sourceTabId=null;
+    async function fillGroups(){
+      select.replaceChildren();const def=$('option','Choisir un groupe');def.value='';select.append(def);
+      const stored=await chrome.storage.local.get(MAP_KEY);const linked=optionsFrom(stored?.[MAP_KEY]);
+      for(const [num,data] of linked){const o=$('option',`Groupe ${num} - ${data.courseName||'Classroom'}`);o.value=num;select.append(o)}
+      publish.disabled=!linked.length;
+      if(!linked.length)status.textContent='Aucun groupe Classroom lié : ouvre l’agenda pour synchroniser les groupes.';
+    }
+    async function load(){
+      refresh.disabled=true;status.textContent='Recherche de la dernière réponse…';
+      try{const draft=await getDraft();body.value=draft.text;sourceTabId=draft.tabId;status.textContent=`Récupération : ${draft.kind}. Vérifie le contenu avant publication.`}
+      catch(e){status.textContent=(e?.message||String(e))+' Tu peux également coller manuellement ton texte ici.';}
+      finally{refresh.disabled=false}
+    }
+    open.addEventListener('click',async()=>{panel.hidden=false;await fillGroups();await load()});
+    refresh.addEventListener('click',load);
+    copy.addEventListener('click',async()=>{try{await copyRich(format(title.value,body.value));status.textContent='Copié en HTML avec espaces. Dans Classroom, colle avec Ctrl + V.'}catch(e){status.textContent=e.message}});
     publish.addEventListener('click',async()=>{
-      if (!groupSelect.value) {status.textContent='Choisis d’abord un groupe Classroom lié.';return;}
-      if (!globalThis.confirm(`Publier cette annonce dans le groupe ${groupSelect.value} ?`))return;
+      if(!select.value){status.textContent='Choisis un groupe Classroom.';return}
+      if(!Number.isInteger(sourceTabId)){status.textContent='Relis ChatGPT pour confirmer la source, puis réessaie.';return}
+      if(!confirm(`Publier cette annonce dans le groupe ${select.value} ?`))return;
       publish.disabled=true;
       try{
-        const fmt=formatAnnouncement(titleInput.value,editor.value);
-        if(!await copyRich(doc,fmt.richHtml,fmt.text))throw new Error('Le HTML n’a pas été copié : aucune publication lancée.');
-        const group=groupSelect.value;
-        const result=await chromeApi.runtime.sendMessage({type:PREPARE,payload:{
-          requestId:`cardinal-chatgpt-${Date.now()}`,createdAt:Date.now(),group,
-          sourceTabId:Number(area.dataset.sourceTabId),
-          title:fmt.title,text:fmt.text,probes:fmt.probes
-        }});
-        if(!result?.ok)throw new Error(result?.error||'Le pont Classroom a refusé la publication.');
-        status.textContent='Classroom s’ouvre. Le pont vérifiera la publication.';
-      }catch(e){status.textContent=e.message||String(e);}
-      finally{publish.disabled=false;}
+        const fmt=format(title.value,body.value);await copyRich(fmt);
+        const x=await chrome.runtime.sendMessage({type:'PDC_NATIVE_PREPARE',payload:{requestId:`cardinal-aio-${Date.now()}`,createdAt:Date.now(),group:select.value,sourceTabId,title:fmt.title,text:fmt.text,probes:fmt.probes}});
+        if(!x?.ok)throw Error(x?.error||'La publication n’a pas été acceptée.');
+        status.textContent='Classroom a été ouvert. La publication doit encore être confirmée par le pont.';
+      }catch(e){status.textContent=e.message||String(e)}finally{publish.disabled=false}
     });
-    const style=create(doc,'style');style.textContent=[
-      '.classroom-area{display:grid;gap:7px;border-top:1px solid #ced6e0;margin-top:8px;padding-top:8px}',
-      '.classroom-area[hidden]{display:none}',
-      '.classroom-area input,.classroom-area textarea,.classroom-area select{width:100%;box-sizing:border-box;border:1px solid #b4c6d7;border-radius:7px;padding:7px;font:12px/1.5 system-ui;background:#fff;color:#172033}',
-      '.classroom-area textarea{min-height:120px;resize:vertical;white-space:pre-wrap}',
-      '.classroom-area label,.classroom-help,.classroom-status{font:11px/1.45 system-ui;color:#526174;margin:2px 0}',
-      '.classroom-controls{display:flex;gap:6px}.classroom-controls button{flex:1;white-space:normal}',
-      '@media(prefers-color-scheme:dark){.classroom-area input,.classroom-area textarea,.classroom-area select{background:#202733;color:#fff;border-color:#465366}}'
-    ].join('');
-    card.append(style,open,area);
-    return {open,area,editor,groupSelect,titleInput,copy,publish};
+    return {open,body,select,publish};
   }
-  const api = Object.freeze({formatAnnouncement,paragraphs,groupOptions,readChatGptPage,draftFromTab,copyRich,mount});
-  if (typeof module !== 'undefined' && module.exports) module.exports=api;
-  if (typeof globalThis !== 'undefined') globalThis[MODULE]=api;
+  globalThis.CardinalClassroomComposer=Object.freeze({format,readFromChatGPT,mount});
 })();
