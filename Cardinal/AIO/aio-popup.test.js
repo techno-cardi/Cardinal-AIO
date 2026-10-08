@@ -13,7 +13,7 @@ assert.deepEqual(
     'Correction Formative 1.1.3',
     'Importateur Formative 0.5 RC1',
     'Mozaïk v14',
-    'Pont Classroom 1.2.3',
+    'Pont Classroom 1.2.4',
     'Pont ChatGPT 1.1.9'
   ],
   'the RC2 dashboard contract must keep exactly the six documented modules'

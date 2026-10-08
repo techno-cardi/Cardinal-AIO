@@ -93,9 +93,9 @@ Le module complète la correction Formative historique, il ne la remplace pas.
 
 Source : `techno-cardi/Plan-de-cours/chrome-classroom-native-bridge`.
 
-Version de base : `1.2.3`.
+Version de base : `1.2.4`.
 
-Commit épinglé : `6887bfa2e8afd523a38a0e3286aa1f826276b8c5`.
+Commit épinglé : `584e7d5b03d1b8ac496e2e1d6ff3e1b18ec991ca`.
 
 ## Candidate courante
 
@@ -151,7 +151,7 @@ Le popup RC2 est un tableau de bord compact de l'AIO. Il affiche les six modules
 - Correction Formative 1.1.3
 - Importateur Formative 0.5 RC1
 - Mozaïk v14
-- Pont Classroom 1.2.3
+- Pont Classroom 1.2.4
 - Pont ChatGPT 1.1.9
 
 Un module empaqueté n'est plus affiché en vert par défaut. Le vert est réservé à un état réellement confirmé, l'orange aux actions requises et l'état neutre signifie simplement que le module est inclus.

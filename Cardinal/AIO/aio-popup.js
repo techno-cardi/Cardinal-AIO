@@ -13,7 +13,7 @@
     Object.freeze({ id: 'formativeCorrection', label: 'Correction Formative 1.1.3' }),
     Object.freeze({ id: 'formativeImporter', label: 'Importateur Formative 0.5 RC1' }),
     Object.freeze({ id: 'mozaik', label: 'Mozaïk v14' }),
-    Object.freeze({ id: 'classroom', label: 'Pont Classroom 1.2.3' }),
+    Object.freeze({ id: 'classroom', label: 'Pont Classroom 1.2.4' }),
     Object.freeze({ id: 'chatgpt', label: 'Pont ChatGPT 1.1.9' })
   ]);
 
