@@ -1,0 +1,68 @@
+name: Correctif Classroom pour Cardinal AIO existant
+
+on:
+  push:
+    paths:
+      - '.github/workflows/classroom-aio-module-patch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-classroom-module:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/checkout@v4
+        with:
+          repository: techno-cardi/Plan-de-cours
+          ref: 584e7d5b03d1b8ac496e2e1d6ff3e1b18ec991ca
+          path: _pdc
+      - name: Adapter le pont sans modifier Formative
+        run: |
+          mkdir -p dist/classroom-patch
+          PYTHONPATH=Cardinal/AIO python - <<'PY'
+          from pathlib import Path
+          from rebuild_aio_safe import adapt_classroom
+          from subprocess import run
+          src = Path('_pdc/chrome-classroom-native-bridge')
+          out = Path('dist/classroom-patch')
+          adapt_classroom(src, out)
+          expected = [
+              'classroom-background-aio.js',
+              'classroom-generator-aio.js',
+              'classroom-autolink-aio.js',
+              'classroom-aio.js',
+          ]
+          for name in expected:
+              file = out / name
+              assert file.exists() and file.stat().st_size > 0, name
+              run(['node', '--check', str(file)], check=True)
+          (out / 'INSTALLATION.txt').write_text(
+              'Correctif du pont Classroom v1.2.4 pour Cardinal AIO.\n'
+              '1. Fermer les onglets Agenda et Classroom.\n'
+              '2. Decompresser ce ZIP dans un dossier temporaire.\n'
+              '3. Dans le dossier actuellement charge de Cardinal AIO, faire une copie de sauvegarde.\n'
+              '4. Remplacer UNIQUEMENT les quatre fichiers classroom-*-aio.js par ceux de ce ZIP.\n'
+              '5. Recharger Cardinal depuis chrome://extensions et actualiser Agenda.\n'
+              '6. Conserver Tampermonkey et son userscript de publication Classroom 1.4.1.\n'
+              '7. Ne pas activer simultanement un deuxieme pont Classroom autonome.\n'
+              'Formative, le service worker principal et le manifeste sont inchanges.\n',
+              encoding='utf-8'
+          )
+          print('AIO Classroom files validated:', ', '.join(expected))
+          PY
+      - name: Compresser les fichiers du module
+        run: |
+          cd dist/classroom-patch
+          zip -q -r "$GITHUB_WORKSPACE/Cardinal-AIO-Classroom-v1.2.4-patch.zip" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cardinal-AIO-Classroom-v1.2.4-patch
+          path: Cardinal-AIO-Classroom-v1.2.4-patch.zip
+          if-no-files-found: error
+          retention-days: 30
