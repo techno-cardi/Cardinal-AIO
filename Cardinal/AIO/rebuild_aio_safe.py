@@ -47,7 +47,7 @@ from aio_rebuild_contract import (
 
 AIO_VERSION = "1.2.0"
 AIO_VERSION_NAME = "1.2.0-rc3-repair"
-CLASSROOM_COMMIT = "6887bfa2e8afd523a38a0e3286aa1f826276b8c5"
+CLASSROOM_COMMIT = "584e7d5b03d1b8ac496e2e1d6ff3e1b18ec991ca"
 FORMATIVE_TREE_SHA = "1a48922ec281f0aec42bf49d150aec3634f2f79f"
 FORMATIVE_V2_ZIP = "Cardinal-Formative-Importer-STANDALONE-0.5.0-rc1.zip"
 AIO_POPUP_JS = "aio-popup.js"
@@ -428,12 +428,12 @@ def adapt_classroom(classroom_root: Path, dist: Path) -> list[dict]:
     required = ["background.js", "generator.js", "classroom-autolink.js", "classroom.js", "manifest.json"]
     missing = [name for name in required if not (classroom_root / name).is_file()]
     if missing:
-        raise BaselineContractError("Pont Classroom 1.2.3 incomplet: " + ", ".join(missing))
+        raise BaselineContractError("Pont Classroom 1.2.4 incomplet: " + ", ".join(missing))
 
     source_manifest = json.loads((classroom_root / "manifest.json").read_text(encoding="utf-8"))
-    if source_manifest.get("version") != "1.2.3":
+    if source_manifest.get("version") != "1.2.4":
         raise BaselineContractError(
-            f"Pont Classroom inattendu: version {source_manifest.get('version')!r}, attendu 1.2.3."
+            f"Pont Classroom inattendu: version {source_manifest.get('version')!r}, attendu 1.2.4."
         )
 
     background = patch_message_names((classroom_root / "background.js").read_text(encoding="utf-8"))
@@ -807,7 +807,7 @@ def validate_output(
         "Correction Formative 1.1.3",
         "Importateur Formative 0.5 RC1",
         "Mozaïk v14",
-        "Pont Classroom 1.2.3",
+        "Pont Classroom 1.2.4",
         f"Pont ChatGPT {chatgpt_version}",
     ):
         if label not in popup_js_text:
