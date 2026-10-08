@@ -14,6 +14,6 @@ assert.deepEqual(composer.groupOptions({pdcNativeClassroomGroupMapV1:{
   '31':{courseId:'123',alternateLink:'https://classroom.google.com/c/abc',courseName:'G31'},
   '51':{courseId:'',alternateLink:'https://classroom.google.com/c/abc'},
   '33':{courseId:'333',alternateLink:'https://example.com/x'}
-}}).map(x=>x[0]),['31','32']);
+}},'pdcNativeClassroomGroupMapV1').map(x=>x[0]),['31','32']);
 assert.throws(()=>composer.formatAnnouncement(' ','\n \n'),/Aucun message/);
 console.log('classroom-composer tests: 6 passed');
