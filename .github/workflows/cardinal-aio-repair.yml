@@ -73,6 +73,7 @@ jobs:
           cd Cardinal/AIO
           python -m unittest -v test_aio_rebuild_contract.py test_aio_compatibility_contract.py
           node aio-popup.test.js
+          node classroom-composer.test.cjs
 
       - name: Run complete Formative v2 regression suite in AIO branch
         shell: bash
@@ -244,6 +245,8 @@ jobs:
               assert "formative-simple-ui.js" not in names
               assert "popup-v2.js" not in names
               assert "aio-popup.js" in names
+              assert "classroom-composer.js" in names
+              assert popup.count('src="classroom-composer.js"') == 1
               assert "Préparer une correction" in popup
               assert popup.count("cardinal-aio-dashboard") == 1
               assert popup.count('src="aio-popup.js"') == 1
