@@ -51,6 +51,7 @@ CLASSROOM_COMMIT = "584e7d5b03d1b8ac496e2e1d6ff3e1b18ec991ca"
 FORMATIVE_TREE_SHA = "1a48922ec281f0aec42bf49d150aec3634f2f79f"
 FORMATIVE_V2_ZIP = "Cardinal-Formative-Importer-STANDALONE-0.5.0-rc1.zip"
 AIO_POPUP_JS = "aio-popup.js"
+CLASSROOM_COMPOSER_JS = "classroom-composer.js"
 
 CLASSROOM_HOSTS = [
     "https://techno-cardi.github.io/Plan-de-cours/*",
@@ -437,6 +438,49 @@ def adapt_classroom(classroom_root: Path, dist: Path) -> list[dict]:
         )
 
     background = patch_message_names((classroom_root / "background.js").read_text(encoding="utf-8"))
+    # Seul le popup de CETTE extension peut demander une publication depuis
+    # ChatGPT. Il ne permet pas aux pages ChatGPT de manipuler la liaison des groupes.
+    popup_sender_guard = """function validAioPopupSender(sender) {
+  try {
+    const popupPath = String(chrome.runtime.getManifest().action?.default_popup || '');
+    return Boolean(popupPath && sender?.id === chrome.runtime.id && !sender?.tab
+      && sender?.url === chrome.runtime.getURL(popupPath));
+  } catch (_) { return false; }
+}
+
+"""
+    background = replace_exactly(
+        background,
+        "function validClassroomSender(sender) {",
+        popup_sender_guard + "function validClassroomSender(sender) {",
+        label="Classroom popup sender guard",
+    )
+    old_prepare = """  if (message?.type === 'PDC_NATIVE_PREPARE') {
+    if (!validGeneratorSender(sender)) throw new Error('origine du générateur refusée');
+    const payload = message.payload || {};"""
+    new_prepare = """  if (message?.type === 'PDC_NATIVE_PREPARE') {
+    const fromPopup = validAioPopupSender(sender);
+    if (!validGeneratorSender(sender) && !fromPopup) throw new Error('origine refusée');
+    const payload = message.payload || {};
+    let originTab = sender.tab;
+    if (fromPopup) {
+      const tabId = Number(payload.sourceTabId);
+      if (!Number.isInteger(tabId)) throw new Error('onglet ChatGPT manquant');
+      originTab = await chrome.tabs.get(tabId);
+      const source = new URL(String(originTab?.url || ''));
+      if (source.protocol !== 'https:' || !['chatgpt.com','chat.openai.com'].includes(source.hostname)) {
+        throw new Error('publication depuis un onglet ChatGPT seulement');
+      }
+    }"""
+    background = replace_exactly(background, old_prepare, new_prepare, label="Classroom popup prepare")
+    background = replace_exactly(
+        background, "sourceTabId: sender.tab.id,", "sourceTabId: originTab.id,",
+        label="Classroom popup source tab",
+    )
+    background = replace_exactly(
+        background, "windowId: sender.tab.windowId", "windowId: originTab.windowId",
+        label="Classroom popup source window",
+    )
     ownership_guard = """const PDC_NATIVE_MESSAGE_TYPES = new Set([
   'PDC_NATIVE_REMEMBER_GROUPS',
   'PDC_NATIVE_GET_GROUPS',
@@ -640,8 +684,10 @@ def augment_historical_popup(
 
     marker = matches[0]
     popup_script_ref = os.path.relpath(dist / AIO_POPUP_JS, popup_path.parent).replace(os.sep, "/")
+    composer_script_ref = os.path.relpath(dist / CLASSROOM_COMPOSER_JS, popup_path.parent).replace(os.sep, "/")
     injection = (
         "\n  <div id=\"cardinal-aio-dashboard\" aria-label=\"État Cardinal AIO\"></div>\n"
+        f"  <script src=\"{composer_script_ref}\"></script>\n"
         f"  <script src=\"{popup_script_ref}\"></script>\n"
     )
     adapted = text[:marker.start()] + injection + text[marker.start():]
@@ -650,6 +696,10 @@ def augment_historical_popup(
     dashboard = dashboard.replace("Gestion 1.1.9", f"Gestion {gestion_version}")
     dashboard = dashboard.replace("Pont ChatGPT 1.1.9", f"Pont ChatGPT {chatgpt_version}")
     (dist / AIO_POPUP_JS).write_text(dashboard, encoding="utf-8")
+    composer = repo_root / "Cardinal" / "AIO" / CLASSROOM_COMPOSER_JS
+    if not composer.is_file():
+        raise BaselineContractError(f"Compositeur Classroom manquant: {composer}")
+    shutil.copy2(composer, dist / CLASSROOM_COMPOSER_JS)
     return popup, original_sha, sha256(popup_path)
 
 
@@ -801,6 +851,8 @@ def validate_output(
     popup_js = dist / AIO_POPUP_JS
     if not popup_js.is_file():
         raise BaselineContractError("Script du dashboard contextuel RC2 absent.")
+    if CLASSROOM_COMPOSER_JS not in popup_text or not (dist / CLASSROOM_COMPOSER_JS).is_file():
+        raise BaselineContractError("Compositeur ChatGPT Classroom absent du popup AIO.")
     popup_js_text = popup_js.read_text(encoding="utf-8", errors="replace")
     for label in (
         f"Gestion {gestion_version}",
