@@ -117,5 +117,9 @@
     });
     return {open,body,select,publish};
   }
-  globalThis.CardinalClassroomComposer=Object.freeze({format,readFromChatGPT,mount});
+  function paragraphs(body){return String(body||'').replace(/\r\n?/g,'\n').split(/\n\s*\n+/).map(x=>x.trim()).filter(Boolean);}
+  function groupOptions(stored,mapKey=MAP_KEY){return optionsFrom(stored?.[mapKey]);}
+  const api=Object.freeze({format,formatAnnouncement:format,paragraphs,groupOptions,readFromChatGPT,mount});
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+  globalThis.CardinalClassroomComposer=api;
 })();
