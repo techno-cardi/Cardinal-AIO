@@ -6,7 +6,7 @@
   function safe(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   function format(title, input){
     const clean=String(input||'').replace(/\r\n?/g,'\n').trim();
-    if(!clean)throw Error('Aucun texte à publier. Vérifie la récupération dans ChatGPT.');
+    if(!clean)throw Error('Aucun message à publier. Vérifie la récupération dans ChatGPT.');
     const paragraphs=clean.split(/\n\s*\n+/).map(x=>x.trim()).filter(Boolean);
     const t=String(title||'Annonce aux élèves').trim().slice(0,140);
     // Classroom supprime les marges des paragraphes : doubles <br> explicites.
