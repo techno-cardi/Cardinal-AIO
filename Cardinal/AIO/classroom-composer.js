@@ -1,7 +1,6 @@
 (() => {
   'use strict';
   const MODULE = 'CardinalClassroomComposer';
-  const MAP_KEY = 'pdcNativeClassroomGroupMapV1';
   const PREPARE = 'PDC_NATIVE_PREPARE';
   const MAX_CHARS = 18000;
 
@@ -80,8 +79,8 @@
     sel.removeAllRanges(); tmp.remove();
     return ok;
   }
-  function groupOptions(stored) {
-    const map = stored?.[MAP_KEY];
+  function groupOptions(stored, mapKey) {
+    const map = stored?.[mapKey];
     return Object.entries(map && typeof map === 'object' ? map : {})
       .filter(([group, value]) => /^\d{1,3}$/.test(group) && /^\d+$/.test(String(value?.courseId || ''))
         && /^https:\/\/classroom\.google\.com\/c\//.test(String(value?.alternateLink || '')))
@@ -93,7 +92,7 @@
     if (className) n.className = className;
     return n;
   }
-  function mount(card, message, doc = globalThis.document, chromeApi = globalThis.chrome) {
+  function mount(card, message, doc = globalThis.document, chromeApi = globalThis.chrome, mapKey = '') {
     const area = create(doc, 'div', '', 'classroom-area'); area.hidden = true;
     const status = create(doc, 'p', '', 'classroom-status'); status.setAttribute('role','status');
     const desc = create(doc, 'p', 'Relis ou adapte ce texte avant de le publier.', 'classroom-help');
@@ -116,7 +115,7 @@
         editor.value=draft.text;
         groupSelect.replaceChildren();
         const opt = create(doc,'option','Choisir un groupe'); opt.value='';groupSelect.append(opt);
-        const linked=groupOptions(await chromeApi.storage.local.get(MAP_KEY));
+        const linked=groupOptions(await chromeApi.storage.local.get(mapKey),mapKey);
         for(const [num,link] of linked){const o=create(doc,'option',`Groupe ${num} - ${link.courseName||'Classroom'}`);o.value=num;groupSelect.append(o);}
         publish.disabled = !linked.length;
         area.hidden=false;
