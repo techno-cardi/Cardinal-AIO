@@ -355,7 +355,7 @@
 
     // Compositeur autonome : aucune modification des actions Formative historiques.
     if (model.context === 'chatgpt' && globalThis.CardinalClassroomComposer?.mount) {
-      globalThis.CardinalClassroomComposer.mount(card, message, doc, chromeApi);
+      globalThis.CardinalClassroomComposer.mount(card, message, doc, chromeApi, GROUP_MAP_KEY);
     }
 
     const details = element(doc, 'details');
