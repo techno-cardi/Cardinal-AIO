@@ -188,6 +188,10 @@
             formativeItemId: op.formativeItemId,
             item: op.adaptedItem,
             operationId: op.operationId,
+            // This is used only after reconcileOne verified an allocated ID
+            // belongs to this run. The partially configured item may fail
+            // normal strict question-read checks.
+            resumeCreatedItem: op.resumeCreatedItem === true,
             context
           });
         }
