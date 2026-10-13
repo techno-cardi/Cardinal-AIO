@@ -509,6 +509,7 @@
         packageMode: journalRecord.packageMode,
         plannerOperations: prepared.plannerOperations,
         approvedDeleteFingerprints: prepared.approvedDeleteFingerprints,
+        onProgress: input.onProgress,
         callbacks,
         context: {
           targetFormativeId: prepared.targetFormativeId,
