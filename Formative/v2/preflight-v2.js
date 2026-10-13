@@ -143,13 +143,23 @@
       return finish(null, issues);
     }
 
-    const validation = deps.validator.validatePackageV2(input.pkg, {
+    // Normalize generated metadata once and feed exactly the same effective
+    // package to validation, conversion and the three-way planner.
+    const repaired = typeof deps.validator.normalizePackageV2 === 'function'
+      ? deps.validator.normalizePackageV2(input.pkg)
+      : { pkg: input.pkg, issues: [] };
+    const effectivePkg = repaired.pkg;
+    const automaticNotes = (effectivePkg?.issues || []).filter(x =>
+      String(x?.code || '').startsWith('AUTO_'));
+    issues.push(...automaticNotes);
+
+    const validation = deps.validator.validatePackageV2(effectivePkg, {
       capabilities: input.capabilities
     });
     issues.push(...(validation.issues || []));
     if (!validation.ok) return finish({ validation }, issues);
 
-    const adapted = deps.adapter.adaptPackageV2ToV1(input.pkg, {
+    const adapted = deps.adapter.adaptPackageV2ToV1(effectivePkg, {
       targetFormativeId: input.targetFormativeId
     });
     issues.push(...(adapted.issues || []));
@@ -179,7 +189,7 @@
     }
 
     const planner = deps.planner.planThreeWay({
-      packageMode: input.pkg.packageMode,
+      packageMode: effectivePkg.packageMode,
       desired: desired.map(row => ({
         fingerprint: row.fingerprint,
         sourceItemId: row.sourceItemId,
@@ -191,7 +201,7 @@
     issues.push(...(planner.issues || []));
 
     riskGates({
-      packageMode: input.pkg.packageMode,
+      packageMode: effectivePkg.packageMode,
       desired,
       baselineExists: baselineRead.exists,
       baselineEntries: baselineRead.entries,
@@ -205,6 +215,7 @@
     return finish({
       validation,
       adapted,
+      normalizedPkg: effectivePkg,
       desired,
       server,
       baseline: baselineRead.entries,
