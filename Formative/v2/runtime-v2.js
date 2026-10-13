@@ -19,6 +19,8 @@
       view: {
         state: 'blocked',
         statusLabel: '✕ Bloqué',
+        issueDetails: (issues.length ? issues : [{ severity: 'blocker', code: reason, message }])
+          .map(row => ({ severity: row.severity, code: row.code, message: row.message, itemId: row.itemId || null })),
         blockers: Math.max(1, issues.filter(issue => issue?.severity === 'blocker').length),
         warnings: issues.filter(issue => issue?.severity === 'warning').length,
         primaryAction: { id: 'none', label: 'Import bloqué', enabled: false, emphasis: 'danger' }
