@@ -107,12 +107,19 @@
         if (!snapshot || snapshot.snapshotComplete !== true || !Array.isArray(snapshot.items)) {
           return blocked('CREATE_PREFLIGHT_SNAPSHOT_INCOMPLETE', 'Cardinal doit relire la liste complète des items avant une création.');
         }
+        // A successful CREATE in this same immutable journal legitimately
+        // changes the server item set. Include only independently VERIFIED
+        // creations, while still rejecting every external addition/deletion.
+        const expectedIds = [...new Set([
+          ...op.preexistingServerItemIds,
+          ...(context.verifiedCreatedServerItemIds || [])
+        ].map(String))].sort();
         const currentIds = sortedIds(snapshot.items);
-        if (!sameIdSet(currentIds, op.preexistingServerItemIds)) {
+        if (!sameIdSet(currentIds, expectedIds)) {
           return blocked(
             'CREATE_TARGET_CHANGED_SINCE_PREFLIGHT',
-            'Le contenu du Formative a changé depuis la préparation. Relancer la vérification avant de créer.',
-            { expectedIds: [...op.preexistingServerItemIds].sort(), currentIds }
+            'Le contenu du Formative a changé hors des créations vérifiées de Cardinal. Aucune autre question ne sera modifiée.',
+            { expectedIds, currentIds }
           );
         }
         return { state: 'verified', targetIssues: target.issues || [] };
@@ -162,7 +169,7 @@
       return error;
     }
 
-    async function applyMutation({ op, context = {} }) {
+    async function applyMutation({ op, context = {}, onCreated = null }) {
       try {
         if (op.action === 'CREATE') {
           if (!op.adaptedItem) throw new Error('CREATE adaptedItem missing');
@@ -170,6 +177,7 @@
             targetFormativeId: context.targetFormativeId,
             item: op.adaptedItem,
             operationId: op.operationId,
+            onCreated,
             context
           });
         }
@@ -180,6 +188,10 @@
             formativeItemId: op.formativeItemId,
             item: op.adaptedItem,
             operationId: op.operationId,
+            // This is used only after reconcileOne verified an allocated ID
+            // belongs to this run. The partially configured item may fail
+            // normal strict question-read checks.
+            resumeCreatedItem: op.resumeCreatedItem === true,
             context
           });
         }
