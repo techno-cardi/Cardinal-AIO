@@ -320,7 +320,8 @@
     approvedDeleteFingerprints,
     executionContract,
     execution,
-    context
+    context,
+    onProgress
   }) {
     let journal = input.journal;
     if (!journal) {
@@ -360,6 +361,20 @@
 
     const executableById = new Map(execution.operations.map(op => [op.operationId, op]));
     const resume = deps.journal.resumePlan(journal);
+    const total = (journal.operations || []).filter(op => ['CREATE', 'UPDATE', 'DELETE'].includes(op.action)).length;
+    async function announce(phase, op = null) {
+      // UI is optional: a disconnected ChatGPT tab must never interrupt an import.
+      if (typeof onProgress !== 'function') return;
+      const done = (journal.operations || []).filter(x => ['CREATE', 'UPDATE', 'DELETE'].includes(x.action) && x.status === deps.journal.STATUS.VERIFIED).length;
+      const entry = op ? findJournalOp(journal, op.operationId) : null;
+      try {
+        await onProgress({ phase, done, total, action: op?.action || null,
+          itemId: op?.sourceItemId || op?.fingerprint || null,
+          operationId: op?.operationId || null,
+          errorCode: entry?.lastError?.code || null });
+      } catch { /* progress must never affect writes */ }
+    }
+    await announce('starting');
 
     for (const step of resume) {
       if (step.decision === 'SKIP') continue;
@@ -375,10 +390,12 @@
         return { ok: false, state: 'blocked', journal, blocked: execution.blocked, reason: `NO_EXECUTABLE_OPERATION:${step.operationId}` };
       }
 
+      await announce(step.decision === 'RECONCILE' ? 'reconciling' : 'applying', op);
       if (step.decision === 'RECONCILE') {
         try {
           journal = await reconcileOne({ op, journal, callbacks, deps, context });
         } catch (error) {
+          await announce('interrupted', op);
           return { ok: false, state: 'blocked', journal, blocked: execution.blocked, reason: 'RECONCILIATION_FAILED', error };
         }
 
@@ -388,10 +405,15 @@
           // operation precondition passes again.
           const result = await executeOne({ op, journal, callbacks, deps, context });
           journal = result.journal;
-          if (result.stopped) return { ok: false, state: publicStateForStop(result.reason), journal, blocked: execution.blocked, reason: result.reason, error: result.error };
+          if (result.stopped) {
+            await announce('interrupted', op);
+            return { ok: false, state: publicStateForStop(result.reason), journal, blocked: execution.blocked, reason: result.reason, error: result.error };
+          }
         } else if (after.status !== deps.journal.STATUS.VERIFIED) {
+          await announce('interrupted', op);
           return { ok: false, state: 'blocked', journal, blocked: execution.blocked, reason: 'RECONCILIATION_BLOCKED' };
         }
+        await announce('verified', op);
         continue;
       }
 
@@ -399,6 +421,7 @@
         const result = await executeOne({ op, journal, callbacks, deps, context });
         journal = result.journal;
         if (result.stopped) {
+          await announce('interrupted', op);
           return {
             ok: false,
             state: publicStateForStop(result.reason),
@@ -408,8 +431,10 @@
             error: result.error
           };
         }
+        await announce('verified', op);
       }
     }
+    await announce('finishing');
 
     const finalResume = deps.journal.resumePlan(journal);
     const pendingUnsafe = finalResume.filter(x => !['SKIP'].includes(x.decision));
@@ -519,7 +544,8 @@
         approvedDeleteFingerprints,
         executionContract,
         execution,
-        context
+        context,
+        onProgress: input.onProgress
       });
     } finally {
       deps.gate.release(claim.token);
