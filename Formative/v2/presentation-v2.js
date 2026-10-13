@@ -155,6 +155,20 @@
     return { id: 'import', label: 'Importer dans Formative', enabled: true, emphasis: 'primary' };
   }
 
+  function recoveryIssues(journal = {}) {
+    return (journal.operations || [])
+      .filter(op => ['UNCERTAIN', 'FAILED', 'BLOCKED', 'IN_PROGRESS'].includes(op.status))
+      .map(op => ({
+        severity: op.status === 'BLOCKED' ? 'blocker' : 'warning',
+        code: op.lastError?.code || (op.status === 'IN_PROGRESS' ? 'INTERRUPTED_IN_PROGRESS' : op.status),
+        message: op.lastError?.message ||
+          (op.status === 'IN_PROGRESS'
+            ? 'Opération interrompue pendant une écriture. Vérification du serveur requise avant reprise.'
+            : 'État non confirmé. Cardinal doit relire le serveur avant toute écriture.'),
+        itemId: op.formativeItemId || op.fingerprint || op.operationId || null
+      }));
+  }
+
   function buildPreparedView(prepared = {}) {
     if (prepared.state === 'recovery') {
       const summary = prepared?.journal?.summary || prepared?.ui?.summary || {};
@@ -164,6 +178,7 @@
         targetTitle: prepared.targetTitle || null,
         create: 0, update: 0, unchanged: 0, deleteProposed: 0,
         warnings: 0, blockers: 0,
+        issueDetails: recoveryIssues(prepared?.journal),
         recovery: {
           runId: prepared?.journal?.runId || null,
           verified: Number(summary.verified || 0),
@@ -263,7 +278,8 @@
       uncertain: Number(summary.uncertain || 0),
       failed: Number(summary.failed || 0),
       blocked: Number(summary.blocked || 0),
-      reason: result.reason || null
+      reason: result.reason || null,
+      issueDetails: recoveryIssues(journal)
     };
     model.primaryAction = primaryAction(model);
     return model;
