@@ -37,7 +37,12 @@ function fixture({failSecond=false, insertExternal=false}={}) {
         e.formativeItemId=id;e.mutationMayHaveCommitted=true;throw e; }
       return {formativeItemId:id};
     },
-    async updateItem({formativeItemId,item}) {
+    async updateItem({formativeItemId,item,resumeCreatedItem}) {
+      // A newly allocated item with incomplete GraphQL details may fail
+      // the normal claimed-item semantic reader before configuration.
+      if (failSecond && !resumeCreatedItem && db.get(formativeItemId)?.text.includes('partiel')) {
+        throw new Error('SERVER_ITEM_DETAIL_INCOMPLETE');
+      }
       events.push('update:'+formativeItemId);db.set(formativeItemId,raw(formativeItemId,item.content));
       return {formativeItemId};
     },
