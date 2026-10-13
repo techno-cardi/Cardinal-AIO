@@ -173,7 +173,13 @@
       const grading = item.grading;
       if (!grading || typeof grading !== 'object') continue;
       if (!Array.isArray(grading.concepts)) grading.concepts = [];
-      if (grading.mode === 'manual') continue;
+      if (grading.mode === 'manual') {
+        if (grading.concepts.length) {
+          grading.concepts = [];
+          add('AUTO_MANUAL_KEYWORDS_IGNORED', 'Corrigé manuel conservé; mots-clés automatiques ignorés.', id);
+        }
+        continue;
+      }
       const max = Number.isFinite(point.value) ? point.value : 0;
       const active = [];
       const canonical = new Map();
