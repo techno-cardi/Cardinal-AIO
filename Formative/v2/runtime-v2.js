@@ -291,6 +291,7 @@
       const result = await deps.orchestrator.execute(prepared, {
         acknowledgeWarnings: input.acknowledgeWarnings === true,
         importerVersion: input.importerVersion || null,
+        onProgress: input.onProgress,
         targetTabId: input.targetTabId ?? prepared.targetTabId ?? null,
         transport: makeTransport()
       });
