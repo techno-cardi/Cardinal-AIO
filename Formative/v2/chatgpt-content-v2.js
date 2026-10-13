@@ -337,7 +337,8 @@
       if (!record?.shell) return;
       if (!record.progressFill || !record.progressLabel) return;
       const percent = Number.isFinite(event.percent) ? Math.max(0, Math.min(100, event.percent)) : null;
-      if (percent != null) record.progressFill.style.width = `${percent}%`;
+      if (percent != null) record.lastPercent = percent;
+      if (Number.isFinite(record.lastPercent)) record.progressFill.style.width = `${record.lastPercent}%`;
       record.progressLabel.textContent = oneLine(event.label) || (percent != null ? `${percent}%` : '');
     }
 
@@ -427,7 +428,17 @@
         record.shell.appendChild(button);
       }
       if (response.state === 'ready') setProgress(record, { percent: 42, label: 'Prêt à importer' });
+      if (response.state === 'recovery') {
+        const r = view.recovery || {};
+        const total = Number(r.verified || 0) + Number(r.remaining || 0) + Number(r.uncertain || 0) + Number(r.failed || 0);
+        const verified = Number(r.verified || 0);
+        setProgress(record, { percent: total ? Math.round(45 + 43 * verified / total) : 45,
+          label: `Reprise nécessaire : ${verified} / ${total} questions vérifiées` });
+      }
       if (response.state === 'completed') setProgress(record, { percent: 100, label: 'Import vérifié' });
+      if (record.lastProgress && record.token && String(record.lastProgress.runId) === String(record.token)) {
+        setProgress(record, record.lastProgress);
+      }
     }
 
     async function prepare(record, target = {}) {
@@ -461,6 +472,9 @@
 
       if (intent.command === 'NONE') return;
       button.disabled = true;
+      if (intent.command === 'APPLY') {
+        setProgress(record, { percent: 45, label: 'Import en cours : lecture du journal...' });
+      }
       try {
         let response;
         if (intent.command === 'APPLY') {
@@ -599,6 +613,7 @@
       const event = message.payload || {};
       for (const record of bars.values()) {
         if (record.token && String(record.token) === String(event.runId || '')) {
+          record.lastProgress = event;
           setProgress(record, event);
         }
       }

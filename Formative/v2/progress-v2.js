@@ -10,7 +10,7 @@
     READY: { order: 60, percent: 42, label: 'Prêt à importer' },
     IMPORTING: { order: 70, percent: 45, label: 'Import dans Formative' },
     VERIFYING: { order: 80, percent: 90, label: 'Vérification des changements' },
-    RECOVERING: { order: 85, percent: 90, label: 'Vérification après interruption' },
+    RECOVERING: { order: 85, percent: null, label: 'Vérification après interruption' },
     COMPLETED: { order: 100, percent: 100, label: 'Import vérifié' },
     BLOCKED: { order: 100, percent: null, label: 'Import bloqué' },
     FAILED: { order: 100, percent: null, label: 'Import interrompu' }
