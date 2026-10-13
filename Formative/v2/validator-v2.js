@@ -173,6 +173,19 @@
       const grading = item.grading;
       if (!grading || typeof grading !== 'object') continue;
       if (!Array.isArray(grading.concepts)) grading.concepts = [];
+      if (item.subtype === 'multipleSelection' && grading.partialCredit !== false) {
+        const correct = (item.response?.options || []).filter(x => x?.correct === true);
+        const validWeights = correct.length > 0 && correct.every(x =>
+          Number.isFinite(x?.points) && x.points >= 0 && oneDecimal(x.points));
+        const weightSum = correct.reduce((sum, option) => sum + (Number(option.points) || 0), 0);
+        if (!validWeights || Math.abs(weightSum - point.value) > 1e-9) {
+          // Never invent weights for individual correct options.
+          grading.partialCredit = false;
+          add('AUTO_PARTIAL_CREDIT_DISABLED',
+            'Pondération par bonne option absente ou incohérente : crédit partiel désactivé sans changer les bonnes réponses.',
+            id);
+        }
+      }
       if (grading.mode === 'manual') {
         if (grading.concepts.length) {
           grading.concepts = [];
