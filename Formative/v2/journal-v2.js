@@ -124,11 +124,33 @@
     }, now);
   }
 
+  // Keep the newly allocated item ID durably before any configuration steps.
+  // A crashed worker can then resume the exact item instead of creating a duplicate.
+  function recordCreatedItem(journal, operationId, formativeItemId, now = Date.now()) {
+    if (!formativeItemId) throw new Error('created formativeItemId required');
+    return mutate(journal, next => {
+      const op = findOperation(next, operationId);
+      if (op.action !== 'CREATE' || op.status !== STATUS.IN_PROGRESS) {
+        throw new Error('cannot checkpoint CREATE outside IN_PROGRESS');
+      }
+      const id = String(formativeItemId);
+      if (op.formativeItemId && String(op.formativeItemId) !== id) {
+        throw new Error('CREATE_ITEM_ID_CHANGED');
+      }
+      op.formativeItemId = id;
+    }, now);
+  }
+
   function markVerified(journal, operationId, result = {}, now = Date.now()) {
     return mutate(journal, next => {
       const op = findOperation(next, operationId);
       if (![STATUS.IN_PROGRESS, STATUS.UNCERTAIN].includes(op.status)) {
         throw new Error(`cannot verify ${operationId} from ${op.status}`);
+      }
+      if (op.action === 'CREATE' && result.formativeItemId) {
+        const id = String(result.formativeItemId);
+        if (op.formativeItemId && String(op.formativeItemId) !== id) throw new Error('CREATE_ITEM_ID_CHANGED');
+        op.formativeItemId = id;
       }
       op.status = STATUS.VERIFIED;
       op.finishedAt = nowIso(now);
@@ -150,6 +172,15 @@
         throw new Error(`cannot mark ${operationId} uncertain before mutation started`);
       }
 
+      if (mayHaveCommitted && op.action === 'CREATE') {
+        const id = options.formativeItemId || error?.formativeItemId || null;
+        if (id) {
+          if (op.formativeItemId && String(op.formativeItemId) !== String(id)) {
+            throw new Error('CREATE_ITEM_ID_CHANGED');
+          }
+          op.formativeItemId = String(id);
+        }
+      }
       op.status = mayHaveCommitted ? STATUS.UNCERTAIN : STATUS.FAILED;
       op.finishedAt = nowIso(now);
       op.lastError = cleanError(error);
@@ -264,6 +295,7 @@
     STATUS,
     createJournal,
     startOperation,
+    recordCreatedItem,
     markVerified,
     markFailed,
     markBlocked,

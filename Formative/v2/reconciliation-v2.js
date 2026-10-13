@@ -79,6 +79,26 @@
       return result('conflict', { code: 'CREATE_SUBTYPE_MISSING', message: 'Subtype attendu absent du plan immuable.' });
     }
 
+    // The exact ID is supplied by the durable journal, never inferred from
+    // nearby items. A partial write can be completed in place, without CREATE.
+    const recordedId = op.partialFormativeItemId ? String(op.partialFormativeItemId) : null;
+    if (recordedId) {
+      if (preexisting.has(recordedId)) {
+        return result('conflict', { code: 'CREATE_RECORDED_ID_PREEXISTING', message: 'ID de création déjà présent avant l’import. Refus de modifier cet item.' });
+      }
+      const recorded = rows.find(row => String(row.formativeItemId) === recordedId);
+      if (!recorded) {
+        return result('conflict', { code: 'CREATE_RECORDED_ID_MISSING', message: 'L’item créé par Cardinal a disparu du serveur. Aucune recréation automatique.' });
+      }
+      if (recorded.subtype !== expectedSubtype) {
+        return result('conflict', { code: 'CREATE_RECORDED_SUBTYPE_MISMATCH', message: 'Le type de l’item enregistré ne correspond plus au plan.' });
+      }
+      if (recorded.normalized?.managedState && equal(recorded.normalized.managedState, op.desired)) {
+        return result('committed', { formativeItemId: recordedId, serverObservation: recorded.item, message: 'Création retrouvée grâce à son ID persistant.' });
+      }
+      return result('partial', { formativeItemId: recordedId, serverObservation: recorded.item, message: 'Création incomplète retrouvée. Configuration à compléter sur le même ID.' });
+    }
+
     const newSameSubtype = rows.filter(row =>
       row.formativeItemId && !preexisting.has(row.formativeItemId) && row.subtype === expectedSubtype
     );

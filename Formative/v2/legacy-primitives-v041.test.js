@@ -444,6 +444,22 @@ function mutationCalls(h) {
     assert.equal(mutationCalls(h).filter(x => x.operationName === 'FormativeTeacherAddFormativeItem').length, 1);
   }
 
+  // An item created moments ago can still have incomplete answer details.
+  // Resume only the already verified CREATE ID, without accepting incomplete
+  // detail reads on ordinary UPDATE.
+  {
+    const h = harness({ currentRaw: null });
+    const r = await h.primitives.updateItem({
+      targetFormativeId: 'form-1',
+      formativeItemId: 'already-allocated',
+      item: shortKeywordItem(),
+      resumeCreatedItem: true
+    });
+    assert.equal(r.formativeItemId, 'already-allocated');
+    assert.equal(h.readerCalls.filter(x => x.method === 'item').length, 0);
+    assert.ok(mutationCalls(h).length > 0);
+  }
+
   {
     const h = harness();
     await h.primitives.createItem({
