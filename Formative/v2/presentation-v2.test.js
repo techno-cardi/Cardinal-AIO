@@ -73,6 +73,30 @@ function pkg() {
   assert.equal(view.recovery.uncertain, 1);
 }
 
+// An incomplete recovery must name the failing operation and actual cause.
+{
+  const op = {
+    operationId: 'CREATE:q7', action: 'CREATE', fingerprint: 'q7',
+    status: 'UNCERTAIN', formativeItemId: 'I77',
+    lastError: { code: 'FORMATIVE_TIMEOUT', message: 'Configuration interrompue après la création.' }
+  };
+  const pending = P.buildPreparedView({
+    ok: true, state: 'recovery', journal: {
+      summary: { verified: 1, remaining: 16, uncertain: 1, failed: 0 }, operations: [op]
+    }
+  });
+  assert.equal(pending.issueDetails[0].code, 'FORMATIVE_TIMEOUT');
+  assert.match(pending.issueDetails[0].message, /Configuration interrompue/);
+  assert.equal(pending.issueDetails[0].itemId, 'I77');
+
+  const interrupted = P.buildExecutionView({
+    state: 'uncertain', reason: 'UNCERTAIN', journal: {
+      summary: { verified: 1, remaining: 16, uncertain: 1 }, operations: [op]
+    }
+  });
+  assert.equal(interrupted.issueDetails[0].code, 'FORMATIVE_TIMEOUT');
+}
+
 // Completed import keeps a non-destructive reimport action available.
 {
   const view = P.buildExecutionView({ state: 'completed', journal: { summary: { verified: 3, skipped: 2 } } }, { targetTitle: 'T' });
