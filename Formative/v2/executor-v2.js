@@ -80,7 +80,17 @@
   async function verifyPrecondition({ op, journal, callbacks, deps, context }) {
     let verdict;
     try {
-      verdict = await requiredFn(callbacks, 'assertOperationPrecondition')({ op, context });
+      // Only verified creations belonging to this very journal may extend the
+      // original CREATE preflight snapshot. Never overlook external items.
+      const verifiedCreatedServerItemIds = (journal?.operations || [])
+        .filter(row => row.action === 'CREATE' && row.status === deps.journal.STATUS.VERIFIED)
+        .map(row => row.formativeItemId || row.result?.formativeItemId)
+        .filter(Boolean)
+        .map(String);
+      verdict = await requiredFn(callbacks, 'assertOperationPrecondition')({
+        op,
+        context: { ...context, verifiedCreatedServerItemIds }
+      });
     } catch (error) {
       error.phase = error.phase || 'precondition';
       journal = deps.journal.markFailed(
@@ -171,14 +181,20 @@
 
     let mutationResult;
     try {
-      mutationResult = await requiredFn(callbacks, 'applyMutation')({ op, context });
+      mutationResult = await requiredFn(callbacks, 'applyMutation')({
+        op, context,
+        onCreated: async formativeItemId => {
+          journal = deps.journal.recordCreatedItem(journal, op.operationId, formativeItemId);
+          await persistJournal(callbacks, journal);
+        }
+      });
     } catch (error) {
       const mayHaveCommitted = error?.mutationMayHaveCommitted === true;
       journal = deps.journal.markFailed(
         journal,
         op.operationId,
         error,
-        { mutationMayHaveCommitted: mayHaveCommitted }
+        { mutationMayHaveCommitted: mayHaveCommitted, formativeItemId: error?.formativeItemId }
       );
       try {
         await persistJournal(callbacks, journal);
@@ -205,7 +221,7 @@
         journal,
         op.operationId,
         error,
-        { mutationMayHaveCommitted: true }
+        { mutationMayHaveCommitted: true, formativeItemId: mutationResult?.formativeItemId || error?.formativeItemId }
       );
       try {
         await persistJournal(callbacks, journal);
@@ -224,10 +240,29 @@
   }
 
   async function reconcileOne({ op, journal, callbacks, deps, context }) {
-    const verdict = await requiredFn(callbacks, 'reconcileOperation')({ op, context });
+    const stored = findJournalOp(journal, op.operationId);
+    const knownId = stored.formativeItemId || stored.result?.formativeItemId || null;
+    const createOp = op.action === 'CREATE'
+      ? { ...op, partialFormativeItemId: knownId }
+      : op;
+    const verdict = await requiredFn(callbacks, 'reconcileOperation')({ op: createOp, context });
 
-    if (!verdict || !['committed', 'not_committed', 'conflict'].includes(verdict.state)) {
-      throw new Error('reconcileOperation must return committed, not_committed or conflict');
+    if (!verdict || !['committed', 'not_committed', 'conflict', 'partial'].includes(verdict.state)) {
+      throw new Error('reconcileOperation must return committed, not_committed, partial or conflict');
+    }
+
+    if (verdict.state === 'partial') {
+      // A durable CREATE ID proves the item belongs to this run. Complete its
+      // configuration using UPDATE, never by allocating another CREATE item.
+      const id = verdict.formativeItemId;
+      if (op.action !== 'CREATE' || !knownId || String(id) !== String(knownId)) {
+        throw new Error('PARTIAL_CREATE_ID_UNVERIFIED');
+      }
+      const mutationResult = await requiredFn(callbacks, 'applyMutation')({
+        op: { ...op, action: 'UPDATE', formativeItemId: id },
+        context
+      });
+      return verifyAndCommit({ op, mutationResult, journal, callbacks, deps, context });
     }
 
     if (verdict.state === 'committed') {
