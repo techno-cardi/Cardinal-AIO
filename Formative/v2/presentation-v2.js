@@ -229,7 +229,10 @@
       warnings: Number(ui.warnings || 0),
       blockers: Number(ui.blockers || (prepared.ok ? 0 : 1)),
       packageFingerprint: prepared.packageFingerprint || null,
-      validationRows: buildValidationRows(prepared.pkg || {})
+      validationRows: buildValidationRows(prepared.pkg || {}),
+      issueDetails: [...(prepared?.preflight?.issues || []), ...(prepared?.issues || [])]
+        .filter(issue => issue?.severity === 'blocker' || issue?.severity === 'warning')
+        .map(issue => ({ code: issue.code || 'UNKNOWN', message: issue.message || 'Détail indisponible', itemId: issue.itemId || null, severity: issue.severity }))
     };
     model.primaryAction = primaryAction(model);
     model.showCorrectionButton = model.validationRows.some(row =>
