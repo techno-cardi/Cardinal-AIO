@@ -239,10 +239,27 @@
       });
 
       try {
-        await reportProgress({ stage: selected.prepared?.mode === 'resume' ? 'RECOVERING' : 'IMPORTING', runId: token });
+        // RECOVERING comes after IMPORTING in the monotonic progress order.
+        // Starting at RECOVERING suppressed all subsequent per-question updates.
+        await reportProgress({ stage: 'IMPORTING', runId: token,
+          label: selected.prepared?.mode === 'resume' ? 'Reprise des questions...' : 'Début de l’import...' });
         const result = await deps.product.execute(selected.prepared, {
           acknowledgeWarnings: input.acknowledgeWarnings === true,
-          targetTabId: selected.targetTabId
+          targetTabId: selected.targetTabId,
+          onProgress: async update => {
+            const total = Number(update?.total || 0);
+            const done = Number(update?.done || 0);
+            const label = update?.phase === 'interrupted'
+              ? `Import interrompu après ${done} / ${total} questions vérifiées${update?.errorCode ? ' : ' + update.errorCode : ''}`
+              : update?.phase === 'finishing'
+                ? `Vérification finale : ${done} / ${total}`
+                : update?.phase === 'reconciling'
+                  ? `Rapprochement Formative : ${done} / ${total} vérifiées`
+                  : `${done} / ${total} questions vérifiées`;
+            await reportProgress({ stage: 'IMPORTING', runId: token,
+              label, itemIndex: done, itemTotal: total, itemId: update?.itemId || null,
+              detail: { phase: update?.phase || null } });
+          }
         });
 
         selected.lastExecution = result;
