@@ -337,7 +337,8 @@
       if (!record?.shell) return;
       if (!record.progressFill || !record.progressLabel) return;
       const percent = Number.isFinite(event.percent) ? Math.max(0, Math.min(100, event.percent)) : null;
-      if (percent != null) record.progressFill.style.width = `${percent}%`;
+      if (percent != null) record.lastPercent = percent;
+      if (Number.isFinite(record.lastPercent)) record.progressFill.style.width = `${record.lastPercent}%`;
       record.progressLabel.textContent = oneLine(event.label) || (percent != null ? `${percent}%` : '');
     }
 
@@ -435,7 +436,9 @@
           label: `Reprise nécessaire : ${verified} / ${total} questions vérifiées` });
       }
       if (response.state === 'completed') setProgress(record, { percent: 100, label: 'Import vérifié' });
-      if (record.lastProgress && !record.lastProgress.terminal) setProgress(record, record.lastProgress);
+      if (record.lastProgress && record.token && String(record.lastProgress.runId) === String(record.token)) {
+        setProgress(record, record.lastProgress);
+      }
     }
 
     async function prepare(record, target = {}) {
