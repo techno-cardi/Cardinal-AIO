@@ -259,7 +259,7 @@
         throw new Error('PARTIAL_CREATE_ID_UNVERIFIED');
       }
       const mutationResult = await requiredFn(callbacks, 'applyMutation')({
-        op: { ...op, action: 'UPDATE', formativeItemId: id },
+        op: { ...op, action: 'UPDATE', formativeItemId: id, resumeCreatedItem: true },
         context
       });
       return verifyAndCommit({ op, mutationResult, journal, callbacks, deps, context });
