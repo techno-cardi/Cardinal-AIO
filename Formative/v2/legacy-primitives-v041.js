@@ -588,6 +588,9 @@
       let id = null;
       try {
         id = await createRaw(formativeId, subtype, input.parentId || null);
+        // Persist the allocated ID before writing the multi-step question
+        // configuration. An interrupted import must resume this exact item.
+        if (typeof input.onCreated === 'function') await input.onCreated(id);
         await configureExisting(id, item, null);
         return {
           formativeItemId: id,
