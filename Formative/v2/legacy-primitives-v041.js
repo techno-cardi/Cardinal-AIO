@@ -618,11 +618,16 @@
       if (!id) throw makeError('formativeItemId requis.', 'FORMATIVE_ITEM_ID_REQUIRED');
       if (!item || !['text', 'question'].includes(item.kind)) throw makeError('Item v1 invalide.', 'LEGACY_ITEM_INVALID');
 
-      const current = await readItemDetailed(formativeId, id, {
+      // Ordinary UPDATE must always pass the strict server reader. A known
+      // CREATE resume is different: the journal contains the exact newly
+      // allocated ID and the reconciliation snapshot already checked it.
+      // Partial Formative question details are not necessarily readable yet.
+      const resumeCreatedItem = input.resumeCreatedItem === true;
+      const current = resumeCreatedItem ? null : await readItemDetailed(formativeId, id, {
         ...(input.context || {}),
         phase: 'mutation-adapter-precheck'
       });
-      if (!current) {
+      if (!resumeCreatedItem && !current) {
         throw makeError('La question à modifier n’existe plus.', 'MUTATION_TARGET_MISSING', {
           mutationMayHaveCommitted: false,
           formativeItemId: String(id)
@@ -630,7 +635,7 @@
       }
 
       const expectedSubtype = item.kind === 'text' ? 'functionalizedText' : item.subtype;
-      if (String(current.subtype) !== String(expectedSubtype)) {
+      if (!resumeCreatedItem && String(current.subtype) !== String(expectedSubtype)) {
         throw makeError(
           `Subtype serveur ${current.subtype} différent du subtype demandé ${expectedSubtype}.`,
           'MUTATION_SUBTYPE_CONFLICT',
