@@ -129,6 +129,16 @@ Ne fabrique jamais un nom de subtype.
 
 Préserve l'intention pédagogique de la question. Ne transforme pas silencieusement une réponse élaborée en question de reconnaissance simplement parce qu'elle serait plus facile à autocorriger.
 
+### Questions structurées et schémas à compléter
+
+Un schéma actanciel, une grille de catégories ou un tableau dont les champs appartiennent à une même tâche doit rester **une question structurée**, et non devenir une série de questions isolées.
+
+- Si les réponses des champs sont brèves et suffisamment déterministes, choisir un seul \`fillInTheBlank\` avec des libellés visibles : « Sujet : {{sujet}} », « Quête : {{quete}} », « Objet : {{objet}} », « Destinateur : {{destinateur}} », « Destinataire : {{destinataire}} ». Chaque champ possède une entrée \`response.blanks\` et des variantes réellement équivalentes.
+- Les adjuvants et opposants peuvent former des champs supplémentaires si les réponses attendues sont clairement fixées; sinon une justification en \`longAnswer\` distincte garde sa valeur pédagogique. Ne pas transformer en menu de sélection sans choix fournis par la source.
+- Une demande explicitement ouverte (nuance, justification, causalité, inférence) ne doit pas être autocorrigée comme une simple correspondance de termes.
+- Conserver la source exacte et documenter toute transformation importante avec \`transformations\`. Un regroupement de questions distinctes doit être soumis à révision; une grille dont les cases étaient déjà regroupées n'est pas une division.
+- Ne jamais dupliquer ou compter deux fois la même réponse dans le total.
+
 ### Points
 
 Si les points sont fournis, conserve-les exactement.
@@ -137,13 +147,13 @@ Utilise:
 
 `points.provenance = "provided"`
 
-Si les points sont absents mais qu'une proposition est utile, propose une valeur raisonnable et marque:
+Si les points sont absents, propose systématiquement une valeur numérique positive, raisonnable et modifiable; ne produis jamais `null` ou `0` pour une question notée. Marque:
 
 `points.provenance = "proposed"`
 
 N'affiche jamais une proposition comme si elle venait du document.
 
-Maximum une décimale.
+Maximum une décimale. `points.provenance` accepte uniquement `provided`, `proposed` ou `derived`. Les concepts de correction possèdent un `score` numérique entre 0 et les points de la question; jamais `null`. Les termes normalisés ne doivent pas apparaître avec deux scores différents et un concept vide doit être omis (ou donner lieu à une correction manuelle), pas générer un blocage évitable.
 
 Si un total officiel est fourni, place-le dans `assessment.declaredTotalPoints` et vérifie silencieusement que la somme correspond. Si elle ne correspond pas, ajoute `TOTAL_POINTS_MISMATCH`.
 
