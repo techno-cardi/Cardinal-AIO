@@ -107,6 +107,155 @@
     return count;
   }
 
+
+  // Repair only machine-level defects in AI-generated packages. The source
+  // question, answer and teacher-provided grading always remain authoritative.
+  // Never relax the guards for missing sources, target identity or server edits.
+  function normalizePackageV2(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      return { pkg: input, issues: [] };
+    }
+    const pkg = JSON.parse(JSON.stringify(input));
+    const repairs = [];
+    const add = (code, message, itemId) => {
+      const row = { severity: 'warning', code, message };
+      if (itemId) row.itemId = itemId;
+      repairs.push(row);
+      if (!Array.isArray(pkg.issues)) pkg.issues = [];
+      if (!pkg.issues.some(x => x?.code === code && x?.itemId === itemId)) pkg.issues.push(row);
+    };
+    const pointsSuggested = item => {
+      const fields = item?.response?.blanks || item?.response?.dropdowns || item?.response?.pairs;
+      if (Array.isArray(fields) && fields.length) return Math.min(10, Math.max(1, fields.length));
+      const label = asString(item?.source?.number || '');
+      if (/extrait/i.test(label)) return 4;
+      const requirements = Array.isArray(item?.grading?.requirements) ? item.grading.requirements.length : 0;
+      if (item?.subtype === 'shortAnswer') return Math.min(5, Math.max(2, requirements ? Math.ceil(requirements / 2) : 2));
+      if (['multipleChoice', 'multipleSelection'].includes(item?.subtype)) return 1;
+      return Math.min(10, Math.max(2, Math.min(4, requirements || 3)));
+    };
+    for (const item of pkg.items || []) {
+      if (item?.kind !== 'question') continue;
+      const id = item.id;
+      const point = item.points && typeof item.points === 'object' ? item.points : {};
+      const numeric = point.value === null || point.value === undefined || point.value === ''
+        ? NaN : Number(point.value);
+      const missing = !Number.isFinite(numeric) || numeric < 0 ||
+        (numeric === 0 && point.graded !== false && point.provenance !== 'provided');
+      if (missing && point.graded !== false) {
+        point.value = pointsSuggested(item);
+        point.provenance = 'proposed';
+        add('AUTO_POINTS_PROPOSED',
+          'Pointage absent ou provisoire : ' + point.value + ' point(s) proposés. Modifiable avant publication.',
+          id);
+      } else if (Number.isFinite(numeric) && numeric >= 0 && !oneDecimal(numeric)) {
+        point.value = Math.round(numeric * 10) / 10;
+        point.provenance = 'proposed';
+        add('AUTO_POINTS_ROUNDED',
+          'Pointage incompatible avec une décimale : ' + point.value +
+          ' point(s) proposés. Vérifier le barème original.',
+          id);
+      } else if (Number.isFinite(numeric) && numeric >= 0) {
+        point.value = numeric;
+        if (!['provided', 'proposed', 'derived'].includes(point.provenance)) {
+          point.provenance = 'provided';
+          add('AUTO_PROVENANCE_NORMALIZED',
+            'Provenance technique du pointage normalisée; le pointage a été conservé.', id);
+        }
+      } else if (point.graded === false) {
+        point.value = 0;
+        point.provenance = 'derived';
+      }
+      if (point.graded === undefined) point.graded = true;
+      if (point.bonus === undefined) point.bonus = false;
+      item.points = point;
+
+      const grading = item.grading;
+      if (!grading || typeof grading !== 'object') continue;
+      if (!Array.isArray(grading.concepts)) grading.concepts = [];
+      if (item.subtype === 'multipleSelection' && grading.partialCredit !== false) {
+        const correct = (item.response?.options || []).filter(x => x?.correct === true);
+        const validWeights = correct.length > 0 && correct.every(x =>
+          Number.isFinite(x?.points) && x.points >= 0 && oneDecimal(x.points));
+        const weightSum = correct.reduce((sum, option) => sum + (Number(option.points) || 0), 0);
+        if (!validWeights || Math.abs(weightSum - point.value) > 1e-9) {
+          // Never invent weights for individual correct options.
+          grading.partialCredit = false;
+          add('AUTO_PARTIAL_CREDIT_DISABLED',
+            'Pondération par bonne option absente ou incohérente : crédit partiel désactivé sans changer les bonnes réponses.',
+            id);
+        }
+      }
+      if (grading.mode === 'manual') {
+        if (grading.concepts.length) {
+          grading.concepts = [];
+          add('AUTO_MANUAL_KEYWORDS_IGNORED', 'Corrigé manuel conservé; mots-clés automatiques ignorés.', id);
+        }
+        continue;
+      }
+      const max = Number.isFinite(point.value) ? point.value : 0;
+      const active = [];
+      const canonical = new Map();
+      for (const concept of grading.concepts) {
+        if (!concept || typeof concept !== 'object') continue;
+        const sourceTerms = Array.isArray(concept.terms) ? concept.terms : [];
+        const validTerms = [];
+        const rawScore = concept.score == null || concept.score === '' ? NaN : Number(concept.score);
+        const scoreInvalid = !Number.isFinite(rawScore) || rawScore < 0 ||
+          rawScore > max || !oneDecimal(rawScore) ||
+          (rawScore === 0 && point.provenance === 'proposed');
+        if (scoreInvalid) {
+          const count = Math.max(1, grading.concepts.length);
+          const safeScore = grading.mode === 'auto' && count === 1
+            ? max : Math.min(max, Math.max(0.1, Math.round((max / count) * 10) / 10));
+          concept.score = Math.round(safeScore * 10) / 10;
+          add('AUTO_CONCEPT_SCORE',
+            'Score du concept « ' + asString(concept.label || concept.id) +
+            ' » recalculé prudemment à ' + concept.score + ' point(s).', id);
+        } else concept.score = rawScore;
+        for (const value of sourceTerms) {
+          const term = asString(value).trim();
+          const key = normalizeTerm(term, grading.caseSensitive === true);
+          if (!key || canonical.has(key)) {
+            if (key && canonical.has(key)) {
+              add('AUTO_DUPLICATE_KEYWORD',
+                'Mot-clé « ' + term + ' » répété : un seul score conservé pour éviter un conflit.', id);
+            }
+            continue;
+          }
+          canonical.set(key, concept.id);
+          validTerms.push(term);
+        }
+        concept.terms = validTerms;
+        if (concept.terms.length) active.push(concept);
+        else {
+          add('AUTO_EMPTY_CONCEPT',
+            'Concept « ' + asString(concept.label || concept.id) +
+            ' » sans mot-clé exploitable : écarté du matching, mais le corrigé reste disponible.', id);
+        }
+      }
+      grading.concepts = active;
+      if (['shortAnswer', 'longAnswer'].includes(item.subtype) &&
+          (active.length === 0 || grading.provenance?.kind === 'sourceMissing')) {
+        grading.mode = 'manual';
+        add('AUTO_MANUAL_REVIEW',
+          'Aucun mot-clé fiable pour une correction assistée : correction manuelle conservant le corrigé et les critères.',
+          id);
+      }
+    }
+    if (pkg.packageMode === 'full' && pkg.assessment?.declaredTotalPoints &&
+        ['proposed', 'derived'].includes(pkg.assessment.declaredTotalPoints.provenance)) {
+      const total = (pkg.items || []).filter(x => x?.kind === 'question' && x?.points?.graded !== false)
+        .reduce((sum, item) => sum + (Number(item.points?.value) || 0), 0);
+      const rounded = Math.round(total * 10) / 10;
+      if (pkg.assessment.declaredTotalPoints.value !== rounded) {
+        pkg.assessment.declaredTotalPoints.value = rounded;
+        add('AUTO_DERIVED_TOTAL', 'Total non officiel recalculé depuis les questions : ' + rounded + ' points.');
+      }
+    }
+    return { pkg, issues: repairs };
+  }
+
   function validatePackageV2(pkg, options = {}) {
     const issues = [];
     const capabilities = new Set(options.capabilities || [...DEFAULT_CAPABILITIES]);
@@ -576,6 +725,7 @@
     PROTOCOL_VERSION,
     DEFAULT_CAPABILITIES,
     validatePackageV2,
+    normalizePackageV2,
     normalizeTerm,
     normalizeText,
     expandMechanicalVariants,

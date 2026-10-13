@@ -19,6 +19,8 @@
       view: {
         state: 'blocked',
         statusLabel: '✕ Bloqué',
+        issueDetails: (issues.length ? issues : [{ severity: 'blocker', code: reason, message }])
+          .map(row => ({ severity: row.severity, code: row.code, message: row.message, itemId: row.itemId || null })),
         blockers: Math.max(1, issues.filter(issue => issue?.severity === 'blocker').length),
         warnings: issues.filter(issue => issue?.severity === 'warning').length,
         primaryAction: { id: 'none', label: 'Import bloqué', enabled: false, emphasis: 'danger' }
@@ -138,12 +140,19 @@
       if (!read.ok) return read;
       const snapshot = read.snapshot;
 
+      // Repair malformed generated grading metadata before hashing or
+      // reconciliation, so all downstream stages see the same immutable input.
+      const repaired = globalThis.CardinalFormativeV2?.normalizePackageV2
+        ? globalThis.CardinalFormativeV2.normalizePackageV2(input.pkg)
+        : { pkg: input.pkg };
+      const effectivePkg = repaired.pkg;
+
       const associationFingerprint = input.assessmentFingerprint ||
         deps.identity.associationFingerprintForTarget(target.targetFormativeId);
-      const packageFingerprint = deps.identity.packageContentFingerprint(input.pkg);
+      const packageFingerprint = deps.identity.packageContentFingerprint(effectivePkg);
 
       const prepared = await deps.orchestrator.prepare({
-        pkg: input.pkg,
+        pkg: effectivePkg,
         targetFormativeId: target.targetFormativeId,
         targetTabId: target.targetTabId,
         targetTitle: target.targetTitle,

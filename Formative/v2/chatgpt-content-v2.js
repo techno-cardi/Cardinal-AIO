@@ -377,6 +377,33 @@
       record.shell.appendChild(top);
       record.shell.appendChild(progressBar(record));
 
+      const problems = Array.isArray(view.issueDetails) ? view.issueDetails : [];
+      if (problems.length) {
+        const toggle = element('button', 'Voir les causes et ajustements (' + problems.length + ')');
+        toggle.type = 'button';
+        toggle.style.marginTop = '9px';
+        toggle.setAttribute('aria-expanded', 'false');
+        const details = element('div');
+        details.hidden = true;
+        details.style.marginTop = '7px';
+        details.style.maxHeight = '240px';
+        details.style.overflowY = 'auto';
+        details.style.fontSize = '12px';
+        details.style.whiteSpace = 'pre-wrap';
+        details.style.paddingLeft = '9px';
+        for (const problem of problems) {
+          const label = [problem.itemId, problem.code].filter(Boolean).join(' · ');
+          const line = element('div', (label ? label + ' : ' : '') + (problem.message || 'Détail indisponible'));
+          line.style.marginBottom = '6px';
+          details.appendChild(line);
+        }
+        toggle.addEventListener('click', () => {
+          details.hidden = !details.hidden;
+          toggle.setAttribute('aria-expanded', String(!details.hidden));
+        });
+        record.shell.append(toggle, details);
+      }
+
       if (view.showCorrectionButton || (view.validationRows || []).length) {
         const correction = element('button', 'Voir le corrigé préparé');
         correction.type = 'button';

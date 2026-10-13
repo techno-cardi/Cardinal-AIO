@@ -18,23 +18,25 @@
   ]);
   const MAX_PREPARE_TEXT_CHARS = 5200;
   const COMPACT_PROTOCOL = [
-    'CARDINAL_FORMATIVE_COMPACT_V2',
-    'Convertis fidèlement la demande actuelle en paquet Cardinal Formative. Ne mélange pas un ancien examen/document du chat sauf si la demande le vise.',
-    'SORTIE: 1) tableau humain compact; 2) ligne CARDINAL_FORMATIVE_PACKAGE_V2; 3) un seul JSON.',
-    'JSON: schema="cardinal.formative/2", protocolVersion="2.0.0", packageMode="full" sauf patch demandé, assessment, sources, items, issues. assessment: title, language="fr-CA", sourceMode="external-reference-only", declaredTotalPoints si connu.',
-    'Sources: seulement celles réellement utiles. roles questionnaire/text/answerKey/rubric/appendix/unknown; status provided/missing/external. Corrigé/barème fourni = référence prioritaire.',
-    'Items: section, instruction ou question; id/order uniques. Question: source{sourceRef,page,printedPage,number,subNumber,promptExact}, sourceRefs,prompt,subtype,required,points{value,provenance,graded:true,bonus:false},grading,transformations,issues.',
-    'TYPE IDÉAL D’ABORD: choix unique=multipleChoice; choix multiples=multipleSelection; menu/catégorie par champ=inlineChoice; association=matching; ordre=resequence; champs texte déterministes=fillInTheBlank; réponse courte unique=shortAnswer; justification/raisonnement/rédaction=longAnswer.',
-    'PROVEN ici: shortAnswer,longAnswer,fillInTheBlank,multipleChoice,multipleSelection,inlineChoice,resequence,matching. Tout autre subtype reste bloqué sauf fallback PROVEN réellement équivalent, déclaré avec idealSubtype+compromis+requiresReview=true.',
-    'Ne convertis pas un type structuré en longAnswer pour importer; ne remplace pas un dropdown fermé par un champ texte.',
-    'Structures: QCM=>response.options[{id,text,correct,points?}]. inlineChoice=>{{id}}+response.dropdowns[{id,options,correct:[valeur]}]. fillInTheBlank=>{{id}}+response.blanks[{id,answers,conceptIds:[]}]. resequence=>response.sequence[texte]. matching=>response.pairs[{left,right}].',
-    'Question mixte: découpe seulement si la source/barème permet une répartition de points certaine. Sinon garde-la groupée. Ne crée jamais de pondération interne.',
-    'Conserve options, bonnes réponses, ordre pertinent, points, crédit partiel et total. N’invente ni distracteurs ni réponses. Si total incohérent: issue TOTAL_POINTS_MISMATCH.',
-    'Correction: grading={mode,expectedAnswer,provenance:{kind,sourceRefs},partialCredit,caseSensitive,requirements,concepts}. Corrigé fourni > source explicite > inférence > question; n’invente rien. short/long auto/assisted: concepts[{id,label,score,provenance,terms,riskyTerms}], 2-5 termes discriminants réels par idée si disponibles; évite mots génériques et faux synonymes.',
-    'Keyword: score absolu par match, jamais cumulatif; un mot seul ne vaut pas toute réponse complexe. Négation, plusieurs éléments, justification ou relation => assisted + requirements + scores prudents. manual si correction fiable impossible; expectedAnswer complet même en assisted.',
-    'Présentation: sections/consignes non notées; prompt en courts paragraphes et sous-parties sur lignes distinctes, sans HTML/tableau Markdown. Transformation de fond => splitQuestion/changeResponseType/other + description + requiresReview=true; numéro retiré => removeSourceNumber,false.',
-    'Images/tableaux/extraits/médias: conserve la dépendance. Source/média nécessaire manquant => sourceMissing/SOURCE_REQUIRED ou MEDIA_DEPENDENCY_MISSING; jamais d’invention.',
-    'Vérifie avant sortie: toutes les questions, sous-parties, ordre, sources, total, points, types, réponses, JSON valide, aucun ID/session Formative inventé.'
+    "CARDINAL_FORMATIVE_COMPACT_V2",
+    "Convertis fidèlement le document demandé, sans mélanger les autres examens du chat.",
+    "SORTIE: tableau humain compact, ligne CARDINAL_FORMATIVE_PACKAGE_V2, puis un seul JSON.",
+    "JSON: schema=\"cardinal.formative/2\", protocolVersion=\"2.0.0\", packageMode=\"full\" sauf patch demandé; assessment, sources, items, issues.",
+    "Assessment: title, language=\"fr-CA\", sourceMode; total officiel seulement si vérifié.",
+    "Sources utiles seulement: id, role, label, status. Corrigé/barème enseignant prioritaire.",
+    "Items id/order uniques: section, instruction, question. Question: source{sourceRef,page,printedPage,number,subNumber,promptExact},sourceRefs,prompt,subtype,required,points,grading,transformations,issues.",
+    "TYPE IDÉAL D’ABORD: choix unique=multipleChoice; choix multiples=multipleSelection; menu/catégorie par champ=inlineChoice; association=matching; ordre=resequence; champs texte déterministes=fillInTheBlank; réponse courte=shortAnswer; justification=longAnswer.",
+    "PROVEN ici: shortAnswer,longAnswer,fillInTheBlank,multipleChoice,multipleSelection,inlineChoice,resequence,matching. Autre subtype interdit sans fallback équivalent revu.",
+    "Schéma actanciel, grille ou tableau à cases: regroupe les champs dans UNE question structurée fillInTheBlank avec libellés visibles et {{id}} distincts (ou inlineChoice si vrais menus avec options fournies). Ne découpe pas chaque case en question autonome. Conserve une justification longue séparée seulement si la consigne la demande. Ne fabrique pas de choix.",
+    "Structures: QCM=>response.options[{id,text,correct,points?}]; fillInTheBlank=>{{id}}+response.blanks[{id,answers,conceptIds:[]}]; inlineChoice=>{{id}}+response.dropdowns[{id,options,correct:[valeur]}]; resequence=>response.sequence[texte]; matching=>response.pairs[{left,right}].",
+    "Points: points{value,provenance,graded:true,bonus:false}. points.provenance uniquement provided/proposed/derived. Si points absents, propose une pondération raisonnable positive avec provenance=\"proposed\"; JAMAIS null ou 0 pour graded:true. Respecte les points officiels, total cohérent, une seule décimale.",
+    "Question multipartie: regroupe si les champs forment une tâche unique; divise seulement si sous-barème certain. Conserve toutes les sous-parties, réponses et crédits. Total incohérent: TOTAL_POINTS_MISMATCH.",
+    "Correction: grading={mode,expectedAnswer,provenance:{kind,sourceRefs},partialCredit,caseSensitive,requirements,concepts}. Sources fidèles; auto seulement déterministe, raisonnement=>assisted ou manual si mots-clés insuffisants.",
+    "Concepts: concepts[{id,label,score,provenance,terms,riskyTerms}]. Score numérique fini 0..points.value à une décimale, jamais null. termes discriminants uniques après normalisation; évite doublons avec scores différents et concepts sans termes. Pas de mots inventés; au besoin manual avec corrigé complet.",
+    "Keyword: score absolu par match, jamais cumulatif; un mot ne valide pas une réponse complexe. Négation et cause/conséquence=>assisted et exigences distinctes; crédit partiel prudent.",
+    "Présentation: paragraphes courts, sous-parties conservées, sans HTML ni tableau Markdown. promptExact fidèle, transformations {code,description,requiresReview}.",
+    "Images/tableaux/extraits/médias: respecte la dépendance réelle. Source absente => sourceMissing + SOURCE_REQUIRED, pas de fait inventé.",
+    "Vérifie: questions, ordre, sources, pondération, total, subtypes, correction, {{id}}/définitions, citations, JSON valide, aucun identifiant de session Formative.",
   ].join('\n');
 
   function oneLine(value) {
